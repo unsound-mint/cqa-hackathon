@@ -437,7 +437,7 @@ export function App() {
                 <Transcript key={conversation.id} conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} tags={tags} activeId={criterionId} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} toolbar={twoPane ? toolbar : null} />
               </div>
               <Splitter label="Ширина панели оценки" className="hidden xl:flex" invert measure={() => panelRef.current?.offsetWidth ?? 0} min={rem(24)} max={sideMax('panel')} onChange={(px) => setWidth('panel', px)} onReset={() => setWidth('panel', null)} />
-              <div ref={panelRef} className={cn('min-h-0 flex-col overflow-hidden glass-panel rounded-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
+              <div ref={panelRef} className={cn('min-h-0 min-w-0 flex-col', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
                 <EvaluationPanel
                   key={conversation.id}
                   conversation={conversation}
