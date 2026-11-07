@@ -1,0 +1,20 @@
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import type { Db } from '../db/index.js';
+import { ImportError, importDataset, type ImportDeps } from '../services/import/importer.js';
+
+const BodySchema = z.object({ groupId: z.string() });
+
+export function datasetRoutes(app: FastifyInstance, db: Db, deps: ImportDeps) {
+  app.post('/api/datasets/import', async (req, reply) => {
+    const body = BodySchema.safeParse(req.body);
+    if (!body.success) return reply.code(400).send({ error: 'body must be { groupId: string }' });
+    try {
+      return await importDataset(db, body.data.groupId, deps);
+    } catch (e) {
+      if (e instanceof ImportError) return reply.code(e.status).send({ error: e.message });
+      req.log.error({ err: e instanceof Error ? e.message : 'unknown' }, 'import failed');
+      return reply.code(500).send({ error: 'import failed' });
+    }
+  });
+}
