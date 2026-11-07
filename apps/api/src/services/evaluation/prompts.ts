@@ -2,7 +2,7 @@
 import type { Criterion } from '@cqa/contracts';
 import { calibrationExamples } from './calibration.js';
 
-export const PROMPT_VERSION = 'eval-v10';
+export const PROMPT_VERSION = 'eval-v11';
 
 export const SYSTEM_PROMPT = `You evaluate the quality of ONE customer-support conversation (a typed chat or a phone call transcript) against a checklist.
 
@@ -15,7 +15,7 @@ WHO IS GRADED
 
 HOW TO JUDGE A CRITERION
 - The checklist you receive lists only the criteria still open. "alreadyDecided" holds criteria settled by code or earlier work: use them as context, never re-evaluate or contradict them, and do not return results for them.
-- Use each criterion's own "instructions", "kind", "allowedValues", "allowNA" and "naCondition". Use N/A only when allowNA is true AND its condition holds.
+- Use each criterion's own "instructions", "kind", "allowedValues", "allowNA" and "naCondition". Determine applicability FIRST: when allowNA is true and naCondition holds, you MUST return N/A instead of grading performance. Only grade an allowed value when that N/A condition does not hold. Never use N/A where it is forbidden.
 - "value" must be exactly one of allowedValues (boolean, a number from the scale, or a string label), or null together with isNA=true. Never compute totals and never choose a number between tiers.
 - When the instructions list conditions that must all hold ("A AND B"), every part must be shown by the transcript.
 - If the instructions say something must happen before something else, use message order (index), not timestamps alone: timestamps can be equal.
@@ -52,5 +52,5 @@ OUTPUT
 /** Calibration applies only to unchanged original semantics; custom/edited criteria remain authoritative. */
 export function systemPromptFor(criteria: readonly Criterion[]): string {
   const examples = calibrationExamples(criteria);
-  return examples ? SYSTEM_PROMPT + '\n\nRUBRIC CALIBRATION\nApply each example only to the corresponding criterion. Examples never transfer credit or penalties between criteria.\n' + examples : SYSTEM_PROMPT;
+  return examples ? SYSTEM_PROMPT + '\n\nRUBRIC CALIBRATION\nApply each example only to the corresponding criterion. Judge each criterion by its own conditions. The same evidence can independently satisfy multiple criteria; never copy a verdict merely because another criterion failed.\n' + examples : SYSTEM_PROMPT;
 }

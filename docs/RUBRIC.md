@@ -42,6 +42,9 @@ A saved checklist has immutable version and schema: ID, section, description, an
 ## Reviewed criterion boundaries
 
 The versioned fictional examples in `apps/api/src/services/evaluation/calibration.ts` implement these interpretations for the unchanged original rubric:
+- Verification applicability follows the assistance actually undertaken: a declined protected check followed only by generic/public guidance is N/A. An accepted account-specific investigation still requires verification even if it is escalated rather than resolved.
+- Criterion 05 requires recognizable professional courtesy, not merely absence of insults or eventual correctness. In this formal Russian support setting, casual «Привет» does not establish politeness. No single apology phrase is mandatory.
+- Polite, relevant assistance may pass criterion 05 even when a separate improper private offer triggers 08. Assess an actual insult/dismissal or unaddressed inconvenience under 05 independently.
 - Clear wording of an improper private offer is assessed separately from the serious-violation flag; it does not by itself lower criterion 06.
 - Authoritative confirmation of an account restriction before identity verification is confidential disclosure: criterion 03 No and criterion 08 Yes. Merely repeating the customer's claim without accessing/confirming the account is different.
 - After a resolved exchange, a short successful-outcome acknowledgement or “Happy to help” with a farewell can satisfy criterion 07. A farewell alone does not.
