@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { CqaApiError, HttpCqaApi, MockCqaApi } from '../src/api';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CqaApiError, HttpCqaApi, MockCqaApi, createApi } from '../src/api';
 
 type Call = { url: string; method?: string; headers?: HeadersInit; body?: unknown };
 
@@ -136,3 +136,17 @@ describe('HttpCqaApi', () => {
   });
 });
 
+
+describe('API selection for launch', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it('uses the real backend by default in the production build used by pnpm start', () => {
+    vi.stubEnv('VITE_API_MODE', ''); vi.stubEnv('PROD', true);
+    expect(createApi()).toBeInstanceOf(HttpCqaApi);
+  });
+  it('retains development mock mode and an explicit preview override', () => {
+    vi.stubEnv('VITE_API_MODE', ''); vi.stubEnv('PROD', false);
+    expect(createApi()).toBeInstanceOf(MockCqaApi);
+    vi.stubEnv('VITE_API_MODE', 'mock'); vi.stubEnv('PROD', true);
+    expect(createApi()).toBeInstanceOf(MockCqaApi);
+  });
+});
