@@ -34,13 +34,13 @@ it('does not let other original examples override a replaced criterion',()=>{
 
 it('scopes reviewed confidentiality and closing policy to their original semantics',()=>{
  expect(systemPromptFor([criterion('08')])).toContain('Verification is No and confidential-disclosure flag is Yes');
- expect(systemPromptFor([criterion('07')])).toContain('"Happy to help. Goodbye!" is also Yes');
+ expect(systemPromptFor([criterion('07')])).toContain('"You\'re welcome. Take care!" is Yes');
  expect(systemPromptFor([{...criterion('07'),instructions:'Only an explicit future-help question counts.'}])).toBe(SYSTEM_PROMPT);
 });
 
-it('leaves social closing phrases to contextual evaluation',()=>{
- const c={...conversation,transcript:[{index:0,timestamp:'00:00',speaker:'operator' as const,text:'Happy to help. Goodbye!'}]};
- expect(DETECTORS.closing!.run({conversation:c,facts:deriveFacts(c),criterion:criterion('07')})).toBeNull();
+it('treats a courteous acknowledgement plus farewell as a closing',()=>{
+ const c={...conversation,transcript:[{index:0,timestamp:'00:00',speaker:'operator' as const,text:"You're welcome. Take care!"}]};
+ expect(DETECTORS.closing!.run({conversation:c,facts:deriveFacts(c),criterion:criterion('07')})).toMatchObject({value:true});
 });
 
 it('requests the validated explanation language in the schema',()=>{
