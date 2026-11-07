@@ -126,7 +126,7 @@ Original-rubric requests omit first-response SLA measurements and pre-operator g
 
 See `docs/RUBRIC.md` for reviewed criterion boundaries. Reference agreement measures model-to-model agreement until human adjudication; keep complete original model reasons/evidence in private validation artifacts for diagnosis and report rerun stability.
 
-### Semantic facts and deterministic tiers (eval-v14 / operator-v3)
+### Semantic facts and deterministic tiers (eval-v15 / operator-v3)
 
 Canonical original criteria 02, 04 and 06 now use internal helpers under `services/evaluation/semantic/`; 03 retains its verification helper. Signature matching excludes titles, ids and weights, so renaming/reweighting retains the helper while edited instructions, values or applicability use the generic evaluator.
 
@@ -136,6 +136,6 @@ Canonical original criteria 02, 04 and 06 now use internal helpers under `servic
 
 Every fact reference is checked for source existence, role, client visibility and causal order. Consultation/dialogue wire references are compact integer indices; code expands them to exact original message text before validation and storage. Needs-identification references retain narrow quotes to order two clauses inside one message. Optional facts use empty/one-item arrays to avoid nullable-object grammar growth; runtime validation enforces cardinality. Code assigns the entire supplied transcript as the inspected range, matching the extraction instruction, and caps confidence across recording gaps.
 
-The combined strict schema exceeded the provider's compiled-grammar limit in live testing. Two independent requests run concurrently: direct criteria + needs/verification, and consultation/dialogue facts. Each slice has its own single repair attempt; partial success never persists a completed evaluation. Usage sums all calls; latency is evaluation wall time. Reuse/rule-only rescoring still needs no provider call.
+The combined strict schema exceeded the provider's compiled-grammar limit in live testing. Two independent requests run concurrently: direct criteria + needs/verification, and consultation/dialogue facts. Both slices retain the same active-checklist calibration context. Each slice has its own single repair attempt; partial success never persists a completed evaluation. Usage sums all calls; latency is evaluation wall time. Reuse/rule-only rescoring still needs no provider call.
 
 An additive, idempotent SQLite migration adds nullable `evaluations.decision_facts`. Each completed evaluation stores validated facts keyed by criterion id with its helper kind, alongside prompt/model/checklist provenance and immutable original results. Appeals update only final results/totals and preserve these facts. Reused results link to their original evaluation via `reusedFrom`; that row holds their facts. Historical rows retain null; public DTOs are unchanged. The prompt/cache version bump prevents reuse of older direct-grade decisions. Rollback can leave the nullable column in place; do not drop original audit records.

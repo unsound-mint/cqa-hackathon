@@ -208,10 +208,11 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
     const basic = assisted.filter(a => !extended.includes(a));
     const groups = [{ criteria: undecided, assisted: basic }, { criteria: [], assisted: extended }].filter(g => g.criteria.length || g.assisted.length);
     const initialDecided = [...decided.values()];
+    // Both slices retain the same rubric context; splitting the grammar must not remove criterion boundaries.
+    const system = systemPromptFor(checklist.criteria);
     const completed = await Promise.allSettled(groups.map(async ({ criteria, assisted }) => {
       const subset = { id: checklist.id, criteria };
       const outputSchema = buildOutputSchema(criteria, assisted, conversation.language);
-      const system = systemPromptFor([...criteria, ...assisted.map(a => a.criterion)]);
       let problems: string[] = [];
       let ok = false;
       for (let attempt = 1; attempt <= maxAttempts && !ok; attempt++) {

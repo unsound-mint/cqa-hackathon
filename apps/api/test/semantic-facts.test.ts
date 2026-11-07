@@ -28,7 +28,7 @@ function decide<A>(helper: AssistedDetector<A>, id: string, raw: unknown, c = co
   expect(checked.answers).toBeDefined();
   return helper.decide(i, checked.answers!);
 }
-const needs = () => ({ ...common(), usedKnownContext: true, missingDetails: [{ detail: 'Platform', clientRequest: ref(0), operatorQuestion: [ref(1, 'Are you using the app or website?')], firstSubstantiveOperatorAdvice: [ref(1, 'Open the app menu.')] }] });
+const needs = () => ({ ...common(), usedKnownContext: true, missingDetails: [{ detail: 'Platform', clientRequest: ref(0), operatorQuestion: [ref(1, 'Are you using the app or website?')], firstAdviceDependingOnDetail: [ref(1, 'Open the app menu.')] }] });
 const request = (materiality: 'main' | 'material' | 'minor', handling: 'answered' | 'concrete_next_step' | 'generic_hint' | 'unanswered', quote: string) => ({ description: quote, clientRequest: ref(0, quote), materiality, handling, operatorEvidence: handling === 'unanswered' ? [] : [ref(3)] });
 const consultation = () => ({ ...common(), requestFormulated: true, requests: [request('main', 'answered', 'Where is the login?')], incorrectKeyRecommendation: [] });
 const dialogue = () => ({ ...common(), operatorEvidence: [ref(3)], incoherencePreventingUnderstanding: [], forcedClarifications: [], otherCommunicationFlaws: [], waits: [] });

@@ -63,6 +63,7 @@ describe('rules decide first, the model gets only the rest', () => {
     expect(sent.checklist.criteria.map((c: { id: string }) => c.id)).toEqual(['05', '08']);
     expect(sent.assistedQuestions.map((q: { criterionId: string }) => q.criterionId)).toEqual(['02', '03']);
     expect(JSON.parse(p.calls[1]!.user).assistedQuestions.map((q: {criterionId:string})=>q.criterionId)).toEqual(['04','06']);
+    expect(p.calls[0]!.system).toBe(p.calls[1]!.system);
     expect(sent.alreadyDecided.map((r: { criterionId: string }) => r.criterionId)).toEqual(['01', '07']);
   });
 
