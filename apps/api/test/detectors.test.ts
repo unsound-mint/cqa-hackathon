@@ -55,22 +55,38 @@ describe('greeting-intro detector (proves Yes only)', () => {
   });
 });
 
-describe('closing detector (proves Yes or N/A only)', () => {
+describe('closing detector (strict: offer AND goodbye; proves Yes or N/A only)', () => {
   it.each([
-    ['RU', 'Пожалуйста. Хорошего дня!'],
     ['RU', 'Если вопрос останется, напишите нам. До свидания!'],
-    ['KZ', 'Рақмет. Сау болыңыз!'],
-    ['KZ', 'Күніңіз сәтті болсын!'],
-    ['EN', 'Glad to help. Have a great day!'],
-    ['EN', 'Goodbye!'],
+    ['RU', 'Пожалуйста! Если появятся вопросы, пишите нам. Хорошего дня!'],
+    ['RU', 'Обращайтесь, если что-то ещё понадобится. Всего доброго!'],
+    ['KZ', 'Сұрағыңыз болса, жазыңыз. Сау болыңыз!'],
+    ['EN', 'If you have any other questions, feel free to write. Have a great day!'],
+    ['EN', 'Is there anything else I can help with? Goodbye!'],
   ] as const)('%s: %s', (lang, text) => {
     const r = run('closing', chat(lang, [['client', 'q'], ['operator', 'ответ'], ['client', 'спасибо'], ['operator', text]]));
     expect(r).toMatchObject({ value: true, source: 'rule' });
-    expect(text).toContain(r!.evidence[0]!.quote!);
+    expect(r!.evidence).toHaveLength(2);
+    for (const e of r!.evidence) expect(text).toContain(e.quote!);
   });
 
-  it('a goodbye earlier in the chat does not count; only the last operator turn', () => {
-    expect(run('closing', chat('RU', [['operator', 'До свидания'], ['client', 'стойте, еще вопрос'], ['operator', 'Слушаю вас']]))).toBeNull();
+  it.each([
+    ['RU', 'Пожалуйста. Хорошего дня!'], // bare goodbye: "and" means both parts
+    ['RU', 'Хорошо, начните со сверки дат. До свидания!'],
+    ['KZ', 'Рақмет. Сау болыңыз!'],
+    ['EN', 'Glad to help. Goodbye!'],
+    ['RU', 'Если появятся вопросы, пишите нам.'], // offer without goodbye
+  ] as const)('stays undecided when only one half is present: %s %s', (lang, text) => {
+    expect(run('closing', chat(lang, [['client', 'q'], ['operator', 'ответ'], ['client', 'спасибо'], ['operator', text]]))).toBeNull();
+  });
+
+  it('accepts the offer and the goodbye in separate messages of the same final turn', () => {
+    const r = run('closing', chat('RU', [['client', 'q'], ['operator', 'Если нужна помощь, обращайтесь.'], ['operator', 'До свидания!']]));
+    expect(r?.evidence.map((e) => e.messageIndex)).toEqual([1, 2]);
+  });
+
+  it('a closing earlier in the chat does not count; only the last operator turn', () => {
+    expect(run('closing', chat('RU', [['operator', 'Обращайтесь. До свидания'], ['client', 'стойте, еще вопрос'], ['operator', 'Слушаю вас']]))).toBeNull();
   });
 
   it('N/A only when the client side ended right after the client spoke last', () => {

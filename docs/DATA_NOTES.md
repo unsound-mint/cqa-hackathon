@@ -17,4 +17,4 @@ Facts the evaluator relies on (computed in `services/evaluation/facts.ts`):
 - Identity-verification system events exist in 4 of 65 records (one phrasing each in RU, KZ, EN, plus one more RU).
 - Timestamps are monotonic; ties are rare. Operator-join to first operator message takes about 37-132 s in chats.
 
-Detector coverage on this set (rules only, no model): criterion 01 decided 60/65 (Yes; the 5 undecided are real No/ambiguous cases or garbled voice), criterion 07 decided 54/65 (50 Yes, 4 N/A). Re-run after changing the patterns.
+Detector coverage on this set (rules only, no model): criterion 01 decided 60/65 (Yes; the 5 undecided are real No/ambiguous cases or garbled voice), criterion 07 decided 6/65 under the strict reading (2 Yes, 4 N/A; 48 chats end with only a goodbye and go to the model). Re-run after changing the patterns.

@@ -17,16 +17,28 @@ const GOODBYE: Record<Language, RegExp> = {
 const CLIENT_SIDE_END = [/клиент\s+(?:покинул|завершил)/iu, /соединение\s+с\s+клиентом\s+прервано/iu, /клиентпен\s+байланыс\s+үзілді/iu, /connection\s+to\s+(?:the\s+)?customer\s+(?:was\s+)?lost/iu, /customer\s+(?:left|disconnected)/iu];
 
 /**
- * PROVISIONAL policy (Denis, 2026-11-07): a goodbye in the last operator turn counts as the closing; the
- * rubric's "summarizes or offers further help AND says goodbye" is ambiguous and DEV closings are mostly a
- * bare goodbye. Flip to true to also require an offer/summary (then this detector only proves via the model path).
+ * An offer of further help, the second half of rubric 07 ("summarizes OR offers further help, AND says goodbye").
+ * A "summary" is semantic and is left to the model; only the offer is provable by phrase.
  */
-export const REQUIRE_OFFER_OR_SUMMARY = false;
+const OFFER: Record<Language, RegExp> = {
+  RU: new RegExp(
+    `${L}(?:обращайтесь|пишите|напишите\\s+нам|звоните|позвоните|будем\\s+рады\\s+помочь|(?:если|при)\\s+(?:у\\s+вас\\s+)?(?:появятся|возникнут|останутся|будут|остан\\p{L}+|возникн\\p{L}+)\\s+(?:ещ[её]\\s+)?(?:вопрос\\p{L}*|затруднени\\p{L}*)|(?:могу|можем)\\s+(?:ещ[её]\\s+)?(?:чем-?то\\s+)?помочь|чем\\s+(?:ещ[её]\\s+)?(?:могу|можем)\\s+помочь|ещ[её]\\s+(?:какие-?либо\\s+)?вопрос\\p{L}*|остались\\s+вопросы)`,
+    'iu',
+  ),
+  KZ: new RegExp(
+    `${L}(?:сұрағыңыз\\s+(?:болса|туындаса)|сұрақ\\p{L}*\\s+(?:болса|туындаса)|жазыңыз|хабарласыңыз|көмектесуге\\s+дайын\\p{L}*|басқа\\s+сұрақ|тағы\\s+(?:бір\\s+)?сұрақ|көмектесе\\s+аламын)`,
+    'iu',
+  ),
+  EN: new RegExp(
+    `${L}(?:if\\s+you\\s+(?:have|need|get|run\\s+into)\\s+(?:any\\s+)?(?:further\\s+|more\\s+|other\\s+)?(?:questions?|help|issues?)|feel\\s+free|reach\\s+out|contact\\s+us|let\\s+us\\s+know|anything\\s+else|happy\\s+to\\s+help|write\\s+(?:to\\s+)?us|here\\s+to\\s+help)`,
+    'iu',
+  ),
+};
 
-const EXPLAIN_YES: Record<Language, (q: string) => string> = {
-  RU: (q) => `Правило: в последней реплике оператора есть прощание («${q}»).`,
-  KZ: (q) => `Ереже: оператордың соңғы жауабында қоштасу («${q}») бар.`,
-  EN: (q) => `Rule: the operator's last turn contains a goodbye ("${q}").`,
+const EXPLAIN_YES: Record<Language, (offer: string, bye: string) => string> = {
+  RU: (o, b) => `Правило: в последней реплике оператора есть предложение помощи («${o}») и прощание («${b}»).`,
+  KZ: (o, b) => `Ереже: оператордың соңғы жауабында көмек ұсынысы («${o}») және қоштасу («${b}») бар.`,
+  EN: (o, b) => `Rule: the operator's last turn offers further help ("${o}") and says goodbye ("${b}").`,
 };
 const EXPLAIN_NA: Record<Language, string> = {
   RU: 'Правило: диалог оборвался на стороне клиента сразу после его последнего сообщения, возможности завершить разговор не было.',
@@ -36,27 +48,36 @@ const EXPLAIN_NA: Record<Language, string> = {
 
 export const closingDetector: Detector = {
   name: 'closing',
-  description: 'Yes when the last operator turn has a goodbye (provisional policy); N/A when the client side ended the dialog right after speaking. Never decides No.',
+  description: 'Yes when the last operator turn offers further help AND says goodbye (strict); N/A when the client side ended the dialog right after speaking. A bare goodbye is left to the model. Never decides No.',
   run({ conversation, criterion }) {
-    if (!isBooleanYesNo(criterion) || REQUIRE_OFFER_OR_SUMMARY) return null;
+    if (!isBooleanYesNo(criterion)) return null;
     const lang = conversation.language;
     const t = conversation.transcript;
     const turn = lastOperatorTurn(conversation);
 
-    for (const m of [...turn].reverse()) {
+    // Strict "AND": an offer of help and a goodbye, both in the last operator turn. A bare goodbye proves nothing.
+    let bye: { index: number; text: string } | undefined;
+    let offer: { index: number; text: string } | undefined;
+    for (const m of turn) {
       const g = GOODBYE[lang].exec(m.text);
-      if (g) {
-        return {
-          criterionId: criterion.id,
-          value: true,
-          isNA: false,
-          explanation: EXPLAIN_YES[lang](g[0]),
-          confidence: conversation.channel === 'voice call' ? 'medium' : 'high',
-          source: 'rule',
-          evidence: [{ messageIndex: m.index, quote: g[0] }],
-          checkedRange: { from: turn[0]!.index, to: turn[turn.length - 1]!.index },
-        };
-      }
+      if (g) bye = { index: m.index, text: g[0] };
+      const o = OFFER[lang].exec(m.text);
+      if (o && !offer) offer = { index: m.index, text: o[0] };
+    }
+    if (bye && offer) {
+      return {
+        criterionId: criterion.id,
+        value: true,
+        isNA: false,
+        explanation: EXPLAIN_YES[lang](offer.text, bye.text),
+        confidence: conversation.channel === 'voice call' ? 'medium' : 'high',
+        source: 'rule',
+        evidence: [
+          { messageIndex: offer.index, quote: offer.text },
+          { messageIndex: bye.index, quote: bye.text },
+        ],
+        checkedRange: { from: turn[0]!.index, to: turn[turn.length - 1]!.index },
+      };
     }
 
     // N/A proof: the final non-system message is the client's and the transcript ends with a client-side departure event.
