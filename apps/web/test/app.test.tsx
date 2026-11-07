@@ -554,6 +554,31 @@ it('a recording that fails to load says so, links the original, and hides fragme
   expect(screen.getAllByRole('button', { name: /Прослушать фрагмент/ }).length).toBeGreaterThan(0);
 });
 
+it('the call bar links to the chat: a marker plays that moment and shows its message, a click on the bar jumps to the message spoken there', async () => {
+  let now = 0;
+  const set = vi.fn((v: number) => { now = v; });
+  vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'set').mockImplementation(set);
+  vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockImplementation(() => now);
+  vi.spyOn(HTMLMediaElement.prototype, 'duration', 'get').mockReturnValue(130);
+  const play = vi.fn(() => Promise.resolve());
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(play);
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  renderApp(bundle((b) => { b.conversations[0].channel = 'voice call'; b.conversations[0].audioUrl = 'https://example.invalid/fictional.mp3'; }));
+  await transcriptReady();
+  // Nothing open: markers sit on the messages behind lost points (04 cites #8 and #9, one fragment).
+  const markers = within(screen.getByRole('group', { name: 'Доказательства на записи' }));
+  fireEvent.click(markers.getAllByRole('button', { name: /Критерии 04/ })[0]!);
+  expect(play).toHaveBeenCalled();
+  expect(set).toHaveBeenLastCalledWith(84);
+  expect(document.activeElement?.id).toBe('msg-8'); // the chat shows that message
+
+  const bar = screen.getByRole('slider', { name: 'Запись звонка' });
+  vi.spyOn(bar, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 130, top: 0, height: 40, right: 130, bottom: 40, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
+  fireEvent.pointerDown(bar, { clientX: 68 }); // about 1:05 into the call: client message #5 (01:03)
+  expect(set).toHaveBeenLastCalledWith(63);
+  expect(document.activeElement?.id).toBe('msg-5');
+});
+
 it('offers no player controls for a chat or for a call without a recording', async () => {
   renderApp();
   await transcriptReady();

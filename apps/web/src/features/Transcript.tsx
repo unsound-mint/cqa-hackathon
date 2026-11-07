@@ -6,6 +6,7 @@ import { Bot, Headset, Play, Square, User } from 'lucide-react';
 import { SPEAKER_LABEL, displayTime, gapLabel, type Tone } from '@/lib/present';
 import { fragmentLabel, segmentOf, usePlayer } from '@/lib/player';
 import { useApi } from '@/ApiContext';
+import { CallTimeline, type Marker } from './CallTimeline';
 
 export type Focus = { index: number; nonce: number } | null;
 export type Tag = { id: string; tone: Tone; title: string; label: string; explanation: string };
@@ -49,24 +50,39 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
   const src = api.audioSrc(conversation);
   const canPlay = !!src && player.available;
 
-  useEffect(() => {
-    if (!focus) return;
-    const el = refs.current.get(focus.index);
+  /** Brings a message into view and flashes it (evidence links, the call bar, "В чате"). */
+  const reveal = (index: number) => {
+    const el = refs.current.get(index);
     if (!el) return;
     el.scrollIntoView({ block: 'center', behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     el.focus({ preventScroll: true });
     el.classList.remove('flash');
     void el.offsetWidth; // restart the animation on repeated clicks
     el.classList.add('flash');
+  };
+  useEffect(() => {
+    if (!focus) return;
+    reveal(focus.index);
     player.seekTo(focus.index); // evidence on a call: the player moves to that fragment without playing
   }, [focus]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Markers on the call bar: the open criterion's evidence, or (nothing open) every message behind a lost point. */
+  const markers: Marker[] = [...tags]
+    .map(([index, list]) => {
+      const shown = activeId ? list.filter((t) => t.id === activeId) : list.filter((t) => t.tone === 'danger' || t.tone === 'warn');
+      if (!shown.length) return null;
+      const tone = shown.some((t) => t.tone === 'danger') ? 'danger' : shown[0]!.tone;
+      return { index, ids: shown.map((t) => t.id), tone, active: !!activeId };
+    })
+    .filter((m): m is Marker => m !== null);
 
   return (
     <section aria-label="Транскрипт" className="flex h-full min-h-0 flex-col">
       <header className="space-y-3 border-b border-line px-6 py-4">
         {toolbar}
         {conversation.channel === 'voice call' && <Badge tone="warn">Распознанная речь: возможны ошибки в словах</Badge>}
-        {src && <audio ref={player.register} controls preload="none" src={src} aria-label="Запись звонка" className={cn('h-10 w-full', player.failed && 'hidden')} />}
+        {src && <audio ref={player.register} preload="metadata" src={src} className="hidden" />}
+        {src && !player.failed && <CallTimeline conversation={conversation} src={src} markers={markers} onReveal={reveal} />}
         {player.failed && conversation.audioUrl && (
           <p role="status" className="text-sm text-muted">
             Запись не загрузилась: ссылка могла устареть или сервер записи недоступен.{' '}
@@ -87,6 +103,7 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
           const gap = gapLabel(conversation.transcript[k - 1]?.timestamp, m.timestamp);
           const seg = canPlay ? segmentOf(conversation, m.index) : null;
           const isPlaying = player.playing === m.index;
+          const isSpeaking = !isPlaying && player.speaking === m.index;
           return (
             <li
               key={m.index}
@@ -125,7 +142,7 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
                   </button>
                 )}
               </span>
-              <span className={cn('block max-w-[85%] whitespace-pre-wrap break-words px-4 py-3 text-base sm:max-w-[80%]', BUBBLE[m.speaker], isCited && 'ring-2 ring-brand', inChecked && !isCited && 'ring-1 ring-line-strong', isPlaying && 'ring-2 ring-brand motion-safe:animate-pulse')}>{m.text}</span>
+              <span className={cn('block max-w-[85%] whitespace-pre-wrap break-words px-4 py-3 text-base sm:max-w-[80%]', BUBBLE[m.speaker], isCited && 'ring-2 ring-brand', inChecked && !isCited && 'ring-1 ring-line-strong', isPlaying && 'ring-2 ring-brand motion-safe:animate-pulse', isSpeaking && 'ring-2 ring-brand/60')}>{m.text}</span>
               {mine.length > 0 && (
                 <span className={cn('mt-2 flex flex-wrap gap-1', right && 'justify-end', system && 'justify-center')}>
                   {mine.map((t) => (

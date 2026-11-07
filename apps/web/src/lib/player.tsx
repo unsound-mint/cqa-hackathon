@@ -80,6 +80,49 @@ export function fragmentLabel(_conversation: Conversation, seg: Segment): string
   return seg.label;
 }
 
+export type Band = { index: number; speaker: Conversation['transcript'][number]['speaker']; from: number; to: number | null };
+export type CallMap = {
+  /** Recorded messages on the recording's own timeline (seconds), each until the next one starts (`to` null: to the end). */
+  bands: Band[];
+  /** Places where the recording was paused and later resumed: the cut is invisible in the audio, so it is marked. */
+  cuts: { at: number; seconds: number }[];
+  /** Recording seconds -> conversation clock seconds (what the chat shows). */
+  toClock: (rec: number) => number;
+  /** The message being spoken at a recording position (the last recorded message started at or before it). */
+  messageAt: (rec: number) => number | null;
+};
+
+/** The whole call laid onto the recording: what the call bar draws and how a click on it maps back to the chat. */
+export function callMap(conversation: Conversation): CallMap {
+  const tl = timelineOf(conversation);
+  const starts = conversation.transcript
+    .map((m, i) => ({ i, speaker: m.speaker, rec: m.speaker === 'system' ? null : recordingPosition(conversation, i) }))
+    .filter((x): x is { i: number; speaker: Band['speaker']; rec: number } => x.rec !== null);
+  const bands = starts.map((x, k) => {
+    const later = starts.slice(k + 1).find((y) => y.rec >= x.rec + 1);
+    return { index: x.i, speaker: x.speaker, from: x.rec, to: later ? later.rec : null };
+  });
+  const cuts = tl.pauses.filter((p) => Number.isFinite(p.to)).map((p) => ({ at: toRecordingClamped(tl, p.from), seconds: p.to - p.from }));
+  const sorted = [...tl.pauses].sort((x, y) => x.from - y.from);
+  return {
+    bands,
+    cuts,
+    toClock: (rec) => {
+      let wall = rec + tl.start;
+      for (const p of sorted) {
+        if (p.from <= wall && Number.isFinite(p.to)) wall += p.to - p.from;
+        else break;
+      }
+      return wall;
+    },
+    messageAt: (rec) => {
+      let hit: number | null = null;
+      for (const b of bands) if (b.from <= rec + 0.05) hit = b.index;
+      return hit;
+    },
+  };
+}
+
 /** Recording position of a message (null if it was not recorded). */
 export function recordingPosition(conversation: Conversation, index: number): number | null {
   const at = sinceStart(conversation, index);
@@ -102,9 +145,21 @@ type Player = {
   retry: () => void;
   /** The transcript's <audio> element registers itself here. */
   register: (el: HTMLAudioElement | null) => void;
+  /** Message being spoken at the playhead while the recording plays (null when paused or between calls). */
+  speaking: number | null;
+  /** Free play/pause of the whole recording (the call bar's button). */
+  toggle: () => void;
+  /** Moves the playhead to a recording position (seconds), keeping play/pause as it is. */
+  seekRecording: (sec: number) => void;
+  map: CallMap | null;
 };
 
-const Ctx = createContext<Player>({ available: false, failed: false, playing: null, playFragments: () => {}, stop: () => {}, seekTo: () => {}, retry: () => {}, register: () => {} });
+/** Playhead state, in its own context: it changes several times a second, and only the call bar needs it. */
+export type Clock = { time: number; duration: number; paused: boolean };
+const ClockCtx = createContext<Clock>({ time: 0, duration: 0, paused: true });
+export const usePlayerClock = () => useContext(ClockCtx);
+
+const Ctx = createContext<Player>({ available: false, failed: false, playing: null, playFragments: () => {}, stop: () => {}, seekTo: () => {}, retry: () => {}, register: () => {}, speaking: null, toggle: () => {}, seekRecording: () => {}, map: null });
 export const usePlayer = () => useContext(Ctx);
 
 /** One player per open conversation, shared by the transcript (which owns the <audio>) and the verdict panel. */
@@ -114,6 +169,20 @@ export function PlayerProvider({ conversation, children }: { conversation: Conve
   const current = useRef<Segment | null>(null);
   const [playing, setPlaying] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
+  const [clock, setClock] = useState<Clock>({ time: 0, duration: 0, paused: true });
+  const [speaking, setSpeaking] = useState<number | null>(null);
+  const map = useMemo(() => (conversation?.audioUrl ? callMap(conversation) : null), [conversation]);
+  const mapRef = useRef(map);
+  mapRef.current = map;
+  /** Clock for the bar; the spoken message only when it changes, so the transcript re-renders per message, not per tick. */
+  const onClock = useCallback(() => {
+    const a = el.current;
+    if (!a) return;
+    const duration = Number.isFinite(a.duration) ? a.duration : 0;
+    setClock((c) => (c.time === a.currentTime && c.duration === duration && c.paused === a.paused ? c : { time: a.currentTime, duration, paused: a.paused }));
+    const now = a.paused ? null : mapRef.current?.messageAt(a.currentTime) ?? null;
+    setSpeaking((s) => (s === now ? s : now));
+  }, []);
   const onError = useCallback(() => {
     queue.current = [];
     current.current = null;
@@ -162,8 +231,10 @@ export function PlayerProvider({ conversation, children }: { conversation: Conve
     if (current.current) clear();
   }, [clear]);
 
+  const CLOCK_EVENTS = ['timeupdate', 'play', 'pause', 'seeked', 'durationchange', 'loadedmetadata', 'ended'] as const;
   const register = useCallback((a: HTMLAudioElement | null) => {
     if (el.current) {
+      for (const ev of CLOCK_EVENTS) el.current.removeEventListener(ev, onClock);
       el.current.removeEventListener('timeupdate', onTime);
       el.current.removeEventListener('pause', onPause);
       el.current.removeEventListener('ended', clear);
@@ -171,15 +242,18 @@ export function PlayerProvider({ conversation, children }: { conversation: Conve
     }
     el.current = a;
     if (a) {
+      for (const ev of CLOCK_EVENTS) a.addEventListener(ev, onClock);
       a.addEventListener('timeupdate', onTime);
       a.addEventListener('pause', onPause);
       a.addEventListener('ended', clear);
       a.addEventListener('error', onError);
     }
-  }, [onTime, onPause, clear, onError]);
+  }, [onTime, onPause, clear, onError, onClock]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setFailed(false);
+    setClock({ time: 0, duration: 0, paused: true });
+    setSpeaking(null);
     return clear;
   }, [conversation?.id, clear]);
 
@@ -219,7 +293,30 @@ export function PlayerProvider({ conversation, children }: { conversation: Conve
       }
     },
     register,
-  }), [conversation, playing, failed, start, clear, register]);
+    speaking,
+    map,
+    toggle: () => {
+      const a = el.current;
+      if (!a) return;
+      clear(); // free listening: no fragment end
+      if (a.paused) void a.play()?.catch(() => {});
+      else a.pause();
+    },
+    seekRecording: (sec) => {
+      const a = el.current;
+      if (!a) return;
+      clear();
+      try {
+        a.currentTime = Math.max(0, sec);
+      } catch {
+        /* media not ready */
+      }
+    },
+  }), [conversation, playing, failed, start, clear, register, speaking, map]);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      <ClockCtx.Provider value={clock}>{children}</ClockCtx.Provider>
+    </Ctx.Provider>
+  );
 }
