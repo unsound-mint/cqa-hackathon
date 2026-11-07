@@ -11,6 +11,8 @@ Produce a **human-reviewed development reference**, not a claimed copy of organi
 5. Only then test Jev or prompt adjustments. Prevent any benchmark data or per-conversation IDs from leaking into production prompts as an answer cache.
 6. Separately test changed checklist rules on held-out/unseen conversations and demonstrate old-vs-new version preservation.
 
+Tooling (template, sheet generator, comparison report): see `evaluation/README.md`.
+
 ## Annotation fields
 `conversation_id, language, channel, criterion_id, human_value, human_na, human_critical, evidence_message_indices, inspected_range, rationale, uncertainty, reviewer, adjudicated`
 
