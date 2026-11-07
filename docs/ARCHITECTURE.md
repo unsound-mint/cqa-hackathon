@@ -45,7 +45,7 @@ GET  /api/evaluations/:id
 POST /api/evaluations/:id/appeals
 POST /api/appeals/:id/decision
 POST /api/evaluations/:id/overrides  { criterionId, reason, value?, isNA? }  reviewer corrects a criterion directly
-GET  /api/conversations/:id/audio  302 to the media file behind the organizer's player-page audioUrl (resolved per request, never stored)
+GET  /api/conversations/:id/audio  the call recording: served from data/private/audio (ranges) when stored, else 302 to the media behind the organizer's player-page audioUrl while a copy is stored in the background; an import prefetches recordings
 GET  /api/appeals                  ?status=pending|upheld|overridden  (approver's queue across all dialogs)
 ```
 
