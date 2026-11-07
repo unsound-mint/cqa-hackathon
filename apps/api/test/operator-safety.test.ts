@@ -27,7 +27,7 @@ describe('operator attribution', () => {
       if (calls === 2) expect(JSON.parse(req.user).previousAnswerProblems.join()).toMatch(/operator/);
       const index = calls === 1 ? 0 : 1;
       return {output:{results:[{criterionId:'04',value:5,isNA:false,explanation:'fictional test',evidence:[{messageIndex:index,quote:conversation.transcript[index]!.text}]}]}};
-    }}, conversation, {...ORIGINAL_CHECKLIST,criteria:[criterion('04')]});
+    }}, conversation, {...ORIGINAL_CHECKLIST,criteria:[{...criterion('04'), instructions: 'Assess substantive assistance with the configured consultation tiers.'}]});
     expect(calls).toBe(2);
     expect(result.results[0]!.evidence[0]!.messageIndex).toBe(1);
   });

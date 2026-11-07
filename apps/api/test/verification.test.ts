@@ -1,3 +1,4 @@
+import { semanticAnswers } from './helpers/semantic.js';
 import { readFileSync } from 'node:fs';
 import { DemoBundleSchema, type Conversation, type Criterion, type TranscriptMessage } from '@cqa/contracts';
 import { describe, expect, it } from 'vitest';
@@ -141,12 +142,13 @@ describe('verification inside the evaluation pipeline', () => {
       async complete(req) {
         calls.push(req);
         const p = JSON.parse(req.user) as { checklist: { criteria: { id: string; kind: string; allowedValues: unknown[] }[] } };
-        const a = answer(calls.length, req);
+        const verificationCalls = calls.filter(r => JSON.parse(r.user).assistedQuestions.some((q: any) => q.criterionId === '03'));
+        const a = JSON.parse(req.user).assistedQuestions.some((q: any) => q.criterionId === '03') ? answer(verificationCalls.length, req) : {};
         const results = p.checklist.criteria.map((c) => ({
           criterionId: c.id, value: c.kind === 'discrete-scale' ? [...(c.allowedValues as number[])].sort((x, y) => y - x)[1] : c.id === '08' ? false : true,
           isNA: false, explanation: 'ok', confidence: 'high', evidence: [{ messageIndex: 8, quote: 'Вижу заказ' }],
         }));
-        return { output: { results: [...results, ...(a.extraResults ?? [])], assisted: a.assisted } };
+        return { output: { results: [...results, ...(a.extraResults ?? [])], assisted: [...semanticAnswers(req, true), ...((a.assisted as { criterionId: string; answers: unknown }[] | undefined) ?? [])] } };
       },
     };
     const db = openDb(':memory:');
@@ -167,7 +169,7 @@ describe('verification inside the evaluation pipeline', () => {
     const ev = await start(app);
     const sent = JSON.parse(calls[0]!.user);
     expect(sent.checklist.criteria.map((c: { id: string }) => c.id)).not.toContain('03');
-    expect(sent.assistedQuestions[0]).toMatchObject({ criterionId: '03' });
+    expect(sent.assistedQuestions).toEqual(expect.arrayContaining([expect.objectContaining({ criterionId: '03' })]));
     expect(ev.originalResults.find((r: { criterionId: string }) => r.criterionId === '03')).toMatchObject({ source: 'hybrid', value: true });
     expect(ev.status).toBe('completed');
   });
@@ -175,8 +177,8 @@ describe('verification inside the evaluation pipeline', () => {
   it('a model that tries to decide 03 itself or skips the answer is sent back once, then repaired', async () => {
     const { app, calls } = run((n) => (n === 1 ? { extraResults: [{ criterionId: '03', value: true, isNA: false, explanation: 'x', evidence: [{ messageIndex: 1 }] }] } : { assisted: [{ criterionId: '03', answers: good }] }));
     const ev = await start(app);
-    expect(calls).toHaveLength(2);
-    expect(JSON.parse(calls[1]!.user).previousAnswerProblems.join()).toMatch(/unknown criterion 03|expected exactly one answer for 03/);
+    expect(calls).toHaveLength(3);
+    expect(JSON.parse(calls.at(-1)!.user).previousAnswerProblems.join()).toMatch(/unknown criterion 03|expected exactly one answer for 03/);
     expect(ev.status).toBe('completed');
   });
 
@@ -184,7 +186,7 @@ describe('verification inside the evaluation pipeline', () => {
     const bad = { ...good, firstProtectedDisclosure: { messageIndex: 8, quote: 'выдуманная цитата' } };
     const { app, calls } = run(() => ({ assisted: [{ criterionId: '03', answers: bad }] }));
     const ev = await start(app);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(ev).toMatchObject({ status: 'failed', originalResults: [] });
     expect(ev.error).toMatch(/assisted 03/);
   });

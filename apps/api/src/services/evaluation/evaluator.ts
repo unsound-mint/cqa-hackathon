@@ -5,6 +5,7 @@ import type { AssistedDetector } from './detectors/types.js';
 import { deriveFacts } from './facts.js';
 import { PROMPT_VERSION, systemPromptFor } from './prompts.js';
 import { originalCriterion } from './rubric.js';
+import { ORIGINAL_SEMANTIC_HELPERS, type DecisionFacts } from './semantic/index.js';
 import { buildOutputSchema } from './output-schema.js';
 import type { LlmProvider } from './provider.js';
 
@@ -154,7 +155,8 @@ export function planCriteria(conversation: Conversation, checklist: ChecklistVer
   const assisted: AssistedItem[] = [];
   for (const criterion of checklist.criteria) {
     // A retained detector name must never override edited instructions or N/A semantics.
-    const supported = originalCriterion(criterion) !== undefined;
+    const canonical = originalCriterion(criterion);
+    const supported = canonical !== undefined;
     const detectorName = supported ? criterion.detector : undefined;
     const detected = detectorName ? DETECTORS[detectorName]?.run({ conversation, facts, criterion }) : null;
     if (detected) {
@@ -166,7 +168,7 @@ export function planCriteria(conversation: Conversation, checklist: ChecklistVer
       decided.set(criterion.id, { ...structuredClone(prior.result), criterionId: criterion.id, reusedFrom: prior.evaluationId });
       continue;
     }
-    const helper = detectorName ? ASSISTED_DETECTORS[detectorName] : undefined;
+    const helper = (detectorName ? ASSISTED_DETECTORS[detectorName] : undefined) ?? (canonical ? ORIGINAL_SEMANTIC_HELPERS[canonical.id] : undefined);
     if (helper?.appliesTo(criterion)) assisted.push({ criterion, detector: helper });
     else undecided.push(criterion);
   }
@@ -175,6 +177,7 @@ export function planCriteria(conversation: Conversation, checklist: ChecklistVer
 
 export type EvaluatorResult = {
   results: CriterionResult[];
+  decisionFacts: DecisionFacts;
   total: number | null;
   seriousViolation: boolean;
   provenance: Provenance;
@@ -185,47 +188,64 @@ export type EvaluatorResult = {
 };
 
 /**
- * Rules and reuse first; one model call (with one repair attempt) only for what is still undecided.
+ * Rules and reuse first; independent strict-schema slices (each with one repair attempt) for unresolved work.
  * The model cannot set `source`/`reusedFrom`: code stamps them. Totals are always computed by code.
  */
 export async function evaluateConversation(provider: LlmProvider | undefined, conversation: Conversation, checklist: ChecklistVersion, reuse?: ReuseLookup, maxAttempts = 2): Promise<EvaluatorResult> {
   const { decided, assisted, undecided } = planCriteria(conversation, checklist, reuse);
   const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
   let latencyMs = 0;
+  const started = performance.now();
   const modelResults = new Map<string, CriterionResult>();
+  const decisionFacts = new Map<string, DecisionFacts[string]>();
   let provenance: Provenance = { provider: 'local', model: 'rules+reuse', promptVersion: 'n/a' };
 
   if (undecided.length > 0 || assisted.length > 0) {
     if (!provider) throw new EvaluationFailure(`a model is required for criteria: ${[...undecided, ...assisted.map((a) => a.criterion)].map((c) => c.id).join(', ')}`);
-    const subset = { id: checklist.id, criteria: undecided };
-    const outputSchema = buildOutputSchema(undecided, assisted, conversation.language);
-    const system = systemPromptFor([...undecided, ...assisted.map(a => a.criterion)]);
-    let problems: string[] = [];
-    let ok = false;
-    for (let attempt = 1; attempt <= maxAttempts && !ok; attempt++) {
-      const res = await provider.complete({ system, user: buildUserPayload(conversation, subset, [...decided.values()], assisted, problems), outputSchema });
-      usage.inputTokens += res.usage?.inputTokens ?? 0;
-      usage.outputTokens += res.usage?.outputTokens ?? 0;
-      usage.cacheReadTokens += res.usage?.cacheReadTokens ?? 0;
-      usage.cacheWriteTokens += res.usage?.cacheWriteTokens ?? 0;
-      latencyMs += res.latencyMs ?? 0;
-      const v = validateModelOutput(res.output, conversation, { ...checklist, criteria: undecided });
-      const a = validateAssisted(res.output, conversation, assisted);
-      if (v.results && a.problems.length === 0) {
-        for (const r of v.results) {
-          const { reusedFrom: _drop, ...clean } = r;
-          modelResults.set(r.criterionId, capConfidence({ ...clean, source: 'model' }, deriveFacts(conversation)));
-        }
-        const facts = deriveFacts(conversation);
-        for (const { criterion, detector } of assisted) decided.set(criterion.id, detector.decide({ conversation, facts, criterion }, a.answers.get(criterion.id)));
-        ok = true;
-      } else problems = [...v.problems, ...a.problems];
-    }
-    if (!ok) throw new EvaluationFailure(`model output failed validation: ${problems.slice(0, 5).join('; ')}`);
+    // The combined strict grammar exceeds the provider's compilation budget. These two independent
+    // slices were verified live; run them concurrently and keep the same transcript/model for both.
+    const extended = assisted.filter(a => a.detector.name === 'consultation-facts' || a.detector.name === 'dialogue-facts');
+    const basic = assisted.filter(a => !extended.includes(a));
+    const groups = [{ criteria: undecided, assisted: basic }, { criteria: [], assisted: extended }].filter(g => g.criteria.length || g.assisted.length);
+    const initialDecided = [...decided.values()];
+    // Both slices retain the same rubric context; splitting the grammar must not remove criterion boundaries.
+    const system = systemPromptFor(checklist.criteria);
+    const completed = await Promise.allSettled(groups.map(async ({ criteria, assisted }) => {
+      const subset = { id: checklist.id, criteria };
+      const outputSchema = buildOutputSchema(criteria, assisted, conversation.language);
+      let problems: string[] = [];
+      let ok = false;
+      for (let attempt = 1; attempt <= maxAttempts && !ok; attempt++) {
+        const res = await provider.complete({ system, user: buildUserPayload(conversation, subset, initialDecided, assisted, problems), outputSchema });
+        usage.inputTokens += res.usage?.inputTokens ?? 0;
+        usage.outputTokens += res.usage?.outputTokens ?? 0;
+        usage.cacheReadTokens += res.usage?.cacheReadTokens ?? 0;
+        usage.cacheWriteTokens += res.usage?.cacheWriteTokens ?? 0;
+        const v = validateModelOutput(res.output, conversation, { ...checklist, criteria });
+        const a = validateAssisted(res.output, conversation, assisted);
+        if (v.results && a.problems.length === 0) {
+          for (const r of v.results) {
+            const { reusedFrom: _drop, ...clean } = r;
+            modelResults.set(r.criterionId, capConfidence({ ...clean, source: 'model' }, deriveFacts(conversation)));
+          }
+          const facts = deriveFacts(conversation);
+          for (const { criterion, detector } of assisted) {
+            const answers = a.answers.get(criterion.id);
+            decisionFacts.set(criterion.id, { kind: detector.name, facts: structuredClone(answers) });
+            decided.set(criterion.id, capConfidence(detector.decide({ conversation, facts, criterion }, answers), facts));
+          }
+          ok = true;
+        } else problems = [...v.problems, ...a.problems];
+      }
+      if (!ok) throw new EvaluationFailure(`model output failed validation: ${problems.slice(0, 5).join('; ')}`);
+    }));
+    const failed = completed.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failed) throw failed.reason;
+    latencyMs = Math.round(performance.now() - started);
     provenance = { provider: provider.name, model: provider.model, promptVersion: PROMPT_VERSION, ...(provider.effort ? { effort: provider.effort } : {}), usage, latencyMs };
   }
 
   const results = checklist.criteria.map((c) => decided.get(c.id) ?? modelResults.get(c.id)!);
   const { total, seriousViolation } = scoreEvaluation(checklist, results);
-  return { results, total, seriousViolation, provenance, usage, latencyMs, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
+  return { results, decisionFacts: Object.fromEntries(decisionFacts), total, seriousViolation, provenance, usage, latencyMs, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
 }

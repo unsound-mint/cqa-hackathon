@@ -1,9 +1,10 @@
+import { semanticAnswers } from './helpers/semantic.js';
 import { readFileSync } from 'node:fs';
 import { DemoBundleSchema, type Conversation } from '@cqa/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { openDb } from '../src/db/index.js';
-import { conversations, jobs } from '../src/db/schema.js';
+import { conversations, evaluations, jobs } from '../src/db/schema.js';
 import { ORIGINAL_CHECKLIST } from '../src/services/checklists.js';
 import { AnthropicProvider } from '../src/services/evaluation/anthropic.js';
 import { capConfidence, deriveContext, validateModelOutput } from '../src/services/evaluation/evaluator.js';
@@ -24,10 +25,10 @@ function genericAnswer(req: ProviderRequest, tweak?: (r: Record<string, unknown>
     evidence: [{ messageIndex: 4, quote: payload.conversation.transcript[4]!.text.slice(0, 10) }],
   }));
   tweak?.(results);
-  const assisted = ((payload as { assistedQuestions?: { criterionId: string }[] }).assistedQuestions ?? []).map((q) => ({
+  const assisted = [...semanticAnswers(req), ...(JSON.parse(req.user).assistedQuestions ?? []).filter((q: any) => q.answersSchema.properties.verificationRequired).map((q: any) => ({
     criterionId: q.criterionId,
     answers: { verificationRequired: true, reason: 'ok', confidence: 'high', firstProtectedDisclosure: { messageIndex: 8, quote: 'Вижу заказ' } },
-  }));
+  }))];
   return { results, assisted, total: 9999 };
 }
 
@@ -113,6 +114,16 @@ describe('POST /api/evaluations', () => {
     expect(ev.originalTotal).not.toBe(9999);
     expect(ev.finalResults).toEqual(ev.originalResults);
     expect(db.select().from(jobs).all()).toHaveLength(1);
+    const facts = structuredClone(db.select().from(evaluations).all()[0]!.decisionFacts);
+    expect(facts).toMatchObject({ '02': { kind: 'needs-facts' }, '03': { kind: 'verification' }, '04': { kind: 'consultation-facts' }, '06': { kind: 'dialogue-facts' } });
+    expect(ev).not.toHaveProperty('decisionFacts'); // Internal audit storage does not change the public DTO.
+    const appeal = (await app.inject({ method: 'POST', url: `/api/evaluations/${ev.id}/appeals`, payload: { criterionId: '04', comment: 'Review requested.' } })).json();
+    const decision = await app.inject({ method: 'POST', url: `/api/appeals/${appeal.id}/decision`, payload: { action: 'override', reason: 'Reviewed.', value: 10 } });
+    expect(decision.statusCode).toBe(200);
+    const stored = db.select().from(evaluations).all()[0]!;
+    expect(stored.decisionFacts).toEqual(facts);
+    expect(stored.originalResults).toEqual(ev.originalResults);
+
   });
 
   it('applies a changed/new criterion from the stored checklist with no code edits', async () => {
@@ -144,16 +155,16 @@ describe('POST /api/evaluations', () => {
     const p = fakeProvider((req, n) => genericAnswer(req, n === 1 ? (r) => { r[0]!.evidence = [{ messageIndex: 4, quote: 'not in text' }]; } : undefined));
     const { app } = setup(p);
     const { job } = await run(app, { conversationIds: [conv.id], checklistVersionId: 'checklist-original-v1' });
-    expect(p.calls).toHaveLength(2);
-    expect(JSON.parse(p.calls[1]!.user).previousAnswerProblems.join()).toMatch(/quote not found/);
+    expect(p.calls).toHaveLength(3); // Two slices, one repair.
+    expect(JSON.parse(p.calls.at(-1)!.user).previousAnswerProblems.join()).toMatch(/quote not found/);
     expect(job.status).toBe('completed');
   });
 
   it('records a failed evaluation (no invented results) when output never validates', async () => {
-    const p = fakeProvider((req) => genericAnswer(req, (r) => { r[0]!.evidence = [{ messageIndex: 99 }]; }));
+    const p = fakeProvider((req) => genericAnswer(req, (r) => { if (r[0]) r[0].evidence = [{ messageIndex: 99 }]; }));
     const { app } = setup(p);
     const { job } = await run(app, { conversationIds: [conv.id], checklistVersionId: 'checklist-original-v1' });
-    expect(p.calls).toHaveLength(2);
+    expect(p.calls).toHaveLength(3);
     expect(job.status).toBe('failed');
     const ev = (await app.inject({ url: `/api/evaluations/${job.evaluationIds[0]}` })).json();
     expect(ev).toMatchObject({ status: 'failed', originalResults: [], originalTotal: null });
@@ -183,7 +194,7 @@ describe('POST /api/evaluations', () => {
     p.calls.length = 0;
     const app2 = buildApp({ db, provider: p }); // "restart": new app over the same database
     await app2.runner.idle();
-    expect(p.calls).toHaveLength(1);
+    expect(p.calls).toHaveLength(2);
     const evs = (await app2.inject({ url: '/api/evaluations?conversationId=other-1' })).json();
     expect(evs).toHaveLength(1);
     expect((await app2.inject({ url: `/api/evaluations?conversationId=${conv.id}` })).json()).toHaveLength(1); // not recomputed
