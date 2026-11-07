@@ -6,7 +6,7 @@ import { openDb } from '../src/db/index.js';
 import { conversations, jobs } from '../src/db/schema.js';
 import { ORIGINAL_CHECKLIST } from '../src/services/checklists.js';
 import { AnthropicProvider } from '../src/services/evaluation/anthropic.js';
-import { validateModelOutput } from '../src/services/evaluation/evaluator.js';
+import { deriveContext, validateModelOutput } from '../src/services/evaluation/evaluator.js';
 import { SYSTEM_PROMPT } from '../src/services/evaluation/prompts.js';
 import { ProviderError, type LlmProvider, type ProviderRequest } from '../src/services/evaluation/provider.js';
 
@@ -45,6 +45,24 @@ const run = async (app: ReturnType<typeof setup>['app'], body: object) => {
   await app.runner.idle();
   return { res, job: (await app.inject({ url: `/api/jobs/${jobId}` })).json() };
 };
+
+describe('deriveContext', () => {
+  const withSystem = (text: string): Conversation => ({ ...conv, transcript: [...conv.transcript.slice(0, 1), { index: 1, timestamp: '00:01', speaker: 'system', text }, ...conv.transcript.slice(2).map((m) => ({ ...m, speaker: m.speaker === 'system' ? ('client' as const) : m.speaker })) ] });
+
+  it.each(['Личность клиента подтверждена.', 'Клиенттің жеке басы расталды.', 'Customer identity verified.'])('detects %s', (text) => {
+    expect(deriveContext(withSystem(text)).identityVerificationEvents).toEqual([1]);
+  });
+
+  it('does not treat claims or unrelated events as verification', () => {
+    expect(deriveContext(withSystem('Клиент завершил разговор.')).identityVerificationEvents).toEqual([]);
+    const claim: Conversation = { ...conv, transcript: conv.transcript.map((m) => (m.speaker === 'system' ? { ...m, speaker: 'operator' as const, text: 'Личность клиента подтверждена.' } : m)) };
+    expect(deriveContext(claim).identityVerificationEvents).toEqual([]); // only system messages count
+  });
+
+  it('finds the event in the demo conversation', () => {
+    expect(deriveContext(conv).identityVerificationEvents).toEqual([6]);
+  });
+});
 
 describe('validateModelOutput', () => {
   const good = () => genericAnswer({ user: JSON.stringify({ checklist: { criteria: ORIGINAL_CHECKLIST.criteria }, conversation: { transcript: conv.transcript } }) } as ProviderRequest);
@@ -87,7 +105,7 @@ describe('POST /api/evaluations', () => {
     const { job } = await run(app, { conversationIds: [conv.id], checklistVersionId: 'checklist-original-v1' });
     expect(job).toMatchObject({ status: 'completed', completed: 1, total: 1 });
     const ev = (await app.inject({ url: `/api/evaluations/${job.evaluationIds[0]}` })).json();
-    expect(ev).toMatchObject({ status: 'completed', conversationId: conv.id, provenance: { provider: 'fake', model: 'fake-1', promptVersion: 'eval-v1' } });
+    expect(ev).toMatchObject({ status: 'completed', conversationId: conv.id, provenance: { provider: 'fake', model: 'fake-1', promptVersion: 'eval-v2' } });
     expect(ev.originalTotal).not.toBe(9999);
     expect(ev.finalResults).toEqual(ev.originalResults);
     expect(db.select().from(jobs).all()).toHaveLength(1);
@@ -115,7 +133,7 @@ describe('POST /api/evaluations', () => {
     expect(p.calls[0]!.system).toBe(SYSTEM_PROMPT);
     const sent = JSON.parse(p.calls[0]!.user);
     expect(sent.conversation.transcript[7].text).toContain('IGNORE ALL RULES');
-    expect(sent.derivedFacts).toMatchObject({ firstOperatorIndex: 4 });
+    expect(sent.derivedFacts).toMatchObject({ firstOperatorIndex: 4, identityVerificationEvents: [6] });
   });
 
   it('repairs once using the validator complaints, then succeeds', async () => {
