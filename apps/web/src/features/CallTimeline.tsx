@@ -49,8 +49,8 @@ const Bars = memo(function Bars({ peaks, map, duration }: { peaks: number[] | nu
 
 /**
  * The call bar above the chat: play/pause, the recording as a waveform colored by who speaks, evidence markers and
- * the places where recording was paused. Everything links to the chat: a click on the bar or a marker scrolls the chat
- * to the message spoken there (a marker also plays that fragment); "В чате" shows what is playing now. Times are on the
+ * the places where recording was paused. Everything links to the chat: a click on the bar puts the playhead exactly
+ * there (drag to scrub) and scrolls the chat to the message spoken there; a marker plays that message's fragment; "В чате" shows what is playing now. Times are on the
  * conversation clock the chat uses, not the recording's own, which skips paused stretches.
  */
 export function CallTimeline({ conversation, src, markers, onReveal }: Props) {
@@ -67,15 +67,36 @@ export function CallTimeline({ conversation, src, markers, onReveal }: Props) {
     const r = track.current!.getBoundingClientRect();
     return Math.min(duration, Math.max(0, ((clientX - r.left) / r.width) * duration));
   };
-  const bandOf = (index: number) => map?.bands.find((b) => b.index === index);
-  /** A moment on the bar = the message spoken there: move the playhead to its start and show it in the chat. */
-  const goTo = (rec: number) => {
+  /**
+   * A click puts the playhead exactly where it lands (dragging scrubs); the chat follows to the message spoken there
+   * when the pointer is released, without snapping the playhead to that message's start.
+   */
+  const scrubbing = useRef(false);
+  const revealAt = (rec: number) => {
     const at = map?.messageAt(rec);
-    if (at === null || at === undefined) return player.seekRecording(rec);
-    player.seekRecording(bandOf(at)!.from);
-    onReveal(at);
+    if (at !== null && at !== undefined) onReveal(at);
   };
-  const placed = useMemo(() => markers.map((m) => ({ ...m, band: map?.bands.find((b) => b.index === m.index) })).filter((m) => m.band), [markers, map]);
+  /**
+   * Markers closer than 2.5% of the bar would overlap: they merge into one pill (criterion ids once each, the worst
+   * tone); clicking it plays all of its moments in order and shows the first in the chat.
+   */
+  const placed = useMemo(() => {
+    const ordered = markers
+      .map((m) => ({ ...m, at: map?.bands.find((b) => b.index === m.index)?.from }))
+      .filter((m): m is Marker & { at: number } => m.at !== undefined)
+      .sort((x, y) => x.at - y.at);
+    const groups: { at: number; indices: number[]; ids: string[]; tone: Tone; active: boolean }[] = [];
+    for (const m of ordered) {
+      const last = groups[groups.length - 1];
+      if (last && (m.at - last.at) / duration < 0.025) {
+        last.indices.push(m.index);
+        for (const id of m.ids) if (!last.ids.includes(id)) last.ids.push(id);
+        if (m.tone === 'danger') last.tone = 'danger';
+        last.active ||= m.active;
+      } else groups.push({ at: m.at, indices: [m.index], ids: [...new Set(m.ids)], tone: m.tone, active: m.active });
+    }
+    return groups;
+  }, [markers, map, duration]);
   if (!map) return null;
 
   const hoverAt = hover ? map.messageAt(hover.rec) : null;
@@ -88,15 +109,15 @@ export function CallTimeline({ conversation, src, markers, onReveal }: Props) {
       {placed.length > 0 && <div className="relative ml-12 mr-24 h-6" aria-label="Доказательства на записи" role="group">
         {placed.map((m) => (
           <button
-            key={m.index}
+            key={m.indices[0]}
             type="button"
             onClick={() => {
-              onReveal(m.index);
-              player.playFragments([m.index]);
+              onReveal(m.indices[0]!);
+              player.playFragments(m.indices);
             }}
-            title={`Сообщение #${m.index}: прослушать и показать в чате`}
-            aria-label={`Критерии ${m.ids.join(', ')}: сообщение #${m.index}, прослушать и показать в чате`}
-            style={{ left: pct(m.band!.from) }}
+            title={`${m.indices.map((i) => `#${i}`).join(', ')}: прослушать и показать в чате`}
+            aria-label={`Критерии ${m.ids.join(', ')}: ${m.indices.length > 1 ? 'сообщения' : 'сообщение'} ${m.indices.map((i) => `#${i}`).join(', ')}, прослушать и показать в чате`}
+            style={{ left: pct(m.at) }}
             className={cn('absolute top-0 h-6 min-w-6 -translate-x-1/2 rounded-full px-2 text-xs font-semibold tabular-nums shadow-card transition-transform hover:scale-110', MARK[m.tone], m.active && 'ring-2 ring-accent')}
           >
             {m.ids.join(' ')}
@@ -123,8 +144,23 @@ export function CallTimeline({ conversation, src, markers, onReveal }: Props) {
           aria-valuemax={Math.round(duration)}
           aria-valuenow={Math.round(time)}
           aria-valuetext={`${clock(map.toClock(time))}${nowAt !== null ? `, ${SPEAKER_LABEL[conversation.transcript[nowAt]!.speaker]}` : ''}`}
-          onPointerDown={(e) => goTo(recAt(e.clientX))}
-          onPointerMove={(e) => setHover({ x: e.clientX - track.current!.getBoundingClientRect().left, rec: recAt(e.clientX) })}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            scrubbing.current = true;
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+            player.seekRecording(recAt(e.clientX));
+          }}
+          onPointerMove={(e) => {
+            const rec = recAt(e.clientX);
+            setHover({ x: e.clientX - track.current!.getBoundingClientRect().left, rec });
+            if (scrubbing.current) player.seekRecording(rec);
+          }}
+          onPointerUp={(e) => {
+            if (!scrubbing.current) return;
+            scrubbing.current = false;
+            e.currentTarget.releasePointerCapture?.(e.pointerId);
+            revealAt(recAt(e.clientX));
+          }}
           onPointerLeave={() => setHover(null)}
           onKeyDown={(e) => {
             const step = e.key === 'ArrowRight' ? 5 : e.key === 'ArrowLeft' ? -5 : null;

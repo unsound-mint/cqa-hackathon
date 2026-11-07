@@ -554,7 +554,7 @@ it('a recording that fails to load says so, links the original, and hides fragme
   expect(screen.getAllByRole('button', { name: /Прослушать фрагмент/ }).length).toBeGreaterThan(0);
 });
 
-it('the call bar links to the chat: a marker plays that moment and shows its message, a click on the bar jumps to the message spoken there', async () => {
+it('the call bar links to the chat: a marker plays that moment and shows its message, a click puts the playhead exactly there and shows the message spoken', async () => {
   let now = 0;
   const set = vi.fn((v: number) => { now = v; });
   vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'set').mockImplementation(set);
@@ -574,9 +574,10 @@ it('the call bar links to the chat: a marker plays that moment and shows its mes
 
   const bar = screen.getByRole('slider', { name: 'Запись звонка' });
   vi.spyOn(bar, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 130, top: 0, height: 40, right: 130, bottom: 40, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
-  fireEvent.pointerDown(bar, { clientX: 68 }); // about 1:05 into the call: client message #5 (01:03)
-  expect(set).toHaveBeenLastCalledWith(63);
-  expect(document.activeElement?.id).toBe('msg-5');
+  fireEvent.pointerDown(bar, { clientX: 68 }); // about 1:05 into the call, inside client message #5 (01:03)
+  fireEvent.pointerUp(bar, { clientX: 68 });
+  expect(set.mock.lastCall![0]).toBeCloseTo(65.38, 1); // exactly where it was clicked, not snapped to 01:03
+  expect(document.activeElement?.id).toBe('msg-5'); // the chat follows to the message spoken there
 });
 
 it('offers no player controls for a chat or for a call without a recording', async () => {
