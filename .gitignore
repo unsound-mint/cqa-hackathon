@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
+data/raw/
+data/private/
+evaluation/private/
+CLAUDE.local.md
+.DS_Store
