@@ -118,10 +118,10 @@ Anthropic tool calls use strict mode with closed nested objects. The result sche
 
 The schema uses only supported strict-tool constraints (minItems 0 or 1, no numerical/string bounds). Multiple assisted answers use required object keys because supported array constraints cannot enforce one answer per distinct id. Source: https://platform.claude.com/docs/en/build-with-claude/structured-outputs#json-schema-limitations
 
-### Rubric calibration (eval-v10)
+### Rubric calibration (eval-v11)
 
 `rubric.ts` identifies original semantics by criterion signature; `calibration.ts` supplies fictional examples to `systemPromptFor`. Changed instructions/scales/applicability do not inherit incompatible examples. Canonical detectors use the same signature helper. Prompts and strict result schemas explicitly request the validated conversation language.
 
-Original-rubric requests omit first-response SLA measurements and pre-operator gaps from derived facts; raw timestamps/order remain untouched. Requests containing custom criteria retain the complete timing facts, and their instructions remain authoritative. Identity applicability is based on the request's need for account-specific handling, separately from completion/disclosure. Social closing phrases are evaluated in context rather than proved solely by a regex.
+Original-rubric requests omit first-response SLA measurements and pre-operator gaps from derived facts; raw timestamps/order remain untouched. Requests containing custom criteria retain the complete timing facts, and their instructions remain authoritative. Identity applicability follows the actual agreed assistance scope, separately from completion/disclosure; declined account checks followed only by public guidance are N/A. Social closing phrases are evaluated in context rather than proved solely by a regex.
 
 See `docs/RUBRIC.md` for reviewed criterion boundaries. Reference agreement measures model-to-model agreement until human adjudication; keep complete original model reasons/evidence in private validation artifacts for diagnosis and report rerun stability.
