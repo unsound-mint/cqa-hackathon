@@ -37,7 +37,7 @@ it('dialogs list has no structural accessibility violations', async () => {
 });
 
 it('review screen (chat view, criterion open) has none', async () => {
-  await open('#/dialog/demo-ru-001', /Набрано/);
+  await open('#/dialog/demo-ru-001', /баллов/);
   fireEvent.click(screen.getAllByRole('button', { name: /Идентификация/ }).find((b) => b.hasAttribute('aria-expanded'))!);
   expect(await violations()).toEqual([]);
 });
@@ -56,7 +56,7 @@ it('checklist editor has none', async () => {
 });
 
 it('sets a page title per screen and offers a skip link', async () => {
-  await open('#/dialog/demo-ru-001', /Набрано/);
+  await open('#/dialog/demo-ru-001', /баллов/);
   expect(document.title).toBe('demo-ru-001 · CQA');
   expect(screen.getByRole('link', { name: 'Перейти к содержимому' })).toBeTruthy();
 });

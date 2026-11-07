@@ -74,7 +74,9 @@ it('shows the dialog: transcript, total, N/A reason and the demo label', async (
 it('states points earned out of points possible, and which criteria are not counted', async () => {
   renderApp();
   await transcriptReady();
-  expect(panel().getByText(/Набрано 80 из 85 возможных/)).toBeTruthy();
+  // Where the points went, with the criteria named: 80 of 85 applicable points, 5 lost on 04.
+  expect(panel().getByText('Потеряно 5 из 85 баллов: 04')).toBeTruthy();
+  expect(panel().getByText('Грубых нарушений нет')).toBeTruthy();
   expect(panel().getByText(/Не применимы: 02/)).toBeTruthy();
 });
 
@@ -85,6 +87,10 @@ it('a collapsed row is one line with points of the weight; lost points are color
   expect(partial.textContent).toContain('15 из 20');
   expect(within(partial).getByText('15 из 20').className).toMatch(/bg-warn-soft/); // any loss is amber, not green
   expect(within(row(/Установление контакта/)).getByText('10 из 10').className).not.toMatch(/bg-/); // full marks: quiet
+  // A row that lost points says why without being opened; a full-marks row stays one line.
+  expect(partial.textContent).toMatch(/04Корректная и полная консультация.+/);
+  expect(row(/Установление контакта/).querySelector('.line-clamp-2')).toBeNull();
+  expect(partial.querySelector('.line-clamp-2')?.textContent?.length).toBeGreaterThan(10);
   fireEvent.click(partial);
   expect(panel().getByText('Потеряно 5 из 20 баллов.')).toBeTruthy();
 });
@@ -420,6 +426,18 @@ it('the queue rail lists the filtered dialogs and switches between them', async 
   expect(rail.getByRole('button', { name: /demo-ru-001/ }).getAttribute('aria-current')).toBe('true');
   fireEvent.click(rail.getByRole('button', { name: /demo-ru-002/ }));
   expect(window.location.hash).toBe('#/dialog/demo-ru-002');
+});
+
+it('the queue rail can be hidden and brought back; the choice is remembered and the header takes over navigation', async () => {
+  window.innerWidth = 1600;
+  renderApp(bundle(withSecond));
+  await transcriptReady();
+  fireEvent.click(screen.getByRole('button', { name: 'Скрыть очередь диалогов' }));
+  expect(screen.queryByRole('navigation', { name: 'Очередь диалогов' })).toBeNull();
+  expect(screen.getByRole('button', { name: /Следующий диалог/ })).toBeTruthy(); // previous/next move into the header
+  expect(window.localStorage.getItem('cqa-queue-hidden')).toBe('1');
+  fireEvent.click(screen.getByRole('button', { name: 'Показать очередь диалогов' }));
+  expect(screen.getByRole('navigation', { name: 'Очередь диалогов' })).toBeTruthy();
 });
 
 it('exports the evaluation: CSV download and print for PDF', async () => {

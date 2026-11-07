@@ -1,5 +1,5 @@
 import type { Appeal, ChecklistVersion, Conversation, DecideAppealInput, Evaluation, SaveChecklistInput } from '@cqa/contracts';
-import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, PanelLeftOpen } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApi } from './ApiContext';
 import { cn } from '@/lib/utils';
@@ -59,7 +59,25 @@ export function App() {
   const [startError, setStartError] = useState<unknown>(null);
   const [searchFocus, setSearchFocus] = useState(0);
   const [onlyFlagged, setOnlyFlagged] = useState(false);
-  const wide = useWide();
+  const fits = useWide();
+  /** The queue rail is optional: a reviewer can collapse it (remembered per browser; storage may be unavailable). */
+  const [railHidden, setRailHidden] = useState(() => {
+    try {
+      return window.localStorage.getItem('cqa-queue-hidden') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const hideRail = (v: boolean) => {
+    setRailHidden(v);
+    try {
+      window.localStorage.setItem('cqa-queue-hidden', v ? '1' : '0');
+    } catch {
+      /* per-browser convenience only */
+    }
+  };
+  /** The rail is shown when it fits (1536px+) and was not collapsed; otherwise the transcript header carries the queue. */
+  const wide = fits && !railHidden;
   const twoPane = useTwoPane();
 
   useEffect(() => {
@@ -300,6 +318,7 @@ export function App() {
       </div>
       {!wide && (
         <div className="flex flex-wrap items-center gap-2">
+          {fits && <Button variant="ghost" size="sm" aria-label="Показать очередь диалогов" title="Показать очередь" onClick={() => hideRail(false)}><PanelLeftOpen aria-hidden className="size-4" /></Button>}
           <Button variant="outline" size="sm" aria-label="Предыдущий диалог (K)" disabled={position <= 0} onClick={() => step(-1)}><ChevronLeft aria-hidden className="size-4" /></Button>
           <label className="sr-only" htmlFor="dialog-switch">Диалог</label>
           <Select id="dialog-switch" value={conversation.id} onChange={(ev) => go({ name: 'dialog', id: ev.target.value })} className="h-8 w-auto max-w-56 rounded-full text-sm font-medium">
@@ -364,10 +383,10 @@ export function App() {
               </header>
             )}
 
-            <main id="content" tabIndex={-1} className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[17.5rem_minmax(0,1fr)_clamp(30rem,30vw,40rem)]' : 'xl:grid-cols-[minmax(0,1fr)_30rem]')}>
+            <main id="content" tabIndex={-1} className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[17.5rem_minmax(0,1fr)_clamp(30rem,30vw,40rem)]' : 'xl:grid-cols-[minmax(0,1fr)_clamp(30rem,30vw,40rem)]')}>
               {wide && (
                 <div className="min-h-0 overflow-hidden rounded-card bg-surface shadow-card">
-                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filterLabel={filterLabel} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} nextAttentionId={nextAttention} onSelect={(id) => go({ name: 'dialog', id })} />
+                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filterLabel={filterLabel} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} nextAttentionId={nextAttention} onSelect={(id) => go({ name: 'dialog', id })} onHide={() => hideRail(true)} />
                 </div>
               )}
               <div className={cn('min-h-0 flex-col bg-surface xl:rounded-card xl:shadow-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>

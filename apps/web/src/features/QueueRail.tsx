@@ -1,5 +1,5 @@
 import type { Conversation, Evaluation } from '@cqa/contracts';
-import { AlertTriangle, Headphones, MessagesSquare, Search, X } from 'lucide-react';
+import { AlertTriangle, Headphones, MessagesSquare, PanelLeftClose, Search, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/present';
@@ -19,6 +19,8 @@ type Props = {
   /** Next dialog needing a human look (N), if any. */
   nextAttentionId: string | null;
   onSelect: (id: string) => void;
+  /** Collapses the rail; the transcript header then carries previous/next and the dialog picker. */
+  onHide: () => void;
 };
 
 /** A short window of the first message containing the query, with the match marked. */
@@ -40,7 +42,7 @@ function Snippet({ c, q }: { c: Conversation; q: string }) {
 }
 
 /** The queue beside the review, with search on top: results stay in the queue, expanded with the matching phrase. */
-export function QueueRail({ conversations, latest, ids, selectedId, filterLabel, query, onQuery, focusSignal, nextAttentionId, onSelect }: Props) {
+export function QueueRail({ conversations, latest, ids, selectedId, filterLabel, query, onQuery, focusSignal, nextAttentionId, onSelect, onHide }: Props) {
   const byId = new Map(conversations.map((c) => [c.id, c]));
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -86,6 +88,9 @@ export function QueueRail({ conversations, latest, ids, selectedId, filterLabel,
             className="grid size-10 shrink-0 place-items-center rounded-full border border-line text-ink transition-colors hover:bg-fill disabled:opacity-50"
           >
             <AlertTriangle aria-hidden className="size-4" />
+          </button>
+          <button type="button" onClick={onHide} title="Скрыть очередь" aria-label="Скрыть очередь диалогов" className="grid size-10 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-fill hover:text-ink">
+            <PanelLeftClose aria-hidden className="size-4" />
           </button>
         </div>
         {(filterLabel || query.trim()) && (

@@ -120,20 +120,24 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
   const pending = appeals.some((a) => a.criterionId === result.criterionId && a.status === 'pending');
   const panelId = `crit-${evaluation.id}-${result.criterionId}`;
   const ai = changed && original ? original : null;
+  /** Something the reviewer came for: lost points, low confidence, an appeal or a change. (A raised flag's reason is in the banner already.) */
+  const problem = (pts !== null && pts < weight) || needsReview(result) || pending || changed;
 
   return (
     <li id={`row-${evaluation.id}-${result.criterionId}`} className={cn('scroll-mt-2 rounded-xl transition-colors', open ? 'bg-fill ring-1 ring-brand/60' : 'hover:bg-fill/60')}>
       {/*
-        Collapsed rows are one line each so a whole checklist fits without scrolling: the chip says the grade (quiet when
-        full, amber or red when points were lost), a second line appears only for something to act on.
+        Hierarchy inside the list: a row with full marks is one quiet line; a row that lost points, raised a flag or needs a
+        human shows why (first lines of the explanation) without being opened, because that is what a reviewer came for.
+        Rows are compact on short screens and get more air from 50rem of viewport height.
       */}
-      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="w-full rounded-xl px-4 py-1 text-left">
+      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="w-full rounded-xl px-4 py-1 text-left [@media(min-height:50rem)]:py-2">
         <span className="flex items-start justify-between gap-3">
           <span className="min-w-0">
             <span className="block text-base font-medium leading-6">
               <span className="mr-2 text-sm tabular-nums text-muted">{result.criterionId}</span>
               {criterion?.title ?? 'Критерий не найден в чек-листе'}
             </span>
+            {problem && !open && <span className="mt-1 line-clamp-2 max-w-[65ch] text-sm leading-5 text-muted">{changed ? reviewerText(result) : result.explanation}</span>}
             {(needsReview(result) || pending || changed || result.reusedFrom) && (
               <span className="mt-1 flex flex-wrap items-center gap-2">
                 {needsReview(result) && <Badge tone="warn">Проверить</Badge>}
@@ -233,6 +237,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
   const scored = evaluation.finalResults.map((r) => ({ id: r.criterionId, c: lookup(r.criterionId), pts: earnedPoints(lookup(r.criterionId), r) })).filter((x) => x.pts !== null && x.c);
   const earned = scored.reduce((sum, x) => sum + (x.pts ?? 0), 0);
   const possible = scored.reduce((sum, x) => sum + (x.c?.weight ?? 0), 0);
+  const lostIds = scored.filter((x) => (x.pts ?? 0) < (x.c?.weight ?? 0)).map((x) => x.id);
   const naIds = evaluation.finalResults.filter((r) => r.isNA && (lookup(r.criterionId)?.weight ?? 0) > 0).map((r) => r.criterionId);
   const pendingIds = new Set(appeals.filter((a) => a.status === 'pending').map((a) => a.criterionId));
   const flaggedCount = evaluation.finalResults.filter((r) => isFlagged(r, originalById.get(r.criterionId), pendingIds)).length;
@@ -241,39 +246,52 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
 
   return (
     <section aria-label="Оценка" className="flex h-full min-h-0 flex-col overflow-y-auto md:overflow-hidden">
-      {/* Score on the left, what it is made of on the right: the banner states the verdict in about 100px, the rest is the list. */}
+      {/*
+        Banner hierarchy: (1) is the dialog OK: the score beside the violation status, read as one statement;
+        (2) where points went: lost of possible, with the criteria named; then metadata (version, N/A, original total).
+      */}
       <header className={cn('verdict shrink-0 px-4 py-4 sm:px-6', evaluation.seriousViolation && 'verdict-danger')}>
-        <div className="flex flex-wrap items-start gap-x-6 gap-y-2">
-          <div>
-            <h2 className="flex flex-wrap items-center gap-2 text-xs font-medium text-verdict-muted">
-              Оценка{versions.length <= 1 && checklist ? ` · версия ${checklist.version}` : ''}
-              {isMock && !demoMode && <span title="Вымышленный пример, а не оценка модели" aria-label="Демо-данные: вымышленный пример, а не оценка модели" className="inline-flex h-6 items-center gap-1 rounded-full bg-verdict-warn-bg px-2 text-xs text-verdict-warn"><FlaskConical aria-hidden className="size-4" />Демо-данные</span>}
-            </h2>
-            <p className="flex items-baseline gap-2">
-              <span className="text-score-sm font-semibold tracking-tight tabular-nums">{formatScore(evaluation.finalTotal)}</span>
-              <span className="text-sm text-verdict-muted">из 100</span>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-verdict-muted">
+          <h2 className="font-medium">Оценка диалога</h2>
+          <span className="flex flex-wrap items-center gap-2">
+            {versions.length <= 1 && checklist && <span>Чек-лист, версия {checklist.version}</span>}
+            {isMock && !demoMode && <span title="Вымышленный пример, а не оценка модели" aria-label="Демо-данные: вымышленный пример, а не оценка модели" className="inline-flex h-6 items-center gap-1 rounded-full bg-verdict-warn-bg px-2 text-verdict-warn"><FlaskConical aria-hidden className="size-4" />Демо-данные</span>}
+          </span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <p className="flex items-baseline gap-2">
+            <span className="text-score-sm font-semibold tracking-tight tabular-nums">{formatScore(evaluation.finalTotal)}</span>
+            <span className="text-sm text-verdict-muted">из 100</span>
+          </p>
+          <p className="inline-flex h-8 items-center gap-2 rounded-full bg-white/10 px-3 text-sm font-medium">
+            {evaluation.seriousViolation ? <><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</> : <><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</>}
+          </p>
+        </div>
+        <div className="mt-2 space-y-1 text-sm text-verdict-muted">
+          <p>
+            {evaluation.finalTotal === null
+              ? 'Нет применимых критериев: балл не считается.'
+              : lostIds.length === 0
+                ? `Все ${formatScore(possible)} возможных баллов набраны`
+                : `Потеряно ${formatScore(possible - earned)} из ${formatScore(possible)} баллов: ${lostIds.join(', ')}`}
+          </p>
+          {/* Metadata and state chips share one wrapping line. */}
+          {((naIds.length > 0 && evaluation.finalTotal !== null) || evaluation.originalTotal !== evaluation.finalTotal || pendingIds.size > 0 || changedCount > 0) && (
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {naIds.length > 0 && evaluation.finalTotal !== null && <span>Не применимы: {naIds.join(', ')}</span>}
+              {evaluation.originalTotal !== evaluation.finalTotal && <span>Исходная оценка ИИ: {formatScore(evaluation.originalTotal)}</span>}
+              {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-white">Апелляция: {pendingIds.size}</span>}
+              {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-white">Изменено проверяющим: {changedCount}</span>}
             </p>
-          </div>
-          <div className="min-w-0 flex-1 space-y-1 pt-1 text-sm text-verdict-muted">
-            <p>{evaluation.finalTotal === null ? 'Нет применимых критериев: балл не считается.' : `Набрано ${formatScore(earned)} из ${formatScore(possible)} возможных`}</p>
-            {naIds.length > 0 && evaluation.finalTotal !== null && <p className="text-xs">Не применимы: {naIds.join(', ')}</p>}
-            {evaluation.originalTotal !== evaluation.finalTotal && <p className="text-xs">Исходная оценка ИИ: {formatScore(evaluation.originalTotal)}</p>}
-            {!evaluation.seriousViolation && <p className="flex items-center gap-2"><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</p>}
-            {(pendingIds.size > 0 || changedCount > 0) && (
-              <p className="flex flex-wrap gap-2 pt-1">
-                {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs text-white">Апелляция: {pendingIds.size}</span>}
-                {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs text-white">Изменено проверяющим: {changedCount}</span>}
-              </p>
-            )}
-          </div>
+          )}
         </div>
 
         {evaluation.seriousViolation && (
-          <div className="mt-3 border-t border-white/15 pt-3" role="alert">
-            <p className="flex items-center gap-2 text-sm font-semibold"><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</p>
-            {reasons.length === 0 && <p className="mt-1 text-sm">Флаг поднят.</p>}
+          <div className="mt-3 space-y-1 border-t border-white/15 pt-3" role="alert">
+            <span className="sr-only">Грубое нарушение: </span>
+            {reasons.length === 0 && <p className="text-sm">Флаг поднят.</p>}
             {reasons.map((r) => (
-              <p key={r.criterionId} className="mt-1 text-sm leading-5">{reasons.length > 1 && <span className="font-medium">{r.title}: </span>}{r.explanation}</p>
+              <p key={r.criterionId} className="text-sm leading-5 text-white">{reasons.length > 1 && <span className="font-medium">{r.title}: </span>}{r.explanation}</p>
             ))}
           </div>
         )}
