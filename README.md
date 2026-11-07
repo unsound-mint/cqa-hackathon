@@ -13,7 +13,7 @@ A working prototype that scores customer-support conversations (RU / KZ / EN, ch
 
 ## Run it (5 minutes)
 
-Needs Node ≥ 22 (CI uses 24) and pnpm 10. No API key or `.env` is needed to look around.
+Needs Node ≥ 22 (CI uses 24) and pnpm 10. No API key or `.env` is needed to look around; stored evaluations open without a model, a new evaluation needs `ANTHROPIC_API_KEY`.
 
 ```bash
 pnpm install
@@ -23,9 +23,9 @@ pnpm dev            # web http://localhost:5173 with fictional mock data, API on
 Full local build, one process on one URL (what the demo uses):
 
 ```bash
-cp .env.example .env     # optional: DATASET_IMPORT_URL, ANTHROPIC_API_KEY
+pnpm seed                # installs the committed DEV snapshot: 65 conversations, 66 evaluations, 5 recordings
+cp .env.example .env     # optional: ANTHROPIC_API_KEY to evaluate new conversations
 pnpm start               # builds, then serves web + API at http://127.0.0.1:8787
-curl -X POST localhost:8787/api/datasets/import -H 'content-type: application/json' -d '{"groupId":"DEV"}'
 ```
 
 Checks: `pnpm typecheck && pnpm test && pnpm build` (no test needs a network or a model). Details, backup advice and troubleshooting: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
