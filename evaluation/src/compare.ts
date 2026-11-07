@@ -12,6 +12,8 @@ export type CompareInput = {
   useFinal?: boolean;
   /** Weight at or above which a disagreement counts as a high-weight failure. */
   highWeight?: number;
+  /** USD per million tokens; when set, the report estimates cost per evaluation. */
+  pricePerMTok?: { input: number; output: number };
 };
 
 type Tally = { n: number; agree: number };
@@ -64,6 +66,21 @@ export type Report = {
   byChannel: Record<string, { n: number; agreement: number | null }>;
   byConfidence: Record<string, { n: number; agreement: number | null }>;
   disagreements: Disagreement[];
+  /** Model, effort, prompt version, tokens and latency of the compared evaluations (cost needs `pricePerMTok`). */
+  run: RunStats;
+};
+
+export type RunStats = {
+  evaluations: number;
+  models: string[];
+  efforts: string[];
+  promptVersions: string[];
+  /** Evaluations that called a model and recorded usage; rule/reuse-only ones are excluded from the means. */
+  withUsage: number;
+  meanInputTokens: number | null;
+  meanOutputTokens: number | null;
+  meanLatencyMs: number | null;
+  meanCostUsd: number | null;
 };
 
 const show = (r: { value: unknown; isNA: boolean }) => (r.isNA ? 'N/A' : String(r.value));
@@ -90,6 +107,7 @@ export function compare(input: CompareInput): Report {
   const totalsProblems: string[] = [];
   const serious = { tp: 0, fp: 0, fn: 0, tn: 0 };
   const evidence = { checked: 0, valid: 0 };
+  const used: Evaluation[] = [];
   let falseNA = 0, missedNA = 0, highWeightFailures = 0;
   const getT = (m: Map<string, Tally>, k: string) => m.get(k) ?? m.set(k, tally()).get(k)!;
 
@@ -101,6 +119,7 @@ export function compare(input: CompareInput): Report {
 
     const mine = input.evaluations.filter((e) => e.conversationId === conversationId && e.checklistVersionId === checklist.id);
     const evaluation = [...mine].reverse().find((e) => e.status === 'completed');
+    if (evaluation) used.push(evaluation);
     if (!evaluation) { (mine.length ? coverage.failedEvaluation : coverage.noPrediction).push(conversationId); continue; }
     const modelResults = input.useFinal ? evaluation.finalResults : evaluation.originalResults;
     const modelBy = new Map(modelResults.map((r) => [r.criterionId, r]));
@@ -186,5 +205,27 @@ export function compare(input: CompareInput): Report {
     byChannel: group(byChannel),
     byConfidence: group(byConfidence),
     disagreements,
+    run: runStats(used, input.pricePerMTok),
+  };
+}
+
+function runStats(used: Evaluation[], price?: { input: number; output: number }): RunStats {
+  const uniq = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))].sort();
+  const timed = used.filter((e) => e.provenance?.usage);
+  const mean = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
+  const inTok = timed.map((e) => e.provenance!.usage!.inputTokens + (e.provenance!.usage!.cacheReadTokens ?? 0) + (e.provenance!.usage!.cacheWriteTokens ?? 0));
+  const outTok = timed.map((e) => e.provenance!.usage!.outputTokens);
+  // Cache reads cost ~0.1x and writes ~1.25x of the input rate (documented Anthropic pricing).
+  const cost = price && timed.length ? timed.map((e) => { const u = e.provenance!.usage!; return ((u.inputTokens + (u.cacheReadTokens ?? 0) * 0.1 + (u.cacheWriteTokens ?? 0) * 1.25) * price.input + u.outputTokens * price.output) / 1e6; }) : [];
+  return {
+    evaluations: used.length,
+    models: uniq(used.map((e) => e.provenance?.model)),
+    efforts: uniq(used.map((e) => e.provenance?.effort)),
+    promptVersions: uniq(used.map((e) => e.provenance?.promptVersion)),
+    withUsage: timed.length,
+    meanInputTokens: mean(inTok),
+    meanOutputTokens: mean(outTok),
+    meanLatencyMs: mean(timed.map((e) => e.provenance!.latencyMs ?? 0)),
+    meanCostUsd: cost.length ? Math.round((cost.reduce((a, b) => a + b, 0) / cost.length) * 1e5) / 1e5 : null,
   };
 }

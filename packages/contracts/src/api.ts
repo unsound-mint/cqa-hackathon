@@ -12,6 +12,10 @@ export type ListConversationsQuery = z.infer<typeof ListConversationsQuerySchema
 export const StartEvaluationInputSchema = z.object({
   conversationIds: z.array(z.string().min(1)).min(1),
   checklistVersionId: z.string().min(1),
+  /** Bypass cached results and evaluate the current input again. */
+  force: z.boolean().optional(),
+  /** Compatibility alias used by the stability runner. Same behavior as force. */
+  fresh: z.boolean().optional(),
 });
 export type StartEvaluationInput = z.infer<typeof StartEvaluationInputSchema>;
 

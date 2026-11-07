@@ -182,6 +182,11 @@ export const ProvenanceSchema = z.object({
   provider: z.string(),
   model: z.string(),
   promptVersion: z.string(),
+  /** Model effort setting used for the call (absent for rule/reuse-only evaluations). */
+  effort: z.string().optional(),
+  /** Summed over the evaluation's model calls, so cost and latency can be reported per model. */
+  usage: z.object({ inputTokens: z.number(), outputTokens: z.number(), cacheReadTokens: z.number().optional(), cacheWriteTokens: z.number().optional() }).optional(),
+  latencyMs: z.number().optional(),
 });
 export type Provenance = z.infer<typeof ProvenanceSchema>;
 

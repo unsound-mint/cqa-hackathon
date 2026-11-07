@@ -8,7 +8,7 @@ import { evaluationRoutes } from './routes/evaluations.js';
 import { conversationRoutes } from './routes/conversations.js';
 import type { FetchLike } from './services/audio.js';
 import { datasetRoutes } from './routes/datasets.js';
-import { AnthropicProvider } from './services/evaluation/anthropic.js';
+import { AnthropicProvider, EFFORTS, type Effort } from './services/evaluation/anthropic.js';
 import { JobRunner } from './services/evaluation/jobs.js';
 import type { LlmProvider } from './services/evaluation/provider.js';
 import { seedOriginalChecklist } from './services/checklists.js';
@@ -22,7 +22,10 @@ const DEFAULT_WEB_DIST = fileURLToPath(new URL('../../web/dist', import.meta.url
 /** Provider from the environment; null when no key is configured (evaluation endpoints answer 503). */
 function providerFromEnv(): LlmProvider | null {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  return apiKey ? new AnthropicProvider({ apiKey, model: process.env.CQA_MODEL || 'claude-haiku-5-5' }) : null;
+  if (!apiKey) return null;
+  const effort = process.env.CQA_EFFORT || 'medium';
+  if (!EFFORTS.includes(effort as Effort)) throw new Error(`CQA_EFFORT must be one of ${EFFORTS.join(', ')}`);
+  return new AnthropicProvider({ apiKey, model: process.env.CQA_MODEL || 'claude-haiku-5-5', effort: effort as Effort });
 }
 
 /** App factory (no listen) so tests can use `app.inject`. Defaults read the environment. */

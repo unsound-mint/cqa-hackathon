@@ -6,8 +6,8 @@ import { openDb } from '../src/db/index.js';
 import { conversations, jobs } from '../src/db/schema.js';
 import { ORIGINAL_CHECKLIST } from '../src/services/checklists.js';
 import { AnthropicProvider } from '../src/services/evaluation/anthropic.js';
-import { deriveContext, validateModelOutput } from '../src/services/evaluation/evaluator.js';
-import { SYSTEM_PROMPT } from '../src/services/evaluation/prompts.js';
+import { capConfidence, deriveContext, validateModelOutput } from '../src/services/evaluation/evaluator.js';
+import { PROMPT_VERSION, SYSTEM_PROMPT } from '../src/services/evaluation/prompts.js';
 import { ProviderError, type LlmProvider, type ProviderRequest } from '../src/services/evaluation/provider.js';
 
 const demo = DemoBundleSchema.parse(JSON.parse(readFileSync(new URL('../../../fixtures/demo.json', import.meta.url), 'utf8')));
@@ -109,7 +109,7 @@ describe('POST /api/evaluations', () => {
     const { job } = await run(app, { conversationIds: [conv.id], checklistVersionId: 'checklist-original-v1' });
     expect(job).toMatchObject({ status: 'completed', completed: 1, total: 1 });
     const ev = (await app.inject({ url: `/api/evaluations/${job.evaluationIds[0]}` })).json();
-    expect(ev).toMatchObject({ status: 'completed', conversationId: conv.id, provenance: { provider: 'fake', model: 'fake-1', promptVersion: 'eval-v5' } });
+    expect(ev).toMatchObject({ status: 'completed', conversationId: conv.id, provenance: { provider: 'fake', model: 'fake-1', promptVersion: PROMPT_VERSION } });
     expect(ev.originalTotal).not.toBe(9999);
     expect(ev.finalResults).toEqual(ev.originalResults);
     expect(db.select().from(jobs).all()).toHaveLength(1);
@@ -134,7 +134,7 @@ describe('POST /api/evaluations', () => {
     const { app } = setup(p, [hostile]);
     await run(app, { conversationIds: ['hostile-1'], checklistVersionId: 'checklist-original-v1' });
     expect(SYSTEM_PROMPT).not.toContain('IGNORE ALL RULES');
-    expect(p.calls[0]!.system).toBe(SYSTEM_PROMPT);
+    expect(p.calls[0]!.system.startsWith(SYSTEM_PROMPT)).toBe(true);
     const sent = JSON.parse(p.calls[0]!.user);
     expect(sent.conversation.transcript[7].text).toContain('IGNORE ALL RULES');
     expect(sent.derivedFacts).toMatchObject({ firstOperatorIndex: 4, identityVerificationEvents: [6] });
@@ -205,15 +205,54 @@ describe('AnthropicProvider', () => {
   const ok = (input: unknown) => new Response(JSON.stringify({ content: [{ type: 'tool_use', input }], usage: { input_tokens: 7, output_tokens: 3 } }), { status: 200 });
   const req: ProviderRequest = { system: 's', user: 'u', outputSchema: { type: 'object' } };
 
-  it('forces a tool call, retries 429, and returns the tool input with usage', async () => {
+  it('retries 429 and returns the tool input with usage and latency', async () => {
     const f = vi.fn().mockResolvedValueOnce(new Response('', { status: 429 })).mockResolvedValueOnce(ok({ results: [] }));
     const p = new AnthropicProvider({ apiKey: 'k', model: 'm', retryDelayMs: 1, fetch: f });
-    expect(await p.complete(req)).toEqual({ output: { results: [] }, usage: { inputTokens: 7, outputTokens: 3 } });
+    const out = await p.complete(req);
+    expect(out).toMatchObject({ output: { results: [] }, usage: { inputTokens: 7, outputTokens: 3 } });
+    expect(out.latencyMs).toBeGreaterThanOrEqual(0);
     expect(f).toHaveBeenCalledTimes(2);
-    const body = JSON.parse(f.mock.calls[1]![1].body);
-    expect(body.tool_choice).toEqual({ type: 'tool', name: 'submit_evaluation' });
-    expect(body.model).toBe('m');
     expect(f.mock.calls[1]![1].headers['x-api-key']).toBe('k');
+  });
+
+  it('sends a request shape Haiku 5.5 accepts: no sampling params, auto tool choice, explicit effort, room for thinking', async () => {
+    const f = vi.fn().mockResolvedValue(ok({ results: [] }));
+    await new AnthropicProvider({ apiKey: 'k', model: 'm', effort: 'low', fetch: f }).complete(req);
+    const body = JSON.parse(f.mock.calls[0]![1].body);
+    for (const banned of ['temperature', 'top_p', 'top_k', 'thinking']) expect(body).not.toHaveProperty(banned);
+    expect(body.tool_choice).toEqual({ type: 'auto' });
+    expect(body.output_config).toEqual({ effort: 'low' });
+    expect(body.max_tokens).toBeGreaterThanOrEqual(16000);
+    expect(body.model).toBe('m');
+    expect(body.system[0]).toMatchObject({ type: 'text', text: 's', cache_control: { type: 'ephemeral' } });
+    expect(body.tools[0].name).toBe('submit_evaluation');
+    expect(body.tools[0].strict).toBe(true);
+  });
+
+  it('defaults to medium effort', async () => {
+    const f = vi.fn().mockResolvedValue(ok({ results: [] }));
+    await new AnthropicProvider({ apiKey: 'k', model: 'm', fetch: f }).complete(req);
+    expect(JSON.parse(f.mock.calls[0]![1].body).output_config).toEqual({ effort: 'medium' });
+  });
+
+  it('reads cache token counts', async () => {
+    const f = vi.fn().mockResolvedValue(new Response(JSON.stringify({ content: [{ type: 'tool_use', input: {} }], usage: { input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 90, cache_creation_input_tokens: 5 } }), { status: 200 }));
+    expect((await new AnthropicProvider({ apiKey: 'k', model: 'm', fetch: f }).complete(req)).usage).toEqual({ inputTokens: 1, outputTokens: 2, cacheReadTokens: 90, cacheWriteTokens: 5 });
+  });
+
+  it('fails clearly on max_tokens and refusal instead of passing on partial output', async () => {
+    const stop = (stop_reason: string, extra: object = {}) => vi.fn().mockResolvedValue(new Response(JSON.stringify({ content: [{ type: 'tool_use', input: { results: [] } }], stop_reason, ...extra }), { status: 200 }));
+    await expect(new AnthropicProvider({ apiKey: 'k', model: 'm', fetch: stop('max_tokens') }).complete(req)).rejects.toThrow(/max_tokens/);
+    await expect(new AnthropicProvider({ apiKey: 'k', model: 'm', fetch: stop('refusal', { stop_details: { category: 'general_harms' } }) }).complete(req)).rejects.toThrow(/refused \(general_harms\)/);
+  });
+
+  it('retries once when the model answers without calling the tool, then gives up', async () => {
+    const prose = () => new Response(JSON.stringify({ content: [{ type: 'text', text: 'hi' }], stop_reason: 'end_turn' }), { status: 200 });
+    const f = vi.fn().mockResolvedValueOnce(prose()).mockResolvedValueOnce(ok({ results: [] }));
+    expect((await new AnthropicProvider({ apiKey: 'k', model: 'm', retryDelayMs: 1, fetch: f }).complete(req)).output).toEqual({ results: [] });
+    const g = vi.fn().mockImplementation(async () => prose());
+    await expect(new AnthropicProvider({ apiKey: 'k', model: 'm', retryDelayMs: 1, fetch: g }).complete(req)).rejects.toThrow(/no tool call/);
+    expect(g).toHaveBeenCalledTimes(2);
   });
 
   it('does not retry client errors and does not leak the key in the error', async () => {
@@ -228,5 +267,34 @@ describe('AnthropicProvider', () => {
     const f = vi.fn().mockResolvedValue(new Response('', { status: 503 }));
     await expect(new AnthropicProvider({ apiKey: 'k', model: 'm', retries: 2, retryDelayMs: 1, fetch: f }).complete(req)).rejects.toThrow(ProviderError);
     expect(f).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('deterministic checks on model answers', () => {
+  const payload = () => JSON.stringify({ checklist: { criteria: ORIGINAL_CHECKLIST.criteria }, conversation: { transcript: conv.transcript } });
+  const check = (tweak: (r: Record<string, unknown>[]) => void) => validateModelOutput(genericAnswer({ user: payload() } as ProviderRequest, tweak), conv, ORIGINAL_CHECKLIST).problems;
+  const operatorIdx = conv.transcript.find((m) => m.speaker === 'operator')!.index;
+  const clientIdx = conv.transcript.find((m) => m.speaker === 'client')!.index;
+  const flag = (idx: number, quote?: string) => (r: Record<string, unknown>[]) => { const f = r.find((x) => x.criterionId === '08')!; f.value = true; f.evidence = [{ messageIndex: idx, ...(quote ? { quote } : {}) }]; };
+
+  it('a raised flag must quote an operator message', () => {
+    const op = conv.transcript[operatorIdx]!.text.slice(0, 6);
+    const cl = conv.transcript[clientIdx]!.text.slice(0, 6);
+    expect(check(flag(operatorIdx, op))).toEqual([]);
+    expect(check(flag(clientIdx, cl)).join()).toMatch(/08: a raised flag needs a verbatim quote from an operator message/);
+    expect(check(flag(operatorIdx)).join()).toMatch(/raised flag/); // no quote
+  });
+
+  it('a reversed checkedRange is rejected (by the contract schema)', () => {
+    expect(check((r) => { r[0]!.evidence = []; r[0]!.checkedRange = { from: 5, to: 2 }; }).join()).toMatch(/checkedRange/);
+  });
+
+  it('confidence is capped at medium when the inspected range spans a recording pause', () => {
+    const facts = { recordingPausedRanges: [{ from: 3, to: 6 }] };
+    const r = { criterionId: 'x', value: false, isNA: false, explanation: 'e', evidence: [], confidence: 'high' as const };
+    expect(capConfidence({ ...r, checkedRange: { from: 0, to: 4 } }, facts).confidence).toBe('medium');
+    expect(capConfidence({ ...r, checkedRange: { from: 7, to: 9 } }, facts).confidence).toBe('high');
+    expect(capConfidence({ ...r, confidence: 'low', checkedRange: { from: 0, to: 9 } }, facts).confidence).toBe('low');
+    expect(capConfidence(r, facts).confidence).toBe('high'); // no range: nothing to compare
   });
 });

@@ -70,9 +70,12 @@ export function openDb(path: string) {
       created_at TEXT NOT NULL
     );
   `);
-  // Columns added after a table existed: CREATE TABLE IF NOT EXISTS does not add them to an existing file.
-  const hasColumn = (table: string, column: string) => (sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === column);
-  if (!hasColumn('appeals', 'kind')) sqlite.exec('ALTER TABLE appeals ADD COLUMN kind TEXT');
+  // Additive migrations: CREATE TABLE IF NOT EXISTS does not add columns to an existing file. Legacy evaluations
+  // intentionally have no reusable cache context; legacy appeal rows (no kind) read as 'appeal'.
+  const columns = (table: string) => sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!columns('evaluations').some((c) => c.name === 'cache_context')) sqlite.exec('ALTER TABLE evaluations ADD COLUMN cache_context TEXT');
+  if (!columns('jobs').some((c) => c.name === 'force')) sqlite.exec('ALTER TABLE jobs ADD COLUMN force INTEGER NOT NULL DEFAULT 0');
+  if (!columns('appeals').some((c) => c.name === 'kind')) sqlite.exec('ALTER TABLE appeals ADD COLUMN kind TEXT');
   return drizzle(sqlite, { schema });
 }
 

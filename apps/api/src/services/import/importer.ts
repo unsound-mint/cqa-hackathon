@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import type { Db } from '../../db/index.js';
 import { conversations } from '../../db/schema.js';
 import { parseDataset } from './dataset.js';
@@ -54,7 +55,7 @@ export type ImportResult = {
   failed: { recordIndex: number; conversationId?: string; reason: string }[];
 };
 
-/** Idempotent: re-importing a group upserts by conversation id, so a retry never duplicates. */
+/** Idempotent for unchanged input. Conflicting content is rejected atomically to preserve evidence sources. */
 export async function importDataset(db: Db, groupId: string, deps: ImportDeps): Promise<ImportResult> {
   if (!GROUP_ID_PATTERN.test(groupId)) throw new ImportError('invalid groupId', 400);
   if (!deps.baseUrl) throw new ImportError('DATASET_IMPORT_URL is not configured on the server', 503);
@@ -70,6 +71,13 @@ export async function importDataset(db: Db, groupId: string, deps: ImportDeps): 
   const now = new Date().toISOString();
   db.transaction((tx) => {
     for (const c of parsed.conversations) {
+      // Evidence and in-flight jobs refer to this immutable source. Changed inputs need a new id.
+      const existing = tx.select().from(conversations).where(eq(conversations.id, c.id)).get();
+      if (existing && (existing.datasetGroupId !== c.datasetGroupId || existing.language !== c.language ||
+          existing.channel !== c.channel || existing.audioUrl !== c.audioUrl ||
+          JSON.stringify(existing.transcript) !== JSON.stringify(c.transcript))) {
+        throw new ImportError('conversation content conflicts with an existing immutable source; import changed input under a new conversation id', 409);
+      }
       const row = { id: c.id, datasetGroupId: c.datasetGroupId, language: c.language, channel: c.channel, audioUrl: c.audioUrl, transcript: c.transcript, importedAt: now };
       tx.insert(conversations).values(row).onConflictDoUpdate({ target: conversations.id, set: row }).run();
     }

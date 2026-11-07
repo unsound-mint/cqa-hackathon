@@ -131,3 +131,5 @@ The import endpoint `POST /api/datasets/import` is a backend-only operation that
 ## Integration checkpoint
 
 Denis announces the commit SHA where `packages/contracts` and the fictional `MockCqaApi` are ready. Sofia works against those without needing Fastify. When the HTTP API matches this service interface, Sofia switches the implementation behind an injected client; components should not import backend services or call `fetch()` directly. Report any mismatch as an issue with an exact example request and response.
+
+Compatibility addition: startEvaluation accepts optional force?: boolean (default false), also supported by POST /api/evaluations. It bypasses result reuse while keeping deterministic detectors. Existing requests remain valid.

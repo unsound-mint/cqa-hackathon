@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { ASSISTED_DETECTORS, DETECTORS } from './detectors/index.js';
 import type { AssistedDetector } from './detectors/types.js';
 import { deriveFacts } from './facts.js';
-import { OUTPUT_SCHEMA, PROMPT_VERSION, SYSTEM_PROMPT } from './prompts.js';
+import { PROMPT_VERSION, systemPromptFor } from './prompts.js';
+import { originalCriterion } from './rubric.js';
+import { buildOutputSchema } from './output-schema.js';
 import type { LlmProvider } from './provider.js';
 
 export class EvaluationFailure extends Error {}
@@ -11,7 +13,16 @@ export class EvaluationFailure extends Error {}
 export { IDENTITY_VERIFIED_PATTERNS, deriveFacts as deriveContext } from './facts.js';
 
 function buildUserPayload(c: Conversation, checklist: Pick<ChecklistVersion, 'id' | 'criteria'>, decided: CriterionResult[], assisted: AssistedItem[], problems: string[]) {
+  const relevant = [...checklist.criteria, ...assisted.map(a => a.criterion)];
+  const facts = deriveFacts(c);
+  // Original criteria exclude first-response SLA. Custom timing criteria retain the complete facts.
+  const { secondsFromOperatorJoinToFirstOperatorMessage: _sla, ...nonSlaFacts } = facts;
+  const derivedFacts = relevant.every(criterion => originalCriterion(criterion)) ? {
+    ...nonSlaFacts,
+    largestGapsBetweenMessages: facts.largestGapsBetweenMessages.filter(g => facts.firstOperatorIndex !== null && g.fromIndex >= facts.firstOperatorIndex),
+  } : facts;
   return JSON.stringify({
+    responseLanguage: c.language,
     checklist: {
       id: checklist.id,
       criteria: checklist.criteria.map(({ id, title, instructions, kind, allowedValues, allowNA, naCondition, weight, criticalFlag }) => ({
@@ -22,13 +33,18 @@ function buildUserPayload(c: Conversation, checklist: Pick<ChecklistVersion, 'id
     assistedQuestions: assisted.map(({ criterion, detector }) => ({ criterionId: criterion.id, title: criterion.title, instructions: criterion.instructions, question: detector.question, answersSchema: detector.answersJsonSchema })),
     /** Criteria already settled by code or reused. Context only: do not re-evaluate or contradict them. */
     alreadyDecided: decided.map((r) => ({ criterionId: r.criterionId, value: r.value, isNA: r.isNA, explanation: r.explanation })),
-    derivedFacts: deriveFacts(c),
+    derivedFacts,
     conversation: { language: c.language, channel: c.channel, transcript: c.transcript },
     ...(problems.length ? { previousAnswerProblems: problems } : {}),
   });
 }
 
-const RawSchema = z.object({ results: z.array(z.unknown()), assisted: z.array(z.object({ criterionId: z.string(), answers: z.unknown() })).optional() });
+const AssistedAnswersSchema = z.union([
+  // Retain support for provider-neutral adapters that already return the original array representation.
+  z.array(z.object({ criterionId: z.string(), answers: z.unknown() })),
+  z.record(z.string(), z.unknown()).transform((answers) => Object.entries(answers).map(([criterionId, value]) => ({ criterionId, answers: value }))),
+]);
+const RawSchema = z.object({ results: z.array(z.unknown()), assisted: AssistedAnswersSchema.optional() });
 
 export type AssistedItem = { criterion: Criterion; detector: AssistedDetector<any> };
 
@@ -38,9 +54,14 @@ export function validateModelOutput(output: unknown, conversation: Conversation,
   if (!raw.success) return { problems: ['output must be { results: [...] }'] };
   const problems: string[] = [];
   const parsed: CriterionResult[] = [];
+  const facts = deriveFacts(conversation);
+  const enumBasis = new Map<string, unknown>();
   raw.data.results.forEach((r, i) => {
     const p = CriterionResultSchema.safeParse(r);
-    if (p.success) parsed.push(p.data);
+    if (p.success) {
+      parsed.push(p.data);
+      enumBasis.set(p.data.criterionId, (r as Record<string, unknown>).decisionBasis);
+    }
     else problems.push(`results[${i}]: ${p.error.issues[0]?.message ?? 'invalid'}`);
   });
 
@@ -62,7 +83,24 @@ export function validateModelOutput(output: unknown, conversation: Conversation,
     } else if (!c.allowedValues.includes(r.value as never)) {
       problems.push(`${c.id}: value ${JSON.stringify(r.value)} is not one of ${JSON.stringify(c.allowedValues)}`);
     }
+    // Context from clients/bots/system events is valid, but cannot prove an operator action.
+    const basis = enumBasis.get(c.id);
+    if (c.kind === 'enum' && !r.isNA) {
+      if (basis !== 'operator_action' && basis !== 'absence') problems.push(`${c.id}: enum needs decisionBasis operator_action or absence`);
+      if (basis === 'absence' && !r.checkedRange) problems.push(`${c.id}: absence needs checkedRange`);
+    }
+    const positiveNumeric = typeof r.value === 'number' && r.value > Math.min(...c.allowedValues.filter((v): v is number => typeof v === 'number'));
+    const needsAction = !r.isNA && (r.value === true || positiveNumeric || (c.kind === 'enum' && basis === 'operator_action'));
+    if (needsAction && !r.evidence.some((e) => {
+      const m = conversation.transcript[e.messageIndex];
+      return m?.speaker === 'operator' && !facts.operatorMessagesDuringHold.includes(e.messageIndex)
+        && !!e.quote?.trim() && m.text.includes(e.quote);
+    })) problems.push(`${c.id}: positive action needs verbatim client-facing operator evidence; bot/system/client evidence is context only`);
     if (r.evidence.length === 0 && !r.checkedRange) problems.push(`${c.id}: needs evidence or checkedRange`);
+    // A raised flag (serious violation) is an accusation about the operator: it must point at something the operator said.
+    if (c.criticalFlag && r.value === true && !r.evidence.some((x) => x.quote && conversation.transcript[x.messageIndex]?.speaker === 'operator')) {
+      problems.push(`${c.id}: a raised flag needs a verbatim quote from an operator message`);
+    }
   }
   problems.push(...findEvidenceProblems(conversation, parsed));
   if (problems.length) return { problems };
@@ -90,6 +128,16 @@ export function validateAssisted(output: unknown, conversation: Conversation, as
   return { answers, problems };
 }
 
+/**
+ * Deterministic post-check of a model result against the code's facts. Speech inside a recording pause is missing
+ * from the transcript, so a result whose inspected range spans a pause cannot be "high" confidence.
+ */
+export function capConfidence(result: CriterionResult, facts: Pick<ReturnType<typeof deriveFacts>, 'recordingPausedRanges'>): CriterionResult {
+  const range = result.checkedRange;
+  if (result.confidence !== 'high' || !range) return result;
+  return facts.recordingPausedRanges.some((p) => p.from <= range.to && p.to >= range.from) ? { ...result, confidence: 'medium' } : result;
+}
+
 export type ReuseLookup = (signature: string) => { result: CriterionResult; evaluationId: string } | undefined;
 
 export type Plan = { decided: Map<string, CriterionResult>; assisted: AssistedItem[]; undecided: Criterion[] };
@@ -105,7 +153,10 @@ export function planCriteria(conversation: Conversation, checklist: ChecklistVer
   const undecided: Criterion[] = [];
   const assisted: AssistedItem[] = [];
   for (const criterion of checklist.criteria) {
-    const detected = criterion.detector ? DETECTORS[criterion.detector]?.run({ conversation, facts, criterion }) : null;
+    // A retained detector name must never override edited instructions or N/A semantics.
+    const supported = originalCriterion(criterion) !== undefined;
+    const detectorName = supported ? criterion.detector : undefined;
+    const detected = detectorName ? DETECTORS[detectorName]?.run({ conversation, facts, criterion }) : null;
     if (detected) {
       decided.set(criterion.id, detected);
       continue;
@@ -115,7 +166,7 @@ export function planCriteria(conversation: Conversation, checklist: ChecklistVer
       decided.set(criterion.id, { ...structuredClone(prior.result), criterionId: criterion.id, reusedFrom: prior.evaluationId });
       continue;
     }
-    const helper = criterion.detector ? ASSISTED_DETECTORS[criterion.detector] : undefined;
+    const helper = detectorName ? ASSISTED_DETECTORS[detectorName] : undefined;
     if (helper?.appliesTo(criterion)) assisted.push({ criterion, detector: helper });
     else undecided.push(criterion);
   }
@@ -127,7 +178,8 @@ export type EvaluatorResult = {
   total: number | null;
   seriousViolation: boolean;
   provenance: Provenance;
-  usage: { inputTokens: number; outputTokens: number };
+  usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
+  latencyMs: number;
   /** Criteria the model decided or helped decide in this run (empty when rules and reuse covered everything). */
   modelCriteria: string[];
 };
@@ -138,25 +190,31 @@ export type EvaluatorResult = {
  */
 export async function evaluateConversation(provider: LlmProvider | undefined, conversation: Conversation, checklist: ChecklistVersion, reuse?: ReuseLookup, maxAttempts = 2): Promise<EvaluatorResult> {
   const { decided, assisted, undecided } = planCriteria(conversation, checklist, reuse);
-  const usage = { inputTokens: 0, outputTokens: 0 };
+  const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  let latencyMs = 0;
   const modelResults = new Map<string, CriterionResult>();
   let provenance: Provenance = { provider: 'local', model: 'rules+reuse', promptVersion: 'n/a' };
 
   if (undecided.length > 0 || assisted.length > 0) {
     if (!provider) throw new EvaluationFailure(`a model is required for criteria: ${[...undecided, ...assisted.map((a) => a.criterion)].map((c) => c.id).join(', ')}`);
     const subset = { id: checklist.id, criteria: undecided };
+    const outputSchema = buildOutputSchema(undecided, assisted, conversation.language);
+    const system = systemPromptFor([...undecided, ...assisted.map(a => a.criterion)]);
     let problems: string[] = [];
     let ok = false;
     for (let attempt = 1; attempt <= maxAttempts && !ok; attempt++) {
-      const res = await provider.complete({ system: SYSTEM_PROMPT, user: buildUserPayload(conversation, subset, [...decided.values()], assisted, problems), outputSchema: OUTPUT_SCHEMA as unknown as Record<string, unknown> });
+      const res = await provider.complete({ system, user: buildUserPayload(conversation, subset, [...decided.values()], assisted, problems), outputSchema });
       usage.inputTokens += res.usage?.inputTokens ?? 0;
       usage.outputTokens += res.usage?.outputTokens ?? 0;
+      usage.cacheReadTokens += res.usage?.cacheReadTokens ?? 0;
+      usage.cacheWriteTokens += res.usage?.cacheWriteTokens ?? 0;
+      latencyMs += res.latencyMs ?? 0;
       const v = validateModelOutput(res.output, conversation, { ...checklist, criteria: undecided });
       const a = validateAssisted(res.output, conversation, assisted);
       if (v.results && a.problems.length === 0) {
         for (const r of v.results) {
           const { reusedFrom: _drop, ...clean } = r;
-          modelResults.set(r.criterionId, { ...clean, source: 'model' });
+          modelResults.set(r.criterionId, capConfidence({ ...clean, source: 'model' }, deriveFacts(conversation)));
         }
         const facts = deriveFacts(conversation);
         for (const { criterion, detector } of assisted) decided.set(criterion.id, detector.decide({ conversation, facts, criterion }, a.answers.get(criterion.id)));
@@ -164,10 +222,10 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
       } else problems = [...v.problems, ...a.problems];
     }
     if (!ok) throw new EvaluationFailure(`model output failed validation: ${problems.slice(0, 5).join('; ')}`);
-    provenance = { provider: provider.name, model: provider.model, promptVersion: PROMPT_VERSION };
+    provenance = { provider: provider.name, model: provider.model, promptVersion: PROMPT_VERSION, ...(provider.effort ? { effort: provider.effort } : {}), usage, latencyMs };
   }
 
   const results = checklist.criteria.map((c) => decided.get(c.id) ?? modelResults.get(c.id)!);
   const { total, seriousViolation } = scoreEvaluation(checklist, results);
-  return { results, total, seriousViolation, provenance, usage, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
+  return { results, total, seriousViolation, provenance, usage, latencyMs, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
 }
