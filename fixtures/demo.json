@@ -1,0 +1,498 @@
+{
+  "_comment": "Wholly fictional demo bundle. No real customer data. Evaluation here is a hand-written mock, not model output.",
+  "conversations": [
+    {
+      "id": "demo-ru-001",
+      "datasetGroupId": "demo-fictional",
+      "language": "RU",
+      "channel": "agent chat",
+      "transcript": [
+        {
+          "index": 0,
+          "timestamp": "00:00",
+          "speaker": "bot",
+          "text": "Здравствуйте! Я виртуальный помощник магазина «Тихий берег». Опишите, пожалуйста, ваш вопрос."
+        },
+        {
+          "index": 1,
+          "timestamp": "00:08",
+          "speaker": "client",
+          "text": "Добрый день. Заказ 48213 назначили на завтра, но меня не будет дома. Перенесите, пожалуйста, доставку на субботу и поменяйте адрес на ул. Лесная, 12, кв. 7."
+        },
+        {
+          "index": 2,
+          "timestamp": "00:15",
+          "speaker": "bot",
+          "text": "Передаю ваш запрос оператору. Пожалуйста, подождите."
+        },
+        {
+          "index": 3,
+          "timestamp": "00:41",
+          "speaker": "system",
+          "text": "Оператор Анна подключилась к чату"
+        },
+        {
+          "index": 4,
+          "timestamp": "00:42",
+          "speaker": "operator",
+          "text": "Добрый день! Меня зовут Анна, магазин «Тихий берег». Для работы с заказом подтвердите, пожалуйста, код из СМС."
+        },
+        {
+          "index": 5,
+          "timestamp": "01:03",
+          "speaker": "client",
+          "text": "Код из СМС: 5521"
+        },
+        {
+          "index": 6,
+          "timestamp": "01:04",
+          "speaker": "system",
+          "text": "Личность клиента подтверждена"
+        },
+        {
+          "index": 7,
+          "timestamp": "01:10",
+          "speaker": "client",
+          "text": "Уже второй раз переносят доставку, это очень неудобно."
+        },
+        {
+          "index": 8,
+          "timestamp": "01:25",
+          "speaker": "operator",
+          "text": "Понимаю, как это неудобно. Вижу заказ 48213: доставка стояла на завтра с 10:00 до 14:00. Перенесла её на субботу, интервал тот же."
+        },
+        {
+          "index": 9,
+          "timestamp": "01:25",
+          "speaker": "operator",
+          "text": "Адрес тоже обновила: ул. Лесная, 12, кв. 7. Подтверждение придёт в СМС в течение нескольких минут."
+        },
+        {
+          "index": 10,
+          "timestamp": "01:48",
+          "speaker": "client",
+          "text": "Отлично, спасибо!"
+        },
+        {
+          "index": 11,
+          "timestamp": "01:55",
+          "speaker": "operator",
+          "text": "Пожалуйста! Если появятся вопросы, пишите нам. Хорошего дня, до свидания!"
+        },
+        {
+          "index": 12,
+          "timestamp": "02:10",
+          "speaker": "system",
+          "text": "Чат завершён"
+        }
+      ],
+      "audioUrl": null
+    }
+  ],
+  "checklists": [
+    {
+      "id": "checklist-original-v1",
+      "version": 1,
+      "title": "Чек-лист качества чатов (исходный)",
+      "sections": [
+        {
+          "id": "start",
+          "title": "Начало и понимание запроса"
+        },
+        {
+          "id": "security",
+          "title": "Безопасность и решение"
+        },
+        {
+          "id": "flow",
+          "title": "Ведение и завершение диалога"
+        },
+        {
+          "id": "violations",
+          "title": "Грубые нарушения"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "01",
+          "title": "Установление контакта",
+          "sectionId": "start",
+          "instructions": "Да — оператор поздоровался на языке клиента и представился в первом ответе.",
+          "weight": 10,
+          "kind": "boolean",
+          "allowedValues": [
+            true,
+            false
+          ],
+          "allowNA": false
+        },
+        {
+          "id": "02",
+          "title": "Выявление потребности",
+          "sectionId": "start",
+          "instructions": "Да — оператор учёл известные детали и уточнил недостающее до ответа.",
+          "weight": 15,
+          "kind": "boolean",
+          "allowedValues": [
+            true,
+            false
+          ],
+          "allowNA": true,
+          "naCondition": "Данных для ответа хватало с самого начала."
+        },
+        {
+          "id": "03",
+          "title": "Идентификация",
+          "sectionId": "security",
+          "instructions": "Да — проверка личности подтверждена до раскрытия данных или защищённого действия. Если проверка требовалась, но не подтверждена — Нет.",
+          "weight": 20,
+          "kind": "boolean",
+          "allowedValues": [
+            true,
+            false
+          ],
+          "allowNA": true,
+          "naCondition": "Запрос не требовал идентификации."
+        },
+        {
+          "id": "04",
+          "title": "Корректная и полная консультация",
+          "sectionId": "security",
+          "instructions": "20 — все существенные вопросы закрыты или дан корректный следующий шаг; 15 — основной вопрос решён, пропущена второстепенная деталь; 10 — часть запроса закрыта, существенный вопрос остался открытым; 5 — общая подсказка, клиенту всё ещё непонятно, как действовать; 0 — ответа по существу нет или ключевая рекомендация ошибочна.",
+          "weight": 20,
+          "kind": "discrete-scale",
+          "allowedValues": [
+            0,
+            5,
+            10,
+            15,
+            20
+          ],
+          "allowNA": true,
+          "naCondition": "Чат закончился до того, как клиент сформулировал запрос."
+        },
+        {
+          "id": "05",
+          "title": "Эмпатия и клиентоориентированность",
+          "sectionId": "flow",
+          "instructions": "Да — оператор вежлив и, если клиент выразил недовольство или описал неудобство, отреагировал на конкретную проблему.",
+          "weight": 15,
+          "kind": "boolean",
+          "allowedValues": [
+            true,
+            false
+          ],
+          "allowNA": false
+        },
+        {
+          "id": "06",
+          "title": "Управление диалогом, скорость и грамотность",
+          "sectionId": "flow",
+          "instructions": "10 — ответы ясные и связные, при явном ожидании оператор предупредил; 7 — один заметный сбой, клиент может понять и продолжить; 4 — клиенту приходится переспрашивать из-за формулировок или порядка; 0 — бессвязные или противоречивые реплики. Порог первой реакции в 3 минуты, теги и вложения не оцениваются.",
+          "weight": 15,
+          "kind": "discrete-scale",
+          "allowedValues": [
+            0,
+            4,
+            7,
+            10
+          ],
+          "allowNA": false
+        },
+        {
+          "id": "07",
+          "title": "Завершение",
+          "sectionId": "flow",
+          "instructions": "Да — оператор подвёл итог или предложил дальнейшую помощь и попрощался.",
+          "weight": 5,
+          "kind": "boolean",
+          "allowedValues": [
+            true,
+            false
+          ],
+          "allowNA": true,
+          "naCondition": "Чат оборвался до возможности его завершить."
+        },
+        {
+          "id": "08",
+          "title": "Грубые ошибки",
+          "sectionId": "violations",
+          "instructions": "Да — выявлено оскорбление клиента, предложение платной услуги в обход компании или раскрытие конфиденциальной информации. Баллы не начисляются и не снимаются.",
+          "weight": 0,
+          "kind": "boolean",
+          "allowedValues": [
+            true,
+            false
+          ],
+          "allowNA": false,
+          "criticalFlag": true
+        }
+      ],
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "evaluations": [
+    {
+      "id": "eval-demo-ru-001-v1",
+      "conversationId": "demo-ru-001",
+      "checklistVersionId": "checklist-original-v1",
+      "status": "completed",
+      "originalResults": [
+        {
+          "criterionId": "01",
+          "value": true,
+          "isNA": false,
+          "explanation": "В первом ответе оператор поздоровался по-русски и представился.",
+          "evidence": [
+            {
+              "messageIndex": 4,
+              "quote": "Добрый день! Меня зовут Анна"
+            }
+          ],
+          "checkedRange": {
+            "from": 3,
+            "to": 4
+          }
+        },
+        {
+          "criterionId": "02",
+          "value": null,
+          "isNA": true,
+          "explanation": "Клиент сразу указал номер заказа, желаемую дату и новый адрес.",
+          "evidence": [
+            {
+              "messageIndex": 1,
+              "quote": "Заказ 48213"
+            }
+          ],
+          "naReason": "Данных для ответа хватало с самого начала.",
+          "checkedRange": {
+            "from": 0,
+            "to": 4
+          }
+        },
+        {
+          "criterionId": "03",
+          "value": true,
+          "isNA": false,
+          "explanation": "Оператор запросил код; система подтвердила личность (сообщение 6) до раскрытия данных заказа (сообщение 8).",
+          "evidence": [
+            {
+              "messageIndex": 6,
+              "quote": "Личность клиента подтверждена"
+            },
+            {
+              "messageIndex": 8,
+              "quote": "Вижу заказ 48213"
+            }
+          ]
+        },
+        {
+          "criterionId": "04",
+          "value": 15,
+          "isNA": false,
+          "explanation": "Дата перенесена и адрес обновлён; оператор не уточнил, влияет ли новый адрес на интервал доставки (второстепенная деталь).",
+          "evidence": [
+            {
+              "messageIndex": 8,
+              "quote": "Перенесла её на субботу"
+            },
+            {
+              "messageIndex": 9,
+              "quote": "Адрес тоже обновила"
+            }
+          ]
+        },
+        {
+          "criterionId": "05",
+          "value": true,
+          "isNA": false,
+          "explanation": "Клиент пожаловался на неудобство; оператор отреагировал на конкретную проблему.",
+          "evidence": [
+            {
+              "messageIndex": 7,
+              "quote": "это очень неудобно"
+            },
+            {
+              "messageIndex": 8,
+              "quote": "Понимаю, как это неудобно"
+            }
+          ]
+        },
+        {
+          "criterionId": "06",
+          "value": 10,
+          "isNA": false,
+          "explanation": "Ответы ясные и последовательные, явных ожиданий не было.",
+          "evidence": [
+            {
+              "messageIndex": 8
+            },
+            {
+              "messageIndex": 9
+            }
+          ],
+          "checkedRange": {
+            "from": 4,
+            "to": 11
+          }
+        },
+        {
+          "criterionId": "07",
+          "value": true,
+          "isNA": false,
+          "explanation": "Оператор предложил дальнейшую помощь и попрощался.",
+          "evidence": [
+            {
+              "messageIndex": 11,
+              "quote": "Если появятся вопросы, пишите нам. Хорошего дня, до свидания!"
+            }
+          ]
+        },
+        {
+          "criterionId": "08",
+          "value": false,
+          "isNA": false,
+          "explanation": "Оскорблений, платных услуг в обход компании и раскрытия конфиденциальной информации не найдено.",
+          "evidence": [],
+          "checkedRange": {
+            "from": 4,
+            "to": 11
+          }
+        }
+      ],
+      "originalTotal": 94.12,
+      "finalResults": [
+        {
+          "criterionId": "01",
+          "value": true,
+          "isNA": false,
+          "explanation": "В первом ответе оператор поздоровался по-русски и представился.",
+          "evidence": [
+            {
+              "messageIndex": 4,
+              "quote": "Добрый день! Меня зовут Анна"
+            }
+          ],
+          "checkedRange": {
+            "from": 3,
+            "to": 4
+          }
+        },
+        {
+          "criterionId": "02",
+          "value": null,
+          "isNA": true,
+          "explanation": "Клиент сразу указал номер заказа, желаемую дату и новый адрес.",
+          "evidence": [
+            {
+              "messageIndex": 1,
+              "quote": "Заказ 48213"
+            }
+          ],
+          "naReason": "Данных для ответа хватало с самого начала.",
+          "checkedRange": {
+            "from": 0,
+            "to": 4
+          }
+        },
+        {
+          "criterionId": "03",
+          "value": true,
+          "isNA": false,
+          "explanation": "Оператор запросил код; система подтвердила личность (сообщение 6) до раскрытия данных заказа (сообщение 8).",
+          "evidence": [
+            {
+              "messageIndex": 6,
+              "quote": "Личность клиента подтверждена"
+            },
+            {
+              "messageIndex": 8,
+              "quote": "Вижу заказ 48213"
+            }
+          ]
+        },
+        {
+          "criterionId": "04",
+          "value": 15,
+          "isNA": false,
+          "explanation": "Дата перенесена и адрес обновлён; оператор не уточнил, влияет ли новый адрес на интервал доставки (второстепенная деталь).",
+          "evidence": [
+            {
+              "messageIndex": 8,
+              "quote": "Перенесла её на субботу"
+            },
+            {
+              "messageIndex": 9,
+              "quote": "Адрес тоже обновила"
+            }
+          ]
+        },
+        {
+          "criterionId": "05",
+          "value": true,
+          "isNA": false,
+          "explanation": "Клиент пожаловался на неудобство; оператор отреагировал на конкретную проблему.",
+          "evidence": [
+            {
+              "messageIndex": 7,
+              "quote": "это очень неудобно"
+            },
+            {
+              "messageIndex": 8,
+              "quote": "Понимаю, как это неудобно"
+            }
+          ]
+        },
+        {
+          "criterionId": "06",
+          "value": 10,
+          "isNA": false,
+          "explanation": "Ответы ясные и последовательные, явных ожиданий не было.",
+          "evidence": [
+            {
+              "messageIndex": 8
+            },
+            {
+              "messageIndex": 9
+            }
+          ],
+          "checkedRange": {
+            "from": 4,
+            "to": 11
+          }
+        },
+        {
+          "criterionId": "07",
+          "value": true,
+          "isNA": false,
+          "explanation": "Оператор предложил дальнейшую помощь и попрощался.",
+          "evidence": [
+            {
+              "messageIndex": 11,
+              "quote": "Если появятся вопросы, пишите нам. Хорошего дня, до свидания!"
+            }
+          ]
+        },
+        {
+          "criterionId": "08",
+          "value": false,
+          "isNA": false,
+          "explanation": "Оскорблений, платных услуг в обход компании и раскрытия конфиденциальной информации не найдено.",
+          "evidence": [],
+          "checkedRange": {
+            "from": 4,
+            "to": 11
+          }
+        }
+      ],
+      "finalTotal": 94.12,
+      "seriousViolation": false,
+      "provenance": {
+        "provider": "mock",
+        "model": "fictional-fixture",
+        "promptVersion": "n/a"
+      }
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 # Shared interface freeze: v0
 
+> Implemented in `packages/contracts`. Additive v0.1 changes (job `evaluationIds`, `listEvaluations`, `listAppeals`, provenance, appeal timestamps) are listed in `docs/ARCHITECTURE.md` -> "Contract v0.1 additions".
+
 **Owner: Denis.** This is the initial contract for bootstrap, not a substitute for the Zod schemas / TypeScript types published in `packages/contracts`. Publish those types on `main` before Sofia begins. Change shared shapes via a small `area:shared` issue and version the change; do not allow independently invented frontend/backend DTOs.
 
 ## Domain records

@@ -1,0 +1,15 @@
+{
+  "name": "cqa-hackathon",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @cqa/web --filter @cqa/api dev",
+    "dev:web": "pnpm --filter @cqa/web dev",
+    "dev:api": "pnpm --filter @cqa/api dev",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "build": "pnpm -r build"
+  },
+  "pnpm": { "onlyBuiltDependencies": ["esbuild"] }
+}

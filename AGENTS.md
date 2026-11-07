@@ -13,7 +13,7 @@ Build a working Conversation Quality Analytics prototype within a 24-hour hackat
 - Read the assigned issue and only the relevant documentation before changing code. Check the current branch, `git status`, and configured remote; do not assume repository permissions or credentials.
 - Never start a second issue, redesign a neighboring workstream, or spawn autonomous coding subagents without the human owner's approval. Three supervised primary agents are enough.
 - For anything beyond a trivial change: implement a working slice, run a real check, inspect the diff, and report evidence. For an untested or inaccessible dependency, say exactly what remains unverified.
-- An agent may **propose** issues, PRs and decisions; actual GitHub mutations require the human's permission in that session. No fabricated issue/PR URLs or claims of review.
+- Standing authorization (Denis, 2026-11-07): every agent may create/update issues, push its own owner's branches, open PRs and merge them without asking in-session, under the limits in the GitHub collaboration contract. Humans decide architecture, ground truth and model choice; agents implement. No fabricated issue/PR URLs or claims of review.
 
 ## Non-negotiable behavior
 - Analyze NEW inputs. Never hardcode scores, answers, prompts, or expected results for specific conversation IDs, languages, or DEV examples.
@@ -32,10 +32,10 @@ Build a working Conversation Quality Analytics prototype within a 24-hour hackat
 - See `docs/INTERFACES.md` for shared DTO/API contracts and `docs/ARCHITECTURE.md` when modifying pipeline or contracts and `docs/RUBRIC.md` for scoring; see `docs/WORKFLOW.md` when creating issues/PRs. Each human also has a handoff in `handoffs/`. Do not read every document for trivial edits.
 
 ## GitHub collaboration contract
-1. Use one issue per independently demonstrable deliverable, with owner, area, P0/P1, acceptance criteria, and dependencies. Existing issue first; avoid duplicate tickets. Agent may create or update issues only with its human owner's permission and a verified repository remote.
+1. Use one issue per independently demonstrable deliverable, with owner, area, P0/P1, acceptance criteria, and dependencies. Existing issue first; avoid duplicate tickets. Agents may create or update issues without asking (verified remote; search for an existing issue first).
 2. Work from `main` on branches `denis/<issue>-slug`, `sofia/<issue>-slug`, or `eldana/<issue>-slug`. Separate clone/worktree per agent if local workspaces overlap. Do not commit to `main` directly.
 3. Keep each PR focused on one issue and normally inside the owner's files. Draft PR early for visibility. Description must state `Fixes #N` (when truly complete), summary, test evidence, file scope, and any API/contract changes.
-4. Agents may commit/push/open PRs when authorized by their human. They must not merge, force-push shared branches, alter GitHub protections, change shared contracts, or delete another person's work without explicit human approval.
+4. Agents may commit/push/open PRs and merge them once CI is green, with no per-action confirmation and no human approval (Denis, tech lead, 2026-11-07, speaking for the whole team). Never force-push shared branches, alter GitHub protections or settings, delete another person's work, or merge with failing CI or during an announced freeze. Contract/scoring/privacy/deployment PRs need a self-review note in the PR body instead of a reviewer.
 5. Human owners can merge low-risk, owner-scoped changes after relevant CI passes; changes to shared contracts, scoring, privacy, security, or deployment require Denis's review (or another human's review if Denis authored it). Do not set a mandatory global reviewer that blocks everyone while one teammate is offline.
 6. If blocked >15 minutes, create a concise blocking comment specifying expected interface and switch to independent mock/fixture/test work. Never wait idle. Do not change another owner's files to work around a block.
 
