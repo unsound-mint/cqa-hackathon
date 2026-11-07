@@ -33,7 +33,7 @@ flowchart LR
 
 - **Production-style run:** `pnpm start` builds everything; the API serves `apps/web/dist` and `/api` on one port (8787). No Docker, no queue service, no external database.
 - **Browser never calls the model or the organizer API.** The signed dataset URL and the model key are server-only environment variables.
-- **No authentication** by design (hackathon demo). Reviewer and submitter are not identities; nothing pretends otherwise.
+- **No authentication** by design (hackathon demo). A role picker (operator / reviewer / lead, `contracts/roles.ts`) sends `x-cqa-role` and `x-cqa-actor` (URI-encoded name) with every request; the API enforces what each role may do and see (`routes/actor.ts`). It separates responsibilities, it is not security: any client can send any role. A request without a role is unrestricted (exporter, stability runner, scripts), so they keep working.
 
 ## 3. Repository layout and module boundaries
 
@@ -93,10 +93,12 @@ components/ui/   small primitives
 
 | Table | Mutability | Notes |
 |---|---|---|
-| `conversations` | immutable | Transcript JSON exactly as received plus a zero-based `index` per message; audio URL kept untouched. Re-import of identical data is a no-op; same id with different content → HTTP 409 (new id required), so evidence can never drift. |
+| `conversations` | immutable | Transcript JSON exactly as received plus a zero-based `index` per message; audio URL kept untouched. Re-import of identical data is a no-op (`imported_at` keeps the first time the dialog was stored); same id with different content → HTTP 409 (new id required), so evidence can never drift. |
 | `checklist_versions` | insert-only | Every save is `max(version)+1`. Version 1 is `original.json`. Rewritten only if it is outdated *and* unused. |
 | `evaluations` | `original_*` write-once; `final_*` and `serious_violation` rewritten by appeals | Also stores `provenance` (provider, model, prompt version, effort, tokens, latency), `cache_context`, `decision_facts` (validated model-extracted facts), `error`. |
-| `appeals` | append-only | `kind` = `appeal` or `correction` (reviewer override without an appeal). A decided row is never rewritten. |
+| `appeals` | append-only | `kind` = `appeal` or `correction` (reviewer override without an appeal). A decided row is never rewritten. `created_by` / `decided_by` hold the display names from the role picker. |
+| `operator_assignments` | upsert | Dialog → operator, set by the lead (the organizer data carries no operator identity). Its own table so a re-import, which rewrites the conversation row, never touches it. |
+| `reviews` | upsert | One human check per dialog: `in_review` / `reviewed`, who and when, bound to the `evaluation_id` that was looked at. A newer evaluation makes it stale (the dialog counts as new again). Not part of the immutable evaluation. |
 | `jobs` | progress counters | Holds conversation ids, checklist id, `force`, produced evaluation ids → resumable after restart. |
 
 Migrations are additive and idempotent (nullable columns added on open); there is no destructive migration. Back up `data/cqa.sqlite` before deployment.
@@ -157,9 +159,13 @@ If rules and reuse settle everything, the provider is never called; `POST /api/e
 ## 6. Review, appeals and audit
 
 - `finalResults`/`finalTotal` start as a copy of the originals. `originalResults`/`originalTotal` are never written again.
-- **Appeal** (`POST /api/evaluations/:id/appeals`): anyone files a comment against one criterion; one pending appeal per criterion. **Decision** (`POST /api/appeals/:id/decision`): `uphold` leaves the AI result, `override` supplies a value or N/A + reason.
+- **Roles.** Operator: sees only dialogs assigned to them (list, single reads, evaluations, appeals, audio are all scoped server-side; others answer 404), files appeals, follows them. Reviewer: sees everything, marks review state, corrects criteria, decides appeals, starts evaluations. Lead: all of that plus checklist versions, operator assignment and import. 403 for a missing permission.
+- **Appeal** (`POST /api/evaluations/:id/appeals`): an operator files a comment against one of their own dialogs' criteria; one pending appeal per criterion. **Decision** (`POST /api/appeals/:id/decision`): `uphold` leaves the AI result, `override` supplies a value or N/A + reason.
 - **Correction** (`POST /api/evaluations/:id/overrides`): a reviewer changes a criterion directly; stored as an already-decided appeal of kind `correction`, refused (409) while an appeal is pending on that criterion.
 - On override the scorer recomputes `finalTotal` and `serious_violation` from the stored checklist version, inside a transaction. The overridden result carries the reviewer's reason and `source: 'reviewer'`; the AI's explanation remains in `originalResults`. Evidence and decision facts are kept.
+
+- **Review state** (`POST /api/conversations/:id/review` `{status: new|in_review|reviewed}`): bound to the dialog's latest evaluation; `new` reopens. A correction or decision by a reviewer moves the dialog to `in_review` but never to `reviewed`: one criterion is not a full check. Only the explicit action finishes it.
+- **Assignment** (`POST /api/conversations/operator` `{conversationIds, operator|null}`) and `GET /api/operators` (names, for the role picker).
 
 ## 7. Audio and evidence navigation
 
@@ -173,7 +179,8 @@ All shapes are the Zod schemas in `packages/contracts/src/api.ts` and `domain.ts
 |---|---|
 | `GET /health` | liveness |
 | `POST /api/datasets/import` `{groupId}` | server-side fetch of the organizer dataset (retry/backoff, `group_id` overridden), idempotent insert, recordings prefetched |
-| `GET /api/conversations`, `/:id` | list (filters language/channel) / one |
+| `GET /api/conversations`, `/:id` | list (filters language/channel) / one; carries `importedAt`, `operatorId`, `review`; scoped for operators |
+| `POST /api/conversations/:id/review`, `POST /api/conversations/operator`, `GET /api/operators` | review state, operator assignment, known operators |
 | `GET /api/conversations/:id/audio` | recording with ranges |
 | `GET /api/checklists`, `/:id`, `POST /api/checklists` | versions; save = new version |
 | `GET /api/detectors` | detector names the editor may reference |
@@ -185,7 +192,7 @@ All shapes are the Zod schemas in `packages/contracts/src/api.ts` and `domain.ts
 | `GET /api/appeals?status=` | approver queue across dialogs |
 | `POST /api/appeals/:id/decision` | uphold / override |
 
-Errors map to 400 (invalid), 404, 409 (conflict), 502 (import upstream), 503 (model needed but absent); the web client turns them into `CqaApiError('invalid'|'not_found'|'conflict')`, identical to the mock.
+Errors map to 400 (invalid), 403 (role lacks the permission), 404, 409 (conflict), 502 (import upstream), 503 (model needed but absent); the web client turns them into `CqaApiError('invalid'|'not_found'|'conflict'|'forbidden')`, identical to the mock.
 
 ## 9. Versioning and provenance
 
@@ -225,5 +232,5 @@ Bumping either invalidates cached results; legacy rows without a cache context a
 - Reference agreement reported by the tooling is agreement with human labels written by the team (see `docs/VALIDATION.md`), not with the organizer's hidden ground truth.
 - Semantic relevance of an operator quote still depends on model judgment; the validators prove the quote is real and operator-authored, not that it is the right quote.
 - Voice transcripts are speech-recognition output; absence claims inside recording pauses are capped at medium confidence and flagged for human review.
-- Rounding of halfway cases is provisional (§5.3). No authentication; single reviewer role in practice.
+- Rounding of halfway cases is provisional (§5.3). No authentication: the role is a demo switch that any client can spoof.
 - Cost reporting is per-evaluation token usage in provenance; price conversion is done by the evaluation tool (`--price-in/--price-out`).

@@ -1,3 +1,4 @@
+import { can, type Actor } from '@cqa/contracts';
 import type { Appeal, ChecklistVersion, Conversation, Criterion, CriterionResult, DecideAppealInput, EvidenceReference, Evaluation } from '@cqa/contracts';
 import { AlertTriangle, ChevronDown, Download, FlaskConical, Headphones, Link2Off, Loader2, Play, Printer, Quote, ShieldAlert, Square } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
@@ -21,6 +22,8 @@ type Props = {
   selectedCriterionId: string | null;
   onSelectCriterion: (id: string) => void;
   onJump: (index: number) => void;
+  /** Who is acting: decides which review actions a criterion offers. */
+  identity: Actor;
   onStart: () => void;
   starting: boolean;
   /** A failed start of an evaluation (any thrown value; shown in Russian). */
@@ -168,9 +171,9 @@ function Reasoning({ result, conversation, onJump, title }: { result: CriterionR
   );
 }
 
-type RowProps = { criterion: Criterion | undefined; result: CriterionResult; original: CriterionResult | undefined; conversation: Conversation; open: boolean; onToggle: () => void; onJump: (i: number) => void; evaluation: Evaluation; checklist: ChecklistVersion | undefined; appeals: Appeal[]; onCreateAppeal: Props['onCreateAppeal']; onDecideAppeal: Props['onDecideAppeal']; onCorrect: Props['onCorrect'] };
+type RowProps = { identity: Actor; criterion: Criterion | undefined; result: CriterionResult; original: CriterionResult | undefined; conversation: Conversation; open: boolean; onToggle: () => void; onJump: (i: number) => void; evaluation: Evaluation; checklist: ChecklistVersion | undefined; appeals: Appeal[]; onCreateAppeal: Props['onCreateAppeal']; onDecideAppeal: Props['onDecideAppeal']; onCorrect: Props['onCorrect'] };
 
-function CriterionRow({ criterion, result, original, conversation, open, onToggle, onJump, evaluation, checklist, appeals, onCreateAppeal, onDecideAppeal, onCorrect }: RowProps) {
+function CriterionRow({ identity, criterion, result, original, conversation, open, onToggle, onJump, evaluation, checklist, appeals, onCreateAppeal, onDecideAppeal, onCorrect }: RowProps) {
   const g = grade(criterion, result);
   const changed = !!original && !sameResult(original, result);
   const pts = earnedPoints(criterion, result);
@@ -243,14 +246,14 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
             </details>
           )}
 
-          <ReviewBox evaluation={evaluation} checklist={checklist} criterionId={result.criterionId} criterion={criterion} appeals={appeals} onCreate={onCreateAppeal} onDecide={onDecideAppeal} onCorrect={onCorrect} />
+          <ReviewBox identity={identity} evaluation={evaluation} checklist={checklist} criterionId={result.criterionId} criterion={criterion} appeals={appeals} onCreate={onCreateAppeal} onDecide={onDecideAppeal} onCorrect={onCorrect} />
         </div>
       )}
     </li>
   );
 }
 
-export function EvaluationPanel({ conversation, evaluation, checklist, selectedCriterionId, onSelectCriterion, onJump, onStart, starting, startError, appeals, onCreateAppeal, onDecideAppeal, onCorrect, onlyFlagged, onOnlyFlagged, demoMode, versions, onPickEvaluation, newerChecklistVersion }: Props) {
+export function EvaluationPanel({ identity, conversation, evaluation, checklist, selectedCriterionId, onSelectCriterion, onJump, onStart, starting, startError, appeals, onCreateAppeal, onDecideAppeal, onCorrect, onlyFlagged, onOnlyFlagged, demoMode, versions, onPickEvaluation, newerChecklistVersion }: Props) {
   /** An opened criterion (digit key, tag on a message, link) is brought into view with its form. */
   useEffect(() => {
     if (!selectedCriterionId || !evaluation) return;
@@ -266,10 +269,12 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
       <section aria-label="Оценка" className="flex h-full flex-col items-start gap-3 p-5">
         <h2 className="text-base font-semibold">Диалог ещё не оценён</h2>
         <p className="max-w-prose text-sm text-muted">Оценки нет, и мы не показываем выдуманных. Запустите оценку по текущему чек-листу.</p>
-        <Button variant="accent" size="lg" onClick={onStart} disabled={starting || !checklist}>
-          {starting && <Loader2 aria-hidden className="size-4 motion-safe:animate-spin" />}
-          {starting ? 'Идёт оценка…' : 'Оценить диалог'}
-        </Button>
+        {can(identity, 'evaluate') && (
+          <Button variant="accent" size="lg" onClick={onStart} disabled={starting || !checklist}>
+            {starting && <Loader2 aria-hidden className="size-4 motion-safe:animate-spin" />}
+            {starting ? 'Идёт оценка…' : 'Оценить диалог'}
+          </Button>
+        )}
         <ErrorNote error={startError} />
       </section>
     );
@@ -280,7 +285,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
       <section aria-label="Оценка" className="flex h-full flex-col items-start gap-3 p-5">
         <h2 className="flex items-center gap-2 text-base font-semibold text-danger"><AlertTriangle aria-hidden className="size-5" />Оценка не получилась</h2>
         <ErrorNote error={evaluation.error ?? 'Причина не указана.'} className="max-w-prose text-ink" />
-        <Button variant="accent" size="lg" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : 'Повторить оценку'}</Button>
+        {can(identity, 'evaluate') && <Button variant="accent" size="lg" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : 'Повторить оценку'}</Button>}
         <ErrorNote error={startError} />
       </section>
     );
@@ -364,7 +369,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         ) : (
           <span className="text-muted">{checklist ? `Чек-лист, версия ${checklist.version}` : 'Чек-лист не найден'}</span>
         )}
-        {newerChecklistVersion !== null && (
+        {newerChecklistVersion !== null && can(identity, 'evaluate') && (
           <Button size="sm" variant="ghost" className="px-2 text-xs" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : `Пересчитать по версии ${newerChecklistVersion}`}</Button>
         )}
         {!!startError && <ErrorNote error={startError} className="w-full text-xs" />}
@@ -378,6 +383,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
               {g.rows.map((r) => (
                 <CriterionRow
                   key={r.criterionId}
+                  identity={identity}
                   criterion={lookup(r.criterionId)}
                   result={r}
                   original={originalById.get(r.criterionId)}

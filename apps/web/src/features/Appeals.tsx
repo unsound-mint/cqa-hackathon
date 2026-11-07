@@ -1,4 +1,4 @@
-import { scoreEvaluation, type Appeal, type ChecklistVersion, type Criterion, type CriterionResult, type CriterionValue, type DecideAppealInput, type Evaluation } from '@cqa/contracts';
+import { can, scoreEvaluation, type Actor, type Appeal, type ChecklistVersion, type Criterion, type CriterionResult, type CriterionValue, type DecideAppealInput, type Evaluation } from '@cqa/contracts';
 import { CheckCircle2, Gavel, MessageSquareWarning, PencilLine } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -86,6 +86,8 @@ function Box({ id, label, dirty, onSubmit, children }: { id?: string; label: str
 }
 
 type Props = {
+  /** Who is acting: an operator disputes their own grade; a reviewer or lead corrects and decides. */
+  identity: Actor;
   evaluation: Evaluation;
   checklist: ChecklistVersion | undefined;
   criterionId: string;
@@ -97,15 +99,19 @@ type Props = {
 };
 
 /**
- * What a reviewer can do with one criterion: correct it directly, or file an appeal (the operator's dispute path);
- * decide a pending appeal; and see the history of earlier decisions. The original AI answer is always kept.
+ * What each role can do with one criterion. An operator files an appeal (their dispute path) and follows it; a
+ * reviewer or lead corrects the grade directly and decides pending appeals. Everyone sees the history of decisions.
+ * The original AI answer is always kept.
  */
-export function ReviewBox({ evaluation, checklist, criterionId, criterion, appeals, onCreate, onDecide, onCorrect }: Props) {
+export function ReviewBox({ identity, evaluation, checklist, criterionId, criterion, appeals, onCreate, onDecide, onCorrect }: Props) {
   const mine = appeals.filter((a) => a.criterionId === criterionId);
   const pending = mine.find((a) => a.status === 'pending');
   const history = mine.filter((a) => a.status !== 'pending').reverse();
   const current = evaluation.finalResults.find((r) => r.criterionId === criterionId);
   const opts = options(criterion);
+  const canDecide = can(identity, 'decide');
+  const canCorrect = can(identity, 'correct');
+  const canAppeal = can(identity, 'appeal');
   const id = `${evaluation.id}-${criterionId}`;
 
   const [mode, setMode] = useState<'idle' | 'correct' | 'appeal'>('idle');
@@ -155,7 +161,15 @@ export function ReviewBox({ evaluation, checklist, criterionId, criterion, appea
         <p role="status" className="flex items-center gap-2 text-sm text-accent"><CheckCircle2 aria-hidden className="size-4" />{done}</p>
       )}
 
-      {pending && (
+      {pending && !canDecide && (
+        <div className="rounded-xl border border-line bg-canvas px-4 py-3 text-sm">
+          <p className="flex items-center gap-2 font-medium"><Gavel aria-hidden className="size-4 text-accent" />{canAppeal ? 'Ваша апелляция ждёт решения' : 'Апелляция ждёт решения проверяющего'}</p>
+          <p className="mt-1 max-w-[65ch]">{pending.comment}</p>
+          <p className="mt-1 text-xs text-muted">Подана {fmt(pending.createdAt)}{pending.createdBy ? ` · ${pending.createdBy}` : ''}. До решения балл не меняется.</p>
+        </div>
+      )}
+
+      {pending && canDecide && (
         <Box
           label={`Решение по апелляции, критерий ${criterionId}`}
           dirty={!!text.trim() || action !== null}
@@ -169,7 +183,7 @@ export function ReviewBox({ evaluation, checklist, criterionId, criterion, appea
           <div>
             <p className="flex items-center gap-2 text-sm font-medium"><Gavel aria-hidden className="size-4 text-accent" />Апелляция ждёт решения</p>
             <p className="mt-1 max-w-[65ch] text-sm">{pending.comment}</p>
-            <p className="mt-1 text-xs text-muted">Подана {fmt(pending.createdAt)}</p>
+            <p className="mt-1 text-xs text-muted">Подана {fmt(pending.createdAt)}{pending.createdBy ? ` · ${pending.createdBy}` : ''}</p>
           </div>
           <div role="radiogroup" aria-label="Решение" className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
             <label className="flex min-h-10 items-center gap-2"><input type="radio" name={`act-${id}`} checked={action === 'uphold'} onChange={() => setAction('uphold')} className="size-4 accent-brand" />Оставить оценку ИИ</label>
@@ -188,14 +202,14 @@ export function ReviewBox({ evaluation, checklist, criterionId, criterion, appea
         </Box>
       )}
 
-      {!pending && mode === 'idle' && (
+      {!pending && mode === 'idle' && (canCorrect || canAppeal) && (
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => { setDone(null); setMode('correct'); }}><PencilLine aria-hidden className="size-4" />Изменить оценку</Button>
-          <Button variant="ghost" size="sm" onClick={() => { setDone(null); setMode('appeal'); }}><MessageSquareWarning aria-hidden className="size-4" />Оспорить</Button>
+          {canCorrect && <Button size="sm" onClick={() => { setDone(null); setMode('correct'); }}><PencilLine aria-hidden className="size-4" />Изменить оценку</Button>}
+          {canAppeal && <Button size="sm" onClick={() => { setDone(null); setMode('appeal'); }}><MessageSquareWarning aria-hidden className="size-4" />Оспорить оценку</Button>}
         </div>
       )}
 
-      {!pending && mode === 'correct' && (
+      {!pending && canCorrect && mode === 'correct' && (
         <Box
           id={`form-${id}`}
           label={`Исправление оценки, критерий ${criterionId}`}
@@ -218,14 +232,14 @@ export function ReviewBox({ evaluation, checklist, criterionId, criterion, appea
         </Box>
       )}
 
-      {!pending && mode === 'appeal' && (
+      {!pending && canAppeal && mode === 'appeal' && (
         <Box
           id={`form-${id}`}
           label={`Апелляция, критерий ${criterionId}`}
           dirty={!!text.trim()}
           onSubmit={(e) => {
             e.preventDefault();
-            void run(() => onCreate(criterionId, text.trim()), 'Апелляция подана: она в очереди на странице «Апелляции».');
+            void run(() => onCreate(criterionId, text.trim()), 'Апелляция подана. Проверяющий примет решение, статус виден на странице «Апелляции».');
           }}
         >
           <Field id={`cmt-${id}`} label="Почему вы не согласны с оценкой?" hint="Решение примет проверяющий; до решения балл не меняется.">
@@ -248,7 +262,7 @@ export function ReviewBox({ evaluation, checklist, criterionId, criterion, appea
               <li key={a.id} className="rounded-xl bg-canvas px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={statusOf(a).tone}>{statusOf(a).label}</Badge>
-                  <span className="text-xs text-muted">{a.kind === 'correction' ? '' : `Подана ${fmt(a.createdAt)} · `}решение {a.decidedAt ? fmt(a.decidedAt) : '—'}</span>
+                  <span className="text-xs text-muted">{a.kind === 'correction' ? '' : `Подана ${fmt(a.createdAt)}${a.createdBy ? ` (${a.createdBy})` : ''} · `}решение {a.decidedAt ? fmt(a.decidedAt) : '—'}{a.decidedBy ? ` (${a.decidedBy})` : ''}</span>
                 </div>
                 {a.comment && <p className="mt-1"><span className="font-medium">Возражение:</span> {a.comment}</p>}
                 {a.reviewerReason && <p className="mt-1"><span className="font-medium">Обоснование:</span> {a.reviewerReason}</p>}

@@ -1,5 +1,7 @@
 import { ChartNoAxesColumn, Gavel, ListChecks, MessagesSquare, Moon, Sun } from 'lucide-react';
+import type { Actor } from '@cqa/contracts';
 import { cn } from '@/lib/utils';
+import { RolePicker } from './RolePicker';
 
 type Props = {
   active: 'dialogs' | 'appeals' | 'checklist' | 'stats';
@@ -9,10 +11,15 @@ type Props = {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   demo: boolean;
+  identity: Actor;
+  operators: string[];
+  onIdentity: (next: Actor) => void;
+  /** Sections this role has; the others are not shown. */
+  sections: ('dialogs' | 'appeals' | 'checklist' | 'stats')[];
 };
 
 /** Slim navigation rail: tabs on top, global tools (theme, demo label) at the bottom. A top bar on narrow screens. */
-export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleTheme, demo }: Props) {
+export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleTheme, demo, identity, operators, onIdentity, sections }: Props) {
   const ThemeIcon = theme === 'dark' ? Sun : Moon;
   const item = (id: 'dialogs' | 'appeals' | 'checklist' | 'stats', label: string, Icon: typeof MessagesSquare, href: string, count = 0) => (
     <a
@@ -39,13 +46,14 @@ export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleThe
         <span aria-hidden className="size-2 rounded-full bg-brand" />
       </div>
       <nav aria-label="Разделы" className="flex min-w-0 flex-1 flex-row gap-1 md:flex-none md:flex-col md:items-center">
-        {item('dialogs', 'Диалоги', MessagesSquare, '#/')}
-        {item('appeals', 'Апелляции', Gavel, '#/appeals', pendingAppeals)}
-        {item('checklist', 'Чек-лист', ListChecks, '#/checklist')}
-        {item('stats', 'Статистика', ChartNoAxesColumn, '#/stats')}
+        {sections.includes('dialogs') && item('dialogs', 'Диалоги', MessagesSquare, '#/')}
+        {sections.includes('appeals') && item('appeals', 'Апелляции', Gavel, '#/appeals', pendingAppeals)}
+        {sections.includes('checklist') && item('checklist', 'Чек-лист', ListChecks, '#/checklist')}
+        {sections.includes('stats') && item('stats', 'Статистика', ChartNoAxesColumn, '#/stats')}
       </nav>
       <div className="flex shrink-0 flex-row items-center gap-1 md:mt-auto md:flex-col">
         {demo && <span title="Вымышленные данные: демо без сервера" className="inline-flex h-6 items-center rounded-full bg-warn-soft px-2 text-xs font-medium text-warn md:mb-2">Демо</span>}
+        <RolePicker identity={identity} operators={operators} onChange={onIdentity} />
         <button type="button" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} className={tool}>
           <ThemeIcon aria-hidden className="size-5" />
         </button>

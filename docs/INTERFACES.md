@@ -125,6 +125,11 @@ The **same** interface must have `MockCqaApi` (fictional in-repo fixture) and `H
 | getJob | `GET /api/jobs/:id` |
 | createAppeal | `POST /api/evaluations/:id/appeals` |
 | decideAppeal | `POST /api/appeals/:id/decision` |
+| setReview | `POST /api/conversations/:id/review` |
+| assignOperator | `POST /api/conversations/operator` |
+| listOperators | `GET /api/operators` |
+
+Every request carries the demo role in `x-cqa-role` / `x-cqa-actor` (see `packages/contracts/src/roles.ts`); the API enforces it, the mock mirrors it. Added to the records (all optional): `Conversation.importedAt`, `operatorId`, `review`; `Evaluation.createdAt`; `Appeal.createdBy`, `decidedBy`.
 
 The import endpoint `POST /api/datasets/import` is a backend-only operation that uses an environment-configured signed URL for organizers' DEV/control group. Do not expose the signed URL to the browser.
 

@@ -1,5 +1,6 @@
 import type { Appeal, ChecklistVersion, Conversation, Criterion, Evaluation, Language } from '@cqa/contracts';
 import { earnedPoints, needsReview, sameResult } from './present';
+import { reviewOf } from './queue';
 
 /**
  * Aggregates for the overview page, computed from what the app already loaded (no endpoint, no contract change).
@@ -50,6 +51,10 @@ export type Stats = {
   appeals: { pending: number; upheld: number; overridden: number; corrections: number };
   /** Results in scope and how many a reviewer changed (decided appeals and corrections both end up in finalResults). */
   reviewedResults: { total: number; changed: number };
+  /** Human check of the dialogs in scope (a check of an older evaluation counts as new again). */
+  review: { new: number; in_review: number; reviewed: number };
+  /** One row per assigned operator, then dialogs nobody is assigned to (`operator: null`). */
+  byOperator: { operator: string | null; dialogs: number; evaluated: number; averageTotal: number | null; seriousViolations: number; reviewed: number; appealsPending: number; appealsTotal: number; changed: number; results: number }[];
   byLanguage: { language: Language; dialogs: number; evaluated: number; averageTotal: number | null; seriousViolations: number }[];
 };
 
@@ -122,7 +127,41 @@ export function computeStats({ conversations, evaluations, checklists, appeals, 
     };
   });
 
+  const stage = (cs: Conversation[]) => cs.map((c) => reviewOf(c, latest.get(c.id)).state);
+  const states = stage(inScope);
+  const operatorNames = [...new Set(inScope.map((c) => c.operatorId).filter((o): o is string => !!o))].sort((a, b) => a.localeCompare(b, 'ru'));
+  const byOperator = [...operatorNames, null].flatMap((operator) => {
+    const cs = inScope.filter((c) => (c.operatorId ?? null) === operator);
+    if (cs.length === 0) return [];
+    const evals = cs.map((c) => latest.get(c.id)).filter((e): e is Evaluation => e?.status === 'completed');
+    const ids = new Set(evals.map((e) => e.id));
+    const theirs = appeals.filter((a) => a.kind !== 'correction' && ids.has(a.evaluationId));
+    let results = 0;
+    let changed = 0;
+    for (const e of evals) {
+      const original = new Map(e.originalResults.map((r) => [r.criterionId, r]));
+      for (const r of e.finalResults) {
+        results++;
+        if (!sameResult(original.get(r.criterionId), r)) changed++;
+      }
+    }
+    return [{
+      operator,
+      dialogs: cs.length,
+      evaluated: evals.length,
+      averageTotal: mean(evals.flatMap((e) => (e.finalTotal === null ? [] : [e.finalTotal]))),
+      seriousViolations: evals.filter((e) => e.seriousViolation).length,
+      reviewed: stage(cs).filter((x) => x === 'reviewed').length,
+      appealsPending: theirs.filter((a) => a.status === 'pending').length,
+      appealsTotal: theirs.length,
+      changed,
+      results,
+    }];
+  });
+
   return {
+    review: { new: states.filter((x) => x === 'new').length, in_review: states.filter((x) => x === 'in_review').length, reviewed: states.filter((x) => x === 'reviewed').length },
+    byOperator,
     dialogs: inScope.length,
     evaluated: done.length,
     failed: current.filter((e) => e.status === 'failed').length,

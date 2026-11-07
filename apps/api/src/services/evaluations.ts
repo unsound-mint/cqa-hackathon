@@ -5,7 +5,7 @@ import type { DecisionFacts } from './evaluation/semantic/index.js';
 import { evaluations } from '../db/schema.js';
 
 export function toEvaluation(row: typeof evaluations.$inferSelect): Evaluation {
-  const { createdAt: _c, error, provenance, ...rest } = row;
+  const { error, provenance, ...rest } = row;
   return EvaluationSchema.parse({ ...rest, error: error ?? undefined, provenance: provenance ?? undefined });
 }
 

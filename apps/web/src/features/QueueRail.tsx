@@ -3,7 +3,7 @@ import { Headphones, MessagesSquare, PanelLeftClose, Search, X } from 'lucide-re
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/present';
-import { hasViolation, reviewCount, type Filters, type Quick } from '@/lib/queue';
+import { hasViolation, reviewCount, reviewOf, type Filters, type Quick, type ReviewState } from '@/lib/queue';
 import { Select } from '@/components/ui/field';
 import { Meter } from '@/components/ui/meter';
 
@@ -15,7 +15,9 @@ type Props = {
   selectedId: string;
   /** The filters, shared with the dialogs page, and the per-state counts shown in the options. */
   filters: Filters;
-  counts: Record<Quick, number>;
+  counts: Record<Quick | ReviewState, number>;
+  /** Operators have no review state of their own to filter by. */
+  staff: boolean;
   onFilters: (patch: Partial<Filters>) => void;
   query: string;
   onQuery: (q: string) => void;
@@ -50,7 +52,7 @@ function Snippet({ c, q }: { c: Conversation; q: string }) {
 }
 
 /** The queue beside the review, with search on top: results stay in the queue, expanded with the matching phrase. */
-export function QueueRail({ conversations, latest, ids, selectedId, filters, counts, onFilters, query, onQuery, focusSignal, onSelect, onHide }: Props) {
+export function QueueRail({ conversations, latest, ids, selectedId, filters, counts, staff, onFilters, query, onQuery, focusSignal, onSelect, onHide }: Props) {
   const byId = new Map(conversations.map((c) => [c.id, c]));
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -99,6 +101,14 @@ export function QueueRail({ conversations, latest, ids, selectedId, filters, cou
           <Select aria-label="Что показать" value={filters.quick} onChange={(e) => onFilters({ quick: e.target.value as Quick })} className={cn(PILL, 'col-span-2', filters.quick !== 'all' && ACTIVE)}>
             {QUICK.map(([q, label]) => <option key={q} value={q}>{label} · {counts[q]}</option>)}
           </Select>
+          {staff && (
+            <Select aria-label="Проверка" value={filters.review} onChange={(e) => onFilters({ review: e.target.value as Filters['review'] })} className={cn(PILL, 'col-span-2', filters.review !== 'all' && ACTIVE)}>
+              <option value="all">Любая проверка</option>
+              <option value="new">Новые · {counts.new}</option>
+              <option value="in_review">В работе · {counts.in_review}</option>
+              <option value="reviewed">Проверены · {counts.reviewed}</option>
+            </Select>
+          )}
           <Select aria-label="Язык" value={filters.lang} onChange={(e) => onFilters({ lang: e.target.value as Filters['lang'] })} className={cn(PILL, filters.lang !== 'all' && ACTIVE)}>
             {/* "Язык"/"Канал" read as the unset state in 120px; the full "Все языки" did not fit. */}
             {(['all', 'RU', 'KZ', 'EN'] as const).map((l) => <option key={l} value={l}>{l === 'all' ? 'Язык' : l}</option>)}
@@ -132,6 +142,8 @@ export function QueueRail({ conversations, latest, ids, selectedId, filters, cou
                   {hasViolation(e) && <span className="font-medium text-danger">нарушение</span>}
                   {reviewCount(e) > 0 && <span className="font-medium text-warn">проверить: {reviewCount(e)}</span>}
                   {!e && <span>не оценён</span>}
+                  {staff && c && e && reviewOf(c, e).state === 'reviewed' && <span className="font-medium text-accent">проверен</span>}
+                  {staff && c && e && reviewOf(c, e).state === 'in_review' && <span>в работе</span>}
                 </span>
                 {/* The total as a bar so the rail scans by shape: neutral by default (most dialogs score high), red for a violation, amber when a human should look. */}
                 {e?.status === 'completed' && e.finalTotal !== null && (

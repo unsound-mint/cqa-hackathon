@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ACTOR_HEADER, ROLE_HEADER } from '@cqa/contracts';
+import demoBundle from '../../../fixtures/demo.json';
+import { asRole, withOperator } from './roles';
 import { CqaApiError, HttpCqaApi, MockCqaApi, createApi } from '../src/api';
 
 type Call = { url: string; method?: string; headers?: HeadersInit; body?: unknown };
@@ -7,7 +10,7 @@ function setup(status: number, payload: unknown) {
   const calls: Call[] = [];
   const fetchFn = (async (url: string, init?: RequestInit) => {
     calls.push({ url, method: init?.method, headers: init?.headers, body: init?.body === undefined ? undefined : JSON.parse(init.body as string) });
-    return new Response(JSON.stringify(payload), { status, headers: { 'content-type': 'application/json' } });
+    return new Response(status === 204 ? null : JSON.stringify(payload), { status, headers: { 'content-type': 'application/json' } });
   }) as unknown as typeof fetch;
   return { api: new HttpCqaApi({ fetch: fetchFn }), calls };
 }
@@ -16,6 +19,28 @@ function setup(status: number, payload: unknown) {
 const mock = new MockCqaApi();
 
 describe('HttpCqaApi', () => {
+  beforeEach(() => asRole('lead'));
+
+  it('sends the picked role and name with every call (the name URI-encoded: header values are Latin-1)', async () => {
+    asRole('operator', 'Алина');
+    const { api, calls } = setup(200, []);
+    await api.listConversations();
+    const h = new Headers(calls[0]!.headers);
+    expect(h.get(ROLE_HEADER)).toBe('operator');
+    expect(decodeURIComponent(h.get(ACTOR_HEADER)!)).toBe('Алина');
+  });
+
+  it('review and assignment are POSTs (the embedded app allows only GET/POST across origins) and a 403 is its own error', async () => {
+    const conv = await mock.getConversation('demo-ru-001');
+    const r = setup(200, conv);
+    await r.api.setReview('demo-ru-001', { status: 'reviewed' });
+    expect(r.calls[0]).toMatchObject({ url: '/api/conversations/demo-ru-001/review', method: 'POST', body: { status: 'reviewed' } });
+    const a = setup(204, null);
+    await a.api.assignOperator({ conversationIds: ['demo-ru-001'], operator: 'Алина' });
+    expect(a.calls[0]).toMatchObject({ url: '/api/conversations/operator', method: 'POST' });
+    await expect(setup(403, { error: 'Роль «Оператор» не может менять оценки' }).api.overrideCriterion({ evaluationId: 'e', criterionId: 'c', reason: 'r', value: 1 })).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
   it('lists conversations with only the defined query params', async () => {
     const conv = await mock.getConversation('demo-ru-001');
     const { api, calls } = setup(200, [conv]);
@@ -73,7 +98,8 @@ describe('HttpCqaApi', () => {
   it('puts the evaluation id in the path for appeals and the appeal id in the path for decisions', async () => {
     const ev = (await mock.listEvaluations())[0]!;
     const crit = ev.originalResults[0]!.criterionId;
-    const appeal = await new MockCqaApi().createAppeal({ evaluationId: ev.id, criterionId: crit, comment: 'why' });
+    asRole('operator');
+    const appeal = await new MockCqaApi(withOperator(demoBundle)).createAppeal({ evaluationId: ev.id, criterionId: crit, comment: 'why' });
     const c = setup(201, appeal);
     expect(await c.api.createAppeal({ evaluationId: ev.id, criterionId: crit, comment: 'why' })).toEqual(appeal);
     expect(c.calls[0]).toMatchObject({ url: `/api/evaluations/${ev.id}/appeals`, method: 'POST', body: { criterionId: crit, comment: 'why' } });
@@ -84,7 +110,8 @@ describe('HttpCqaApi', () => {
     expect(d.calls[0]).toMatchObject({ url: `/api/appeals/${appeal.id}/decision`, method: 'POST', body: { action: 'uphold', reason: 'r' } });
     expect(d.calls[0]!.body).not.toHaveProperty('appealId');
 
-    const correction = await new MockCqaApi().overrideCriterion({ evaluationId: ev.id, criterionId: crit, reason: 'r', isNA: false, value: false });
+    asRole('reviewer');
+    const correction = await new MockCqaApi(withOperator(demoBundle)).overrideCriterion({ evaluationId: ev.id, criterionId: crit, reason: 'r', isNA: false, value: false });
     const o = setup(201, correction);
     expect(await o.api.overrideCriterion({ evaluationId: ev.id, criterionId: crit, reason: 'r', value: false, isNA: false })).toEqual(correction);
     expect(o.calls[0]).toMatchObject({ url: `/api/evaluations/${ev.id}/overrides`, method: 'POST', body: { criterionId: crit, reason: 'r', value: false } });

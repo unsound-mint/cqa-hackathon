@@ -53,6 +53,8 @@ export const appeals = sqliteTable('appeals', {
   comment: text('comment').notNull(),
   status: text('status').notNull(),
   createdAt: text('created_at').notNull(),
+  createdBy: text('created_by'),
+  decidedBy: text('decided_by'),
   decidedAt: text('decided_at'),
   reviewerReason: text('reviewer_reason'),
   reviewerValue: text('reviewer_value', { mode: 'json' }),
@@ -70,4 +72,21 @@ export const jobs = sqliteTable('jobs', {
   total: integer('total').notNull(),
   completed: integer('completed').notNull(),
   createdAt: text('created_at').notNull(),
+});
+
+/** Who a dialog is assigned to. Its own table: a re-import rewrites the conversation row and must not touch this. */
+export const operatorAssignments = sqliteTable('operator_assignments', {
+  conversationId: text('conversation_id').primaryKey(),
+  operator: text('operator').notNull(),
+  assignedBy: text('assigned_by'),
+  assignedAt: text('assigned_at').notNull(),
+});
+
+/** A human's check of a dialog, bound to the evaluation that was looked at. Separate from the immutable evaluation. */
+export const reviews = sqliteTable('reviews', {
+  conversationId: text('conversation_id').primaryKey(),
+  status: text('status').notNull(),
+  evaluationId: text('evaluation_id').notNull(),
+  by: text('by').notNull(),
+  at: text('at').notNull(),
 });

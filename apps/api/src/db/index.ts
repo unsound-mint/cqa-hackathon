@@ -69,6 +69,20 @@ export function openDb(path: string) {
       completed INTEGER NOT NULL,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS operator_assignments (
+      conversation_id TEXT PRIMARY KEY NOT NULL,
+      operator TEXT NOT NULL,
+      assigned_by TEXT,
+      assigned_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS operator_assignments_operator_idx ON operator_assignments (operator);
+    CREATE TABLE IF NOT EXISTS reviews (
+      conversation_id TEXT PRIMARY KEY NOT NULL,
+      status TEXT NOT NULL,
+      evaluation_id TEXT NOT NULL,
+      by TEXT NOT NULL,
+      at TEXT NOT NULL
+    );
   `);
   // Additive migrations: CREATE TABLE IF NOT EXISTS does not add columns to an existing file. Legacy evaluations
   // intentionally have no reusable cache context; legacy appeal rows (no kind) read as 'appeal'.
@@ -77,6 +91,8 @@ export function openDb(path: string) {
   if (!columns('evaluations').some((c) => c.name === 'decision_facts')) sqlite.exec('ALTER TABLE evaluations ADD COLUMN decision_facts TEXT');
   if (!columns('jobs').some((c) => c.name === 'force')) sqlite.exec('ALTER TABLE jobs ADD COLUMN force INTEGER NOT NULL DEFAULT 0');
   if (!columns('appeals').some((c) => c.name === 'kind')) sqlite.exec('ALTER TABLE appeals ADD COLUMN kind TEXT');
+  if (!columns('appeals').some((c) => c.name === 'created_by')) sqlite.exec('ALTER TABLE appeals ADD COLUMN created_by TEXT');
+  if (!columns('appeals').some((c) => c.name === 'decided_by')) sqlite.exec('ALTER TABLE appeals ADD COLUMN decided_by TEXT');
   return drizzle(sqlite, { schema });
 }
 
