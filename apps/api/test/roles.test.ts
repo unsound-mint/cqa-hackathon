@@ -1,29 +1,31 @@
 import { readFileSync } from 'node:fs';
-import { ACTOR_HEADER, DemoBundleSchema, ROLE_HEADER } from '@cqa/contracts';
+import { ACTOR_HEADER, DemoBundleSchema, PERSON_HEADER, ROLE_HEADER } from '@cqa/contracts';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { openDb } from '../src/db/index.js';
-import { conversations } from '../src/db/schema.js';
+import { conversations, people } from '../src/db/schema.js';
 import { insertEvaluation } from '../src/services/evaluations.js';
 
 const bundle = DemoBundleSchema.parse(JSON.parse(readFileSync(new URL('../../../fixtures/demo.json', import.meta.url), 'utf8')));
 const base = bundle.evaluations[0]!;
 const conv = bundle.conversations.find((c) => c.id === base.conversationId)!;
 
-const as = (role: string, name = '') => ({ [ROLE_HEADER]: role, [ACTOR_HEADER]: encodeURIComponent(name) });
-const operator = (name: string) => as('operator', name);
+const as = (role: string, name = '', id?: string) => ({ [ROLE_HEADER]: role, [ACTOR_HEADER]: encodeURIComponent(name), ...(id ? { [PERSON_HEADER]: id } : {}) });
+const IDS: Record<string, string> = { 'Алина': 'op-alina', 'Тимур': 'op-timur' };
+const operator = (name: string) => as('operator', name, IDS[name]);
 const reviewer = as('reviewer', 'Мария');
 const lead = as('lead', 'Игорь');
 
 function setup() {
   const db = openDb(':memory:');
   const app = buildApp({ db });
+  db.insert(people).values([{ id: 'op-alina', name: 'Алина', role: 'operator', teamId: null }, { id: 'op-timur', name: 'Тимур', role: 'operator', teamId: null }]).run();
   db.insert(conversations).values({ id: conv.id, datasetGroupId: conv.datasetGroupId, language: conv.language, channel: conv.channel, audioUrl: conv.audioUrl, transcript: conv.transcript, importedAt: '2026-01-01T00:00:00.000Z' }).run();
   insertEvaluation(db, base);
   return { app, db };
 }
 const assign = (app: ReturnType<typeof setup>['app'], operatorName: string | null) =>
-  app.inject({ method: 'POST', url: '/api/conversations/operator', headers: lead, payload: { conversationIds: [conv.id], operator: operatorName } });
+  app.inject({ method: 'POST', url: '/api/conversations/operator', headers: lead, payload: { conversationIds: [conv.id], operator: operatorName && IDS[operatorName] } });
 
 describe('roles: what each one may do', () => {
   it('a request without a role stays unrestricted (scripts, exporter)', async () => {
@@ -35,11 +37,12 @@ describe('roles: what each one may do', () => {
 
   it('only a lead assigns operators and edits the checklist; a reviewer does neither', async () => {
     const { app } = setup();
-    expect((await app.inject({ method: 'POST', url: '/api/conversations/operator', headers: reviewer, payload: { conversationIds: [conv.id], operator: 'Алина' } })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'POST', url: '/api/conversations/operator', headers: reviewer, payload: { conversationIds: [conv.id], operator: 'op-alina' } })).statusCode).toBe(403);
     expect((await app.inject({ method: 'POST', url: '/api/checklists', headers: reviewer, payload: {} })).statusCode).toBe(403);
     expect((await app.inject({ method: 'POST', url: '/api/checklists', headers: operator('Алина'), payload: {} })).statusCode).toBe(403);
     expect((await assign(app, 'Алина')).statusCode).toBe(204);
-    expect((await app.inject({ url: '/api/operators' })).json()).toEqual(['Алина']);
+    expect((await app.inject({ url: `/api/conversations/${conv.id}` })).json().operatorId).toBe('op-alina');
+    expect((await app.inject({ method: 'POST', url: '/api/conversations/operator', headers: lead, payload: { conversationIds: [conv.id], operator: 'nobody' } })).statusCode).toBe(400); // not in the directory
   });
 
   it('an operator sees only dialogs assigned to them, everywhere', async () => {
@@ -124,16 +127,18 @@ describe('re-import', () => {
   it('keeps importedAt and the operator assignment of a dialog that is imported again', async () => {
     const records = [{ conversation_id: 'z-1', channel: 'agent chat', language: 'RU', audio_url: null, transcript: [{ timestamp: '00:01', speaker: 'client', text: 'a' }, { timestamp: '00:02', speaker: 'operator', text: 'b' }] }];
     const body = { isSuccess: true, error: '', data: { dataset_group_id: 'G1', total_records: 1, records } };
-    const app = buildApp({ db: openDb(':memory:'), importDeps: { baseUrl: 'https://example.invalid/x?group_id=G1', fetch: async () => new Response(JSON.stringify(body)), retryDelayMs: 1 } });
+    const db2 = openDb(':memory:');
+    db2.insert(people).values({ id: 'op-alina', name: 'Алина', role: 'operator', teamId: null }).run();
+    const app = buildApp({ db: db2, importDeps: { baseUrl: 'https://example.invalid/x?group_id=G1', fetch: async () => new Response(JSON.stringify(body)), retryDelayMs: 1 } });
     const imp = () => app.inject({ method: 'POST', url: '/api/datasets/import', headers: lead, payload: { groupId: 'G1' } });
     expect((await imp()).statusCode).toBe(200);
-    await app.inject({ method: 'POST', url: '/api/conversations/operator', headers: lead, payload: { conversationIds: ['z-1'], operator: 'Алина' } });
+    await app.inject({ method: 'POST', url: '/api/conversations/operator', headers: lead, payload: { conversationIds: ['z-1'], operator: 'op-alina' } });
     const first = (await app.inject({ url: '/api/conversations/z-1' })).json();
     await new Promise((r) => setTimeout(r, 5));
     expect((await imp()).statusCode).toBe(200);
     const again = (await app.inject({ url: '/api/conversations/z-1' })).json();
     expect(again.importedAt).toBe(first.importedAt);
-    expect(again.operatorId).toBe('Алина');
+    expect(again.operatorId).toBe('op-alina');
     expect((await app.inject({ method: 'POST', url: '/api/datasets/import', headers: reviewer, payload: { groupId: 'G1' } })).statusCode).toBe(403);
   });
 });

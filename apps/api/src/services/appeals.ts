@@ -4,7 +4,11 @@ import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/index.js';
 import { appeals, conversations, evaluations, operatorAssignments } from '../db/schema.js';
 import { getChecklist } from './checklists.js';
+import { scopeOf } from './directory.js';
 import { ApiError } from './errors.js';
+import { logEvent } from './events.js';
+import { notify } from './notifications.js';
+import { responsibleFor } from './directory.js';
 import { toEvaluation } from './evaluations.js';
 import { noteReviewActivity } from './review.js';
 
@@ -31,17 +35,19 @@ export function listAppeals(db: Db, evaluationId: string): Appeal[] {
 
 /** Whether the actor may see the dialog this evaluation belongs to (operators: only their own). */
 export function evaluationVisible(db: Db, evaluationId: string, actor: Actor | undefined): boolean {
-  if (!actor || actor.role !== 'operator') return true;
+  const scope = scopeOf(db, actor);
+  if (scope === null) return true;
   const conversationId = db.select({ id: evaluations.conversationId }).from(evaluations).where(eq(evaluations.id, evaluationId)).get()?.id;
   const operator = conversationId ? db.select().from(operatorAssignments).where(eq(operatorAssignments.conversationId, conversationId)).get()?.operator : undefined;
-  return canSee(actor, { operatorId: operator });
+  return canSee(scope, { operatorId: operator });
 }
 
 /** Appeals across all dialogs, oldest first (the approver's queue), optionally only one status. An operator gets their own dialogs' appeals only. */
 export function listAllAppeals(db: Db, status?: Appeal['status'], actor?: Actor): Appeal[] {
   const rows = db.select().from(appeals).where(status ? eq(appeals.status, status) : undefined).orderBy(asc(appeals.createdAt), asc(sql`rowid`)).all();
-  if (!actor || actor.role !== 'operator') return rows.map(toAppeal);
-  const mine = new Set(db.select({ id: conversations.id }).from(conversations).all().map((c) => c.id).filter((id) => db.select().from(operatorAssignments).where(eq(operatorAssignments.conversationId, id)).get()?.operator === actor.name));
+  const scope = scopeOf(db, actor);
+  if (scope === null) return rows.map(toAppeal);
+  const mine = new Set(db.select({ id: conversations.id }).from(conversations).all().map((c) => c.id).filter((id) => canSee(scope, { operatorId: db.select().from(operatorAssignments).where(eq(operatorAssignments.conversationId, id)).get()?.operator })));
   const evs = new Set(db.select({ id: evaluations.id, c: evaluations.conversationId }).from(evaluations).all().filter((e) => mine.has(e.c)).map((e) => e.id));
   return rows.filter((r) => evs.has(r.evaluationId)).map(toAppeal);
 }
@@ -56,6 +62,9 @@ export function createAppeal(db: Db, input: CreateAppealInput, actor?: Actor): A
     if (pendingFor(tx, input.evaluationId, input.criterionId)) throw new AppealError('a pending appeal already exists for this criterion', 409);
     const row = { id: `appeal-${randomUUID()}`, ...input, kind: 'appeal', status: 'pending', createdAt: new Date().toISOString(), createdBy: actor?.name || null, decidedBy: null, decidedAt: null, reviewerReason: null, reviewerValue: null, reviewerIsNA: null };
     tx.insert(appeals).values(row).run();
+    logEvent(tx, actor, { type: 'appeal.filed', conversationId: ev.conversationId, summary: `Апелляция по критерию ${input.criterionId}`, data: { appealId: row.id, criterionId: input.criterionId, evaluationId: ev.id } });
+    const who = responsibleFor(db, ev.conversationId);
+    if (who.managerId) notify(tx, [who.managerId], { kind: 'appeal', title: `Апелляция: ${ev.conversationId}`, body: `Оператор оспорил критерий ${input.criterionId}.`, conversationId: ev.conversationId, criterionId: input.criterionId });
     return toAppeal(row);
   });
 }
@@ -76,6 +85,7 @@ function applyOverride(db: Db, tx: Tx, evaluationId: string, criterionId: string
   if (!ev.finalResults.some((r) => r.criterionId === criterionId)) throw new AppealError('criterion is not part of this evaluation', 400);
   const checklist = getChecklist(db, ev.checklistVersionId);
   if (!checklist) throw new AppealError('checklist version of this evaluation is missing', 409);
+  const before = ev.finalResults.find((r) => r.criterionId === criterionId)!;
   const isNA = d.isNA === true;
   const value = isNA ? null : (d.value ?? null);
   const next = ev.finalResults.map((r) => {
@@ -91,7 +101,7 @@ function applyOverride(db: Db, tx: Tx, evaluationId: string, criterionId: string
     throw e;
   }
   tx.update(evaluations).set({ finalResults: next, finalTotal: scored.total, seriousViolation: scored.seriousViolation }).where(eq(evaluations.id, ev.id)).run();
-  return { value, isNA };
+  return { value, isNA, before: { value: before.value, isNA: before.isNA }, conversationId: ev.conversationId };
 }
 
 const pendingFor = (tx: Tx, evaluationId: string, criterionId: string) =>
@@ -109,9 +119,16 @@ export function decideAppeal(db: Db, input: DecideAppealInput, actor?: Actor): A
       tx.update(appeals).set({ status: 'upheld', decidedAt, decidedBy: actor?.name || null, reviewerReason: input.reason }).where(eq(appeals.id, appeal.id)).run();
       noteReviewActivity(tx, appeal.evaluationId, actor);
     } else {
-      const { value, isNA } = applyOverride(db, tx, appeal.evaluationId, appeal.criterionId, input);
+      const { value, isNA, before, conversationId } = applyOverride(db, tx, appeal.evaluationId, appeal.criterionId, input);
+      logEvent(tx, actor, { type: 'result.corrected', conversationId, summary: `Изменена оценка критерия ${appeal.criterionId} по апелляции`, data: { criterionId: appeal.criterionId, before, after: { value, isNA }, viaAppeal: appeal.id, evaluationId: appeal.evaluationId } });
       tx.update(appeals).set({ status: 'overridden', decidedAt, decidedBy: actor?.name || null, reviewerReason: input.reason, reviewerValue: value, reviewerIsNA: isNA }).where(eq(appeals.id, appeal.id)).run();
       noteReviewActivity(tx, appeal.evaluationId, actor);
+    }
+    const evRow = tx.select({ c: evaluations.conversationId }).from(evaluations).where(eq(evaluations.id, appeal.evaluationId)).get();
+    if (evRow) {
+      logEvent(tx, actor, { type: 'appeal.decided', conversationId: evRow.c, summary: `Апелляция по критерию ${appeal.criterionId}: ${input.action === 'uphold' ? 'оценка ИИ оставлена' : 'оценка изменена'}`, data: { appealId: appeal.id, criterionId: appeal.criterionId, action: input.action, evaluationId: appeal.evaluationId } });
+      const who = responsibleFor(db, evRow.c);
+      if (who.operatorId) notify(tx, [who.operatorId], { kind: 'appeal', title: `Решение по апелляции: ${evRow.c}`, body: `Критерий ${appeal.criterionId}: ${input.action === 'uphold' ? 'оценка ИИ оставлена' : 'оценка изменена'}. ${input.reason}`, conversationId: evRow.c, criterionId: appeal.criterionId });
     }
     return toAppeal(tx.select().from(appeals).where(eq(appeals.id, appeal.id)).get()!);
   });
@@ -121,7 +138,8 @@ export function decideAppeal(db: Db, input: DecideAppealInput, actor?: Actor): A
 export function overrideCriterion(db: Db, input: OverrideCriterionInput, actor?: Actor): Appeal {
   return db.transaction((tx) => {
     if (pendingFor(tx, input.evaluationId, input.criterionId)) throw new AppealError('this criterion has a pending appeal: decide the appeal instead', 409);
-    const { value, isNA } = applyOverride(db, tx, input.evaluationId, input.criterionId, input);
+    const { value, isNA, before, conversationId } = applyOverride(db, tx, input.evaluationId, input.criterionId, input);
+    logEvent(tx, actor, { type: 'result.corrected', conversationId, summary: `Исправлена оценка критерия ${input.criterionId}`, data: { criterionId: input.criterionId, before, after: { value, isNA }, evaluationId: input.evaluationId } });
     const now = new Date().toISOString();
     const row = { id: `appeal-${randomUUID()}`, evaluationId: input.evaluationId, criterionId: input.criterionId, kind: 'correction', comment: '', status: 'overridden', createdAt: now, createdBy: actor?.name || null, decidedBy: actor?.name || null, decidedAt: now, reviewerReason: input.reason, reviewerValue: value, reviewerIsNA: isNA };
     tx.insert(appeals).values(row).run();

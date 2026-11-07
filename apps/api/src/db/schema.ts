@@ -88,5 +88,114 @@ export const reviews = sqliteTable('reviews', {
   status: text('status').notNull(),
   evaluationId: text('evaluation_id').notNull(),
   by: text('by').notNull(),
+  /** Person id of `by` (null for an unrestricted call): cross-checks must be by someone else. */
+  byId: text('by_id'),
   at: text('at').notNull(),
+});
+
+export const people = sqliteTable('people', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  role: text('role').notNull(),
+  teamId: text('team_id'),
+});
+
+export const teams = sqliteTable('teams', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  managerId: text('manager_id'),
+});
+
+/** Append-only: nothing in the app updates or deletes a row. */
+export const events = sqliteTable(
+  'events',
+  {
+    id: text('id').primaryKey(),
+    at: text('at').notNull(),
+    actorId: text('actor_id'),
+    actorName: text('actor_name').notNull(),
+    actorRole: text('actor_role'),
+    type: text('type').notNull(),
+    conversationId: text('conversation_id'),
+    summary: text('summary').notNull(),
+    data: text('data', { mode: 'json' }),
+  },
+  (t) => [index('events_at_idx').on(t.at), index('events_conversation_idx').on(t.conversationId)],
+);
+
+export const notifications = sqliteTable('notifications', {
+  id: text('id').primaryKey(),
+  at: text('at').notNull(),
+  recipientId: text('recipient_id').notNull(),
+  kind: text('kind').notNull(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  conversationId: text('conversation_id'),
+  criterionId: text('criterion_id'),
+  readAt: text('read_at'),
+});
+
+export const comments = sqliteTable('comments', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').notNull(),
+  criterionId: text('criterion_id'),
+  authorId: text('author_id'),
+  authorName: text('author_name').notNull(),
+  body: text('body').notNull(),
+  createdAt: text('created_at').notNull(),
+  ackedAt: text('acked_at'),
+});
+
+export const tasks = sqliteTable('tasks', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').notNull(),
+  assigneeId: text('assignee_id').notNull(),
+  kind: text('kind').notNull(),
+  status: text('status').notNull(),
+  auto: integer('auto', { mode: 'boolean' }).notNull(),
+  createdBy: text('created_by').notNull(),
+  createdAt: text('created_at').notNull(),
+  doneAt: text('done_at'),
+  firstReviewerId: text('first_reviewer_id'),
+});
+
+export const crosschecks = sqliteTable('crosschecks', {
+  id: text('id').primaryKey(),
+  taskId: text('task_id').notNull(),
+  conversationId: text('conversation_id').notNull(),
+  evaluationId: text('evaluation_id').notNull(),
+  reviewerId: text('reviewer_id'),
+  reviewerName: text('reviewer_name').notNull(),
+  reviewerRole: text('reviewer_role').notNull(),
+  results: text('results', { mode: 'json' }).notNull(),
+  submittedAt: text('submitted_at').notNull(),
+});
+
+export const taxonomy = sqliteTable('taxonomy', {
+  id: text('id').primaryKey(),
+  label: text('label').notNull(),
+  criterionId: text('criterion_id'),
+});
+
+export const tags = sqliteTable('tags', {
+  id: text('id').primaryKey(),
+  evaluationId: text('evaluation_id').notNull(),
+  conversationId: text('conversation_id').notNull(),
+  criterionId: text('criterion_id'),
+  origin: text('origin').notNull(),
+  label: text('label'),
+  by: text('by').notNull(),
+  at: text('at').notNull(),
+});
+
+export const timelineEvents = sqliteTable('timeline_events', {
+  id: text('id').primaryKey(),
+  date: text('date').notNull(),
+  title: text('title').notNull(),
+  kind: text('kind').notNull(),
+  note: text('note'),
+  participantIds: text('participant_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  comparisonIds: text('comparison_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  createdBy: text('created_by').notNull(),
+  createdAt: text('created_at').notNull(),
 });

@@ -3,6 +3,8 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { Db } from '../db/index.js';
 import { createAppeal, decideAppeal, evaluationVisible, listAllAppeals, listAppeals, overrideCriterion } from '../services/appeals.js';
 import { ApiError } from '../services/errors.js';
+import { logEvent } from '../services/events.js';
+import { scopeOf } from '../services/directory.js';
 import { listConversationViews } from '../services/conversations.js';
 import { actorOf, denied } from './actor.js';
 import { getEvaluation, listEvaluations } from '../services/evaluations.js';
@@ -19,7 +21,7 @@ export function evaluationRoutes(app: FastifyInstance, db: Db, runner: JobRunner
     if (!q.success) return reply.code(400).send({ error: 'invalid query' });
     const actor = actorOf(req);
     const list = listEvaluations(db, q.data.conversationId);
-    if (actor?.role !== 'operator') return list;
+    if (scopeOf(db, actor) === null) return list;
     const mine = new Set(listConversationViews(db, {}, actor).map((c) => c.id));
     return list.filter((e) => mine.has(e.conversationId));
   });
@@ -29,7 +31,9 @@ export function evaluationRoutes(app: FastifyInstance, db: Db, runner: JobRunner
     const body = StartEvaluationInputSchema.safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: 'body must be { conversationIds: string[], checklistVersionId: string }' });
     try {
-      return reply.code(202).send({ jobId: runner.start(body.data).id });
+      const job = runner.start(body.data);
+      logEvent(db, actorOf(req), { type: 'evaluation.started', summary: `Запущена оценка диалогов: ${body.data.conversationIds.length}`, data: { jobId: job.id, count: body.data.conversationIds.length, checklistVersionId: body.data.checklistVersionId, force: !!(body.data.force || body.data.fresh) } });
+      return reply.code(202).send({ jobId: job.id });
     } catch (e) {
       if (e instanceof JobError) return reply.code(e.status).send({ error: e.message });
       throw e;

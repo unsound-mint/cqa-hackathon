@@ -6,6 +6,7 @@ import { openDb, type Db } from './db/index.js';
 import { checklistRoutes } from './routes/checklists.js';
 import { evaluationRoutes } from './routes/evaluations.js';
 import { conversationRoutes } from './routes/conversations.js';
+import { teamRoutes } from './routes/team.js';
 import { prefetchAudio, type AudioStore, type FetchLike } from './services/audio.js';
 import { conversations } from './db/schema.js';
 import { dirname, join } from 'node:path';
@@ -50,13 +51,14 @@ export function buildApp(opts: AppOptions = {}) {
       const origin = req.headers.origin;
       if (!origin || !corsOrigins.includes(origin)) return;
       reply.header('access-control-allow-origin', origin).header('vary', 'Origin');
-      if (req.method === 'OPTIONS') return reply.header('access-control-allow-methods', 'GET,POST,OPTIONS').header('access-control-allow-headers', 'content-type,x-cqa-role,x-cqa-actor').code(204).send();
+      if (req.method === 'OPTIONS') return reply.header('access-control-allow-methods', 'GET,POST,OPTIONS').header('access-control-allow-headers', 'content-type,x-cqa-role,x-cqa-actor,x-cqa-person').code(204).send();
     });
   }
 
   app.get('/health', async () => ({ status: 'ok', service: 'cqa-api' }));
   conversationRoutes(app, db, audio);
   checklistRoutes(app, db);
+  teamRoutes(app, db);
   evaluationRoutes(app, db, runner);
   runner.resume();
 
