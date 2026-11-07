@@ -55,6 +55,11 @@ it('checklist editor has none', async () => {
   expect(await violations()).toEqual([]);
 });
 
+it('statistics page has none', async () => {
+  await open('#/stats', 'Оценено диалогов');
+  expect(await violations()).toEqual([]);
+});
+
 it('sets a page title per screen and offers a skip link', async () => {
   await open('#/dialog/demo-ru-001', /из 100/);
   expect(document.title).toBe('demo-ru-001 · CQA');

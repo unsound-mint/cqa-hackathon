@@ -644,3 +644,12 @@ it('does not label an HTTP-backed workspace as a fictional offline demo', async 
   await screen.findByRole('link', { name: 'demo-ru-001' });
   expect(screen.queryByTitle(/Вымышленные данные/)).toBeNull();
 });
+
+it('shows the statistics page from the sidebar for the demo data', async () => {
+  renderApp(demo, '#/');
+  fireEvent.click(await screen.findByRole('link', { name: /Статистика/ }));
+  expect(await screen.findByRole('heading', { level: 1, name: 'Статистика' })).toBeTruthy();
+  expect(screen.getByText('Оценено диалогов')).toBeTruthy();
+  expect(screen.getByRole('table', { name: 'Результаты по критериям' })).toBeTruthy();
+  expect(document.title).toBe('Статистика · CQA');
+});
