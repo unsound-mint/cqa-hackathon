@@ -222,23 +222,6 @@ export function App() {
   const newer = evaluation && newestChecklist && checklist && newestChecklist.version > checklist.version ? newestChecklist.version : null;
   const versionOf = (e: Evaluation) => data.checklists.find((c) => c.id === e.checklistVersionId)?.version;
 
-  /** Dots on the conversation map: a raised flag beats the selected criterion, which beats low confidence. */
-  const markers = new Map<number, 'evidence' | 'review' | 'violation'>();
-  if (evaluation?.status === 'completed') {
-    const rank = { review: 1, evidence: 2, violation: 3 } as const;
-    const put = (i: number, k: keyof typeof rank) => {
-      if (conversation?.transcript[i] && (!markers.has(i) || rank[markers.get(i)!] < rank[k])) markers.set(i, k);
-    };
-    for (const r of evaluation.finalResults) {
-      const isFlag = checklist?.criteria.find((c) => c.id === r.criterionId)?.criticalFlag && r.value === true;
-      for (const e of r.evidence) {
-        if (isFlag) put(e.messageIndex, 'violation');
-        else if (r.criterionId === criterionId) put(e.messageIndex, 'evidence');
-        else if (r.confidence === 'low') put(e.messageIndex, 'review');
-      }
-    }
-  }
-
   /** Numbered tags on the messages each criterion cites, so the reason for a grade is visible in the text itself. */
   const tags = new Map<number, Tag[]>();
   if (evaluation?.status === 'completed') {
@@ -373,7 +356,7 @@ export function App() {
                 </div>
               )}
               <div className={cn('min-h-0 flex-col bg-surface xl:rounded-card xl:shadow-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>
-                <Transcript conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} markers={markers} tags={tags} activeId={criterionId} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} onSeek={jump} toolbar={toolbar} />
+                <Transcript conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} tags={tags} activeId={criterionId} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} toolbar={toolbar} />
               </div>
               <div className={cn('min-h-0 flex-col overflow-hidden bg-surface xl:rounded-card xl:shadow-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
                 <EvaluationPanel

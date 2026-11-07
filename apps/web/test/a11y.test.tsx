@@ -42,9 +42,8 @@ it('review screen (chat view, criterion open) has none', async () => {
   expect(await violations()).toEqual([]);
 });
 
-it('review screen in list view with a voice call has none', async () => {
+it('review screen of a voice call has none', async () => {
   await open('#/dialog/demo-ru-023', /Распознанная речь/);
-  fireEvent.click(screen.getByRole('button', { name: 'Список' }));
   expect(await violations()).toEqual([]);
 });
 

@@ -106,17 +106,6 @@ it('opening a criterion marks its evidence messages in the transcript and on the
   expect(row(/Идентификация/).getAttribute('aria-expanded')).toBe('true');
 });
 
-it('the conversation map is one keyboard slider that moves through messages', async () => {
-  renderApp();
-  await transcriptReady();
-  const map = screen.getByRole('slider', { name: 'Карта диалога' });
-  expect(map.getAttribute('aria-valuemax')).toBe('12');
-  fireEvent.keyDown(map, { key: 'ArrowRight' });
-  expect(document.activeElement?.id).toBe('msg-1');
-  fireEvent.keyDown(map, { key: 'End' });
-  expect(document.activeElement?.id).toBe('msg-12');
-});
-
 it('shows unusable evidence honestly instead of linking to a wrong message', async () => {
   renderApp(bundle((b) => { b.evaluations[0].finalResults[0].evidence = [{ messageIndex: 99, quote: 'нет' }]; b.evaluations[0].originalResults[0].evidence = [{ messageIndex: 99, quote: 'нет' }]; }));
   await transcriptReady();
@@ -334,16 +323,14 @@ it('keys 1-9 open criteria and Escape closes; N jumps to the next dialog needing
   expect((screen.getByRole('button', { name: /К диалогу, требующему проверки/ }) as HTMLButtonElement).disabled).toBe(true); // the only other dialog does not need attention
 });
 
-it('shows the transcript as a chat by default, can switch to the dense list, and remembers it', async () => {
+it('shows the transcript as a chat: client on the left, operator on the right, system centered', async () => {
   renderApp();
   await transcriptReady();
-  const toggle = within(screen.getByRole('group', { name: 'Вид транскрипта' }));
-  expect(toggle.getByRole('button', { name: 'Чат' }).getAttribute('aria-pressed')).toBe('true');
-  expect(document.getElementById('msg-8')!.className).toContain('items-end'); // operator on the right
-  expect(document.getElementById('msg-1')!.className).toContain('items-start'); // client on the left
-  fireEvent.click(toggle.getByRole('button', { name: 'Список' }));
-  expect(document.getElementById('msg-8')!.className).toContain('grid');
-  expect(window.localStorage.getItem('cqa-transcript-view')).toBe('rows');
+  expect(document.getElementById('msg-8')!.className).toContain('items-end');
+  expect(document.getElementById('msg-1')!.className).toContain('items-start');
+  expect(document.getElementById('msg-6')!.className).toContain('items-center');
+  expect(screen.queryByRole('group', { name: 'Вид транскрипта' })).toBeNull();
+  expect(screen.queryByRole('slider')).toBeNull();
 });
 
 it('marks long pauses between messages', async () => {
