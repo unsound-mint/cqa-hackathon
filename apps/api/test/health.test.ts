@@ -23,3 +23,21 @@ it('serves the built web app with SPA fallback, without shadowing the API', asyn
   expect((await app.inject({ url: '/health' })).json().status).toBe('ok');
   await app.close();
 });
+
+it('CORS is off by default and only allows configured origins (embedded UI)', async () => {
+  const origin = 'https://org.crm.dynamics.com';
+  const off = buildApp({ db: openDb(':memory:') });
+  expect((await off.inject({ url: '/health', headers: { origin } })).headers['access-control-allow-origin']).toBeUndefined();
+  await off.close();
+  process.env.CORS_ORIGIN = origin;
+  try {
+    const on = buildApp({ db: openDb(':memory:') });
+    expect((await on.inject({ url: '/health', headers: { origin } })).headers['access-control-allow-origin']).toBe(origin);
+    expect((await on.inject({ url: '/health', headers: { origin: 'https://evil.example' } })).headers['access-control-allow-origin']).toBeUndefined();
+    const pre = await on.inject({ method: 'OPTIONS', url: '/api/evaluations', headers: { origin } });
+    expect(pre.statusCode).toBe(204);
+    await on.close();
+  } finally {
+    delete process.env.CORS_ORIGIN;
+  }
+});
