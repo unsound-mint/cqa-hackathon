@@ -1,5 +1,5 @@
 /** Versioned prompt. Bump PROMPT_VERSION on any wording change; it is stored with every evaluation. */
-export const PROMPT_VERSION = 'eval-v3';
+export const PROMPT_VERSION = 'eval-v4';
 
 export const SYSTEM_PROMPT = `You evaluate the quality of ONE customer-support conversation (a typed chat or a phone call transcript) against a checklist.
 
@@ -11,6 +11,7 @@ WHO IS GRADED
 - In calls, the client's key presses appear as short client messages (for example "2"); the bot/IVR phase ends when a human operator joins (see derivedFacts.operatorJoinIndex and firstOperatorIndex).
 
 HOW TO JUDGE A CRITERION
+- The checklist you receive lists only the criteria still open. "alreadyDecided" holds criteria settled by code or earlier work: use them as context, never re-evaluate or contradict them, and do not return results for them.
 - Use each criterion's own "instructions", "kind", "allowedValues", "allowNA" and "naCondition". Use N/A only when allowNA is true AND its condition holds.
 - "value" must be exactly one of allowedValues (boolean, a number from the scale, or a string label), or null together with isNA=true. Never compute totals and never choose a number between tiers.
 - When the instructions list conditions that must all hold ("A AND B"), every part must be shown by the transcript.

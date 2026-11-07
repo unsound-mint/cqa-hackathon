@@ -71,6 +71,10 @@ export const CriterionSchema = z
     naCondition: z.string().optional(),
     /** Separate serious-violation flag: a `true` result sets Evaluation.seriousViolation, never changes the score. */
     criticalFlag: z.boolean().optional(),
+    /** Name of a deterministic rule that may decide this criterion without a model (see GET /api/detectors). Absent = model decides. */
+    detector: z.string().min(1).optional(),
+    /** How the evaluated agent could guarantee this deterministically (template, gate, automatic message). Shown when the criterion fails. */
+    agentHint: z.string().optional(),
   })
   .superRefine((c, ctx) => {
     const bad = (message: string) => ctx.addIssue({ code: 'custom', path: ['allowedValues'], message });
@@ -152,6 +156,10 @@ export const CriterionResultSchema = z
     explanation: z.string(),
     /** Model's own certainty. 'low' (e.g. noisy speech recognition) routes the result to human review. */
     confidence: z.enum(['high', 'medium', 'low']).optional(),
+    /** Who decided: a deterministic rule or the model. Absent on older data. */
+    source: z.enum(['rule', 'model']).optional(),
+    /** Set when copied unchanged from an earlier evaluation of the same conversation (no new decision was made). */
+    reusedFrom: z.string().optional(),
     evidence: z.array(EvidenceReferenceSchema),
     /** Inclusive range of ORIGINAL indices inspected; required context for absence claims. */
     checkedRange: z.object({ from: z.number().int().nonnegative(), to: z.number().int().nonnegative() }).optional(),

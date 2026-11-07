@@ -6,7 +6,8 @@ import { evaluations, jobs } from '../../db/schema.js';
 import { getChecklist } from '../checklists.js';
 import { getConversation } from '../conversations.js';
 import { insertEvaluation } from '../evaluations.js';
-import { evaluateConversation } from './evaluator.js';
+import { evaluateConversation, planCriteria } from './evaluator.js';
+import { makeReuseLookup } from './reuse.js';
 import type { LlmProvider } from './provider.js';
 
 export class JobError extends Error {
@@ -39,11 +40,16 @@ export class JobRunner {
   ) {}
 
   start(input: StartEvaluationInput): Job {
-    if (!this.provider) throw new JobError('no model provider configured (set ANTHROPIC_API_KEY)', 503);
-    if (!getChecklist(this.db, input.checklistVersionId)) throw new JobError('checklist version not found', 404);
+    const checklist = getChecklist(this.db, input.checklistVersionId);
+    if (!checklist) throw new JobError('checklist version not found', 404);
     const ids = [...new Set(input.conversationIds)];
     const missing = ids.filter((id) => !getConversation(this.db, id));
     if (missing.length) throw new JobError(`conversations not found: ${missing.slice(0, 5).join(', ')}`, 404);
+    // A model is needed only if rules + reuse cannot settle every criterion (e.g. switching a criterion off needs none).
+    if (!this.provider) {
+      const needing = ids.filter((id) => planCriteria(getConversation(this.db, id)!, checklist, makeReuseLookup(this.db, id)).undecided.length > 0);
+      if (needing.length) throw new JobError(`no model provider configured (set ANTHROPIC_API_KEY); ${needing.length} conversation(s) have criteria that need a model`, 503);
+    }
 
     const row = { id: `job-${randomUUID()}`, checklistVersionId: input.checklistVersionId, conversationIds: ids, evaluationIds: [] as string[], status: 'running', total: ids.length, completed: 0, createdAt: new Date().toISOString() };
     this.db.insert(jobs).values(row).run();
@@ -58,7 +64,6 @@ export class JobRunner {
 
   /** Call once on boot. */
   resume(): void {
-    if (!this.provider) return;
     for (const j of this.db.select().from(jobs).where(inArray(jobs.status, ['pending', 'running'])).all()) this.launch(j.id);
   }
 
@@ -79,7 +84,7 @@ export class JobRunner {
   private async run(jobId: string): Promise<void> {
     const job = this.db.select().from(jobs).where(eq(jobs.id, jobId)).get()!;
     const checklist = getChecklist(this.db, job.checklistVersionId)!;
-    const provider = this.provider!;
+    const provider = this.provider;
     const recorded = job.evaluationIds.length ? this.db.select().from(evaluations).where(inArray(evaluations.id, job.evaluationIds)).all() : [];
     const done = new Set(recorded.map((e) => e.conversationId));
     const queue = job.conversationIds.filter((id) => !done.has(id));
@@ -90,13 +95,13 @@ export class JobRunner {
         const base = { id: `eval-${randomUUID()}`, conversationId: id, checklistVersionId: checklist.id };
         let ev: Evaluation;
         try {
-          const r = await evaluateConversation(provider, conversation, checklist);
-          this.log.info({ conversationId: id, provider: r.provenance.provider, model: r.provenance.model, ...r.usage }, 'evaluation cost');
+          const r = await evaluateConversation(provider, conversation, checklist, makeReuseLookup(this.db, id));
+          this.log.info({ conversationId: id, provider: r.provenance.provider, model: r.provenance.model, modelCriteria: r.modelCriteria.length, ...r.usage }, 'evaluation cost');
           ev = { ...base, status: 'completed', originalResults: r.results, originalTotal: r.total, finalResults: structuredClone(r.results), finalTotal: r.total, seriousViolation: r.seriousViolation, provenance: r.provenance };
         } catch (e) {
           const message = e instanceof Error ? e.message : 'evaluation failed';
           this.log.error({ conversationId: id, err: message }, 'evaluation failed');
-          ev = { ...base, status: 'failed', originalResults: [], originalTotal: null, finalResults: [], finalTotal: null, seriousViolation: false, provenance: { provider: provider.name, model: provider.model, promptVersion: 'n/a' }, error: message };
+          ev = { ...base, status: 'failed', originalResults: [], originalTotal: null, finalResults: [], finalTotal: null, seriousViolation: false, provenance: { provider: provider?.name ?? 'none', model: provider?.model ?? 'none', promptVersion: 'n/a' }, error: message };
         }
         // Evaluation row and job progress commit together, so a crash never loses or duplicates one.
         this.db.transaction((tx) => {
