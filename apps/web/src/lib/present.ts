@@ -26,15 +26,15 @@ export function outcome(criterion: Criterion | undefined, r: CriterionResult): {
 }
 
 /**
- * What the reviewer sees for a result: points earned of the criterion's weight ("10,5 из 15") whenever the criterion
- * carries points, otherwise the outcome (flags, N/A, zero-weight and list criteria). Tone as in `outcome`.
+ * What the reviewer sees for a result: points earned of the criterion's weight ("10,50 из 15") whenever the criterion
+ * carries points, otherwise the outcome (flags, N/A, zero-weight and list criteria).
  */
 export function grade(criterion: Criterion | undefined, r: CriterionResult): { label: string; tone: Tone } {
   const o = outcome(criterion, r);
   const pts = earnedPoints(criterion, r);
   if (pts === null || !criterion) return o;
-  const ratio = criterion.weight > 0 ? pts / criterion.weight : 0;
-  return { label: `${formatScore(pts)} из ${criterion.weight}`, tone: ratio >= 0.75 ? 'success' : ratio >= 0.4 ? 'warn' : 'danger' };
+  // Full marks only are 'success'; any loss is amber, nothing earned is red (DESIGN.md: amber for a partial score).
+  return { label: `${formatScore(pts)} из ${criterion.weight}`, tone: pts >= criterion.weight ? 'success' : pts > 0 ? 'warn' : 'danger' };
 }
 
 export const sameResult = (a: CriterionResult | undefined, b: CriterionResult | undefined) => !!a && !!b && a.isNA === b.isNA && a.value === b.value;

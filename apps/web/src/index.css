@@ -72,9 +72,8 @@
   --text-score-sm--line-height: 3rem;
 
   /* Text and fills on the always-dark verdict banner (same in both themes). */
-  --color-verdict-muted: #9fb5a9;
-  --color-verdict-alert: #ffd3cb;
-  --color-verdict-alert-bg: #3a1a16;
+  /* Muted text on the banner, set per verdict below (5.1:1 on green, 7.5:1 on red at the lightest stop). */
+  --color-verdict-muted: var(--v-muted);
   --color-verdict-warn: #e8be6a;
   --color-verdict-warn-bg: #3a2f14;
 
@@ -82,11 +81,21 @@
   --shadow-card: var(--shadow-card);
 }
 
-/* The verdict panel is the same dark green in both themes (the banner look of the Freedom sites). */
+/*
+ * The verdict banner's color IS the verdict, the same in both themes: the brand's dark green (#164734) when there is no
+ * serious violation, deep red when there is. A short, low-contrast linear sweep reads as one color with depth (the
+ * earlier radial into near-black looked muddy on the dark theme and heavy on the light one).
+ */
 .verdict {
   --c-focus: #5fd28d;
-  background: radial-gradient(120% 70% at 0% 0%, #0f3a28 0%, #0b1f17 55%, #08130e 100%);
-  color: #f2f6f3;
+  --v-muted: #b7cbbf;
+  background: linear-gradient(160deg, #1b5841 0%, #164a36 55%, #113d2c 100%);
+  color: #f4f8f5;
+}
+.verdict.verdict-danger {
+  --c-focus: #ffb4a8;
+  --v-muted: #f0c9c2;
+  background: linear-gradient(160deg, #6b2019 0%, #5a1b15 55%, #4a1611 100%);
 }
 /* On the dark theme the banner is close to the page color: a hairline keeps its edge. */
 .dark .verdict {
@@ -101,8 +110,9 @@
    * All widths are rem or ch, so they follow both the user's font setting and this growth. Measure: bubbles and
    * paragraphs stay near 55-70 characters (research: 50-75; WCAG 1.4.8 asks for at most 80 on average).
    */
+  /* Grows with width AND height: a wide but short window (e.g. 2050x1000) must not spend its height on bigger type. */
   html {
-    font-size: clamp(100%, calc(100% + (100vw - 1600px) * 0.003), 125%);
+    font-size: clamp(100%, min(calc(100% + (100vw - 1600px) * 0.003), calc(100% + (100vh - 900px) * 0.004)), 125%);
   }
   p {
     text-wrap: pretty;

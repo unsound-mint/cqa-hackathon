@@ -7,7 +7,7 @@ Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid
 - Spacing scale (Tailwind steps): 4 (`1`), 8 (`2`), 12 (`3`), 16 (`4`), 24 (`6`), 32 (`8`), 48 (`12`). No half steps (`gap-1.5`, `px-3.5`, `py-0.5`) and no arbitrary pixel values that are not multiples of 4.
 - Control heights: 32 compact (`h-8`), 40 default (`h-10`), 48 primary or touch (`h-12`). Badges 24 (`h-6`).
 - Radii: 4 bubble tails, 8 inputs, 12 rows, messages and form boxes, 16 cards, full for pills and chips.
-- Layout widths: nav sidebar 72, queue rail 280, verdict panel 480, page gutter 16/24, gap between panes 16.
+- Layout widths: nav sidebar 72, queue rail 280, verdict panel 480 up to 1600 CSS px and then 30vw up to 640 (so criterion titles stop wrapping on wide screens), page gutter 16/24, gap between panes 16. Pane sizes are not user-resizable: the defaults are tuned instead (see "No scroll").
 - Vertical space belongs to the two working columns (transcript, verdict). No full-width bars above them: navigation and global tools (theme, demo label) live in the slim left sidebar; the dialog title and queue controls sit inside the transcript card.
 
 ## Type (size / line-height, all multiples of 4)
@@ -21,11 +21,12 @@ Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid
 | Meta | `text-xs` 12/16, muted | timestamps, weights, hints |
 
 ## Hierarchy
-1. The score and any serious violation come first (dark-green banner, largest type, red block for a violation).
+1. The score and any serious violation come first. The banner's color is the verdict: brand dark green without a serious violation, deep red with one (the reason sits in the banner, no nested box).
 2. Then the open criterion and its evidence (selected row, tags and ring on the cited messages).
 3. Then the graded party: operator messages carry the weight (tinted row, green name); client is plain; bot and system recede.
 4. Metadata (weights, time, source, confidence) is small and muted. Chips are for state only (answer, needs review, changed, appeal), never for static facts (language, channel are plain text).
-5. One score unit on screen: a criterion shows points of its weight ("10,50 из 15", `grade()` in `lib/present.ts`); scale steps appear only in the answer options of a correction. Scores with a fraction always show two digits.
+5. Collapsed criterion rows are one line (32 px): id, title, grade chip. Full marks are quiet text; a fill means points lost (amber) or nothing earned / a violation (red). A second line appears only for something to act on (Проверить, Апелляция, Изменено). Lost points and N/A weight are explained when the row is opened.
+6. One score unit on screen: a criterion shows points of its weight ("10,50 из 15", `grade()` in `lib/present.ts`); scale steps appear only in the answer options of a correction. Scores with a fraction always show two digits.
 
 ## Color
 - Neutrals carry the UI; green is an accent: marks, focus, the open row, the primary action. `text-accent` is the green for text (#164734 light, #5FD28D dark). Bright green `#02B140` never carries white text.
@@ -33,13 +34,15 @@ Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid
 
 ## One place per fact
 - Show each fact once, where it is used. The violation reason is in the verdict banner (the rail and the list carry only a short flag); the queue is the rail beside the dialog, so arrows and a dropdown appear only when the rail does not fit (below 1536 px); the position in the queue is the highlighted row.
-- The score banner states the score and what it is made of ("earned X of Y possible points", which criteria were not counted). Per-criterion detail lives in the rows: a points bar appears only where points were lost.
+- The score banner states the score and what it is made of ("earned X of Y possible points", which criteria were not counted). Per-criterion detail lives in the rows.
 - Fictional data is announced once: the sidebar "Демо" label in mock mode; the verdict panel labels a mock evaluation only when the app is not in mock mode.
-- No overview that repeats the list below it. Quiet by default: tags on messages are tints, solid only for the open criterion; export sits in the panel footer.- One transcript view: a chat (client left, operator right, system centered). No view toggle and no conversation map: evidence is reached through the numbered tags on messages and the chips in the verdict rows.
+- No overview that repeats the list below it. Quiet by default: tags on messages are tints, solid only for the open criterion; the "Требуют внимания" filter and export sit in the panel footer.
+- One transcript view: a chat (client left, operator right, system centered). No view toggle and no conversation map: evidence is reached through the numbered tags on messages and the chips in the verdict rows.
 
 ## Reading on every screen
 - **Measure:** 50-75 characters per line (Baymard); WCAG 1.4.8 (AAA) asks for 80 or fewer on average. The chat column is capped at 44rem and bubbles at 80% of it, which gives about 54 `ch` (roughly 60 letters) at every width we measured (1280 to 3840 CSS px). Long paragraphs use `max-w-[65ch]` or `max-w-prose`.
-- **Scale:** the root size is the user's own setting (100%) and grows from 1600 CSS px up to a 125% cap (a 27-inch QHD monitor at 100% is about 118%; a 4K screen at 100% hits the cap). Laptops with OS scaling already report a smaller CSS width and stay at 100%. Sizes are rem or ch, never fixed px for layout widths, so the UI follows both the browser font setting and zoom.
+- **No scroll:** banner plus collapsed rows of an 8-10 criterion checklist fit without scrolling from about 1440x790 CSS px of viewport (a 1440x900 screen minus browser chrome); smaller laptops and longer checklists scroll the list only. Measure `scrollHeight - clientHeight` of the list, not screenshots.
+- **Scale:** the root size is the user's own setting (100%) and grows from 1600 CSS px of width and 900 of height (whichever gives less) up to a 125% cap (a 27-inch QHD monitor at 100% is about 118%; a 4K screen at 100% hits the cap). Laptops with OS scaling already report a smaller CSS width and stay at 100%. Sizes are rem or ch, never fixed px for layout widths, so the UI follows both the browser font setting and zoom.
 - **Reflow:** no horizontal scroll from 320 CSS px (WCAG 1.4.10); below 1280 the two panes become tabs, below 768 the sidebar becomes a top bar.
 - **Text:** body 16/24, explanations 16/24, secondary 14/20, meta 12/16; `text-wrap: pretty` on paragraphs and `balance` on headings.
 - **Calls:** evidence moves the audio player to the message (MM:SS timestamps only) without starting playback; each message has a play-from-here button.

@@ -74,17 +74,19 @@ it('shows the dialog: transcript, total, N/A reason and the demo label', async (
 it('states points earned out of points possible, and which criteria are not counted', async () => {
   renderApp();
   await transcriptReady();
-  expect(panel().getByText(/Набрано 80 из 85 возможных баллов/)).toBeTruthy();
-  expect(panel().getByText(/Не применимы и не учитываются: 02/)).toBeTruthy();
+  expect(panel().getByText(/Набрано 80 из 85 возможных/)).toBeTruthy();
+  expect(panel().getByText(/Не применимы: 02/)).toBeTruthy();
 });
 
-it('a row shows a points bar only where points were lost, with the amount', async () => {
+it('a collapsed row is one line with points of the weight; lost points are colored and explained when opened', async () => {
   renderApp();
   await transcriptReady();
-  // One unit per row: the chip states points of the weight, the bar line only the loss.
-  expect(row(/Корректная и полная консультация/).textContent).toContain('15 из 20');
-  expect(row(/Корректная и полная консультация/).textContent).toContain('−5');
-  expect(row(/Установление контакта/).textContent).not.toMatch(/−/); // full points: no bar
+  const partial = row(/Корректная и полная консультация/);
+  expect(partial.textContent).toContain('15 из 20');
+  expect(within(partial).getByText('15 из 20').className).toMatch(/bg-warn-soft/); // any loss is amber, not green
+  expect(within(row(/Установление контакта/)).getByText('10 из 10').className).not.toMatch(/bg-/); // full marks: quiet
+  fireEvent.click(partial);
+  expect(panel().getByText('Потеряно 5 из 20 баллов.')).toBeTruthy();
 });
 
 it('keeps the original zero-based index and raw timestamp on every message', async () => {
@@ -303,7 +305,7 @@ it('digit keys follow the rows as shown, also with only the rows needing attenti
     for (const r of [...b.evaluations[0].originalResults, ...b.evaluations[0].finalResults]) if (r.criterionId === '07') r.confidence = 'low';
   }));
   await transcriptReady();
-  fireEvent.click(panel().getByLabelText(/Только требующие внимания/));
+  fireEvent.click(panel().getByLabelText(/Требуют внимания/));
   fireEvent.keyDown(document.body, { key: '1' });
   expect(row(/^07/).getAttribute('aria-expanded')).toBe('true'); // the first row shown, not criterion 01
 });
@@ -312,7 +314,7 @@ it('low-confidence results are visible without opening a row and can be isolated
   renderApp(bundle((b) => { for (const r of b.evaluations[0].finalResults) if (r.criterionId === '02') r.confidence = 'low'; }));
   await transcriptReady();
   expect(panel().getByText('Проверить')).toBeTruthy();
-  fireEvent.click(panel().getByLabelText(/Только требующие внимания \(1\)/));
+  fireEvent.click(panel().getByLabelText(/Требуют внимания \(1\)/));
   expect(panel().queryByRole('button', { name: /Установление контакта/ })).toBeNull();
   expect(panel().getByRole('button', { name: /Выявление потребности/ })).toBeTruthy();
 });

@@ -28,7 +28,7 @@ type Props = {
   onDecideAppeal: (input: DecideAppealInput) => Promise<void>;
   /** A reviewer's direct correction of one criterion. */
   onCorrect: (criterionId: string, c: Correction) => Promise<void>;
-  /** "Только требующие внимания": owned by the app because the digit shortcuts follow the rows shown. */
+  /** "Требуют внимания" filter: owned by the app because the digit shortcuts follow the rows shown. */
   onlyFlagged: boolean;
   onOnlyFlagged: (v: boolean) => void;
   /** The whole app runs on fictional data and says so in the sidebar; the panel then does not repeat it. */
@@ -74,8 +74,8 @@ function EvidenceChip({ e, conversation, onJump }: { e: EvidenceReference; conve
   );
 }
 
-const CHIP = { neutral: 'bg-fill text-ink', success: 'bg-brand-soft text-accent', danger: 'bg-danger-soft text-danger', warn: 'bg-warn-soft text-warn' } as const;
-const BAR = { neutral: 'bg-line-strong', success: 'bg-brand', danger: 'bg-danger', warn: 'bg-warn' } as const;
+/** Full marks are quiet (text only); a fill means something to look at: points lost (amber), nothing earned or a violation (red). */
+const CHIP = { neutral: 'text-muted', success: 'text-accent', danger: 'bg-danger-soft text-danger', warn: 'bg-warn-soft text-warn' } as const;
 
 /** Data written before the reviewer's reason became the explanation carried an English prefix. */
 const reviewerText = (r: CriterionResult) => r.explanation.replace(/^Reviewer override: /, '');
@@ -123,37 +123,39 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
 
   return (
     <li id={`row-${evaluation.id}-${result.criterionId}`} className={cn('scroll-mt-2 rounded-xl transition-colors', open ? 'bg-fill ring-1 ring-brand/60' : 'hover:bg-fill/60')}>
-      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="w-full rounded-xl px-4 py-3 text-left">
-        <span className="flex items-start justify-between gap-4">
+      {/*
+        Collapsed rows are one line each so a whole checklist fits without scrolling: the chip says the grade (quiet when
+        full, amber or red when points were lost), a second line appears only for something to act on.
+      */}
+      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="w-full rounded-xl px-4 py-1 text-left">
+        <span className="flex items-start justify-between gap-3">
           <span className="min-w-0">
             <span className="block text-base font-medium leading-6">
               <span className="mr-2 text-sm tabular-nums text-muted">{result.criterionId}</span>
               {criterion?.title ?? 'Критерий не найден в чек-листе'}
             </span>
-            <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-              {criterion?.criticalFlag ? 'флаг, без баллов' : result.isNA ? `вес ${weight}: не считается` : pts === null ? `вес ${weight}` : null}
-              {pts !== null && weight > 0 && pts < weight && (
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-1 w-16 rounded-full bg-line"><span className={cn('block h-1 rounded-full', BAR[g.tone])} style={{ width: `${Math.round((pts / weight) * 100)}%` }} /></span>
-                  <span className="tabular-nums">−{formatScore(weight - pts)}</span>
-                </span>
-              )}
-              {needsReview(result) && <Badge tone="warn">Проверить</Badge>}
-              {pending && <Badge tone="warn">Апелляция</Badge>}
-              {changed && <Badge>Изменено проверяющим</Badge>}
-              {result.reusedFrom && <Badge>Из прошлой оценки</Badge>}
-            </span>
+            {(needsReview(result) || pending || changed || result.reusedFrom) && (
+              <span className="mt-1 flex flex-wrap items-center gap-2">
+                {needsReview(result) && <Badge tone="warn">Проверить</Badge>}
+                {pending && <Badge tone="warn">Апелляция</Badge>}
+                {changed && <Badge>Изменено проверяющим</Badge>}
+                {result.reusedFrom && <Badge>Из прошлой оценки</Badge>}
+              </span>
+            )}
           </span>
           <span className="flex shrink-0 items-center gap-2">
             {ai && <span className="text-xs tabular-nums text-muted line-through" aria-label={`Ответ ИИ был: ${grade(criterion, ai).label}`}>ИИ: {grade(criterion, ai).label}</span>}
-            <span className={cn('inline-flex h-8 items-center rounded-full px-3 text-sm font-semibold tabular-nums whitespace-nowrap', CHIP[g.tone])}>{g.label}</span>
+            <span className={cn('inline-flex h-6 items-center rounded-full px-2 text-sm font-semibold tabular-nums whitespace-nowrap', CHIP[g.tone])} title={result.isNA ? `Не применим: вес ${weight} не учитывается` : undefined}>{g.label}</span>
             <ChevronDown aria-hidden className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} />
           </span>
         </span>
       </button>
 
       {open && (
-        <div id={panelId} className="space-y-4 px-4 pb-4">
+        <div id={panelId} className="space-y-4 px-4 pb-4 pt-1">
+          {(result.isNA || (pts !== null && pts < weight)) && (
+            <p className="text-xs text-muted">{result.isNA ? `Не применим: вес ${weight} не входит в итог.` : `Потеряно ${formatScore(weight - (pts ?? 0))} из ${weight} баллов.`}</p>
+          )}
           {ai ? (
             <>
               <div className="space-y-1">
@@ -239,37 +241,41 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
 
   return (
     <section aria-label="Оценка" className="flex h-full min-h-0 flex-col overflow-y-auto md:overflow-hidden">
-      <header className="verdict shrink-0 px-4 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <h2 className="flex flex-wrap items-center gap-2 text-sm font-medium text-verdict-muted">
-            Оценка{versions.length <= 1 && checklist ? ` · версия ${checklist.version}` : ''}
-            {isMock && !demoMode && <span title="Вымышленный пример, а не оценка модели" aria-label="Демо-данные: вымышленный пример, а не оценка модели" className="inline-flex h-6 items-center gap-1 rounded-full bg-verdict-warn-bg px-2 text-xs text-verdict-warn"><FlaskConical aria-hidden className="size-4" />Демо-данные</span>}
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Апелляция: {pendingIds.size}</span>}
-            {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Изменено проверяющим: {changedCount}</span>}
+      {/* Score on the left, what it is made of on the right: the banner states the verdict in about 100px, the rest is the list. */}
+      <header className={cn('verdict shrink-0 px-4 py-4 sm:px-6', evaluation.seriousViolation && 'verdict-danger')}>
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-2">
+          <div>
+            <h2 className="flex flex-wrap items-center gap-2 text-xs font-medium text-verdict-muted">
+              Оценка{versions.length <= 1 && checklist ? ` · версия ${checklist.version}` : ''}
+              {isMock && !demoMode && <span title="Вымышленный пример, а не оценка модели" aria-label="Демо-данные: вымышленный пример, а не оценка модели" className="inline-flex h-6 items-center gap-1 rounded-full bg-verdict-warn-bg px-2 text-xs text-verdict-warn"><FlaskConical aria-hidden className="size-4" />Демо-данные</span>}
+            </h2>
+            <p className="flex items-baseline gap-2">
+              <span className="text-score-sm font-semibold tracking-tight tabular-nums">{formatScore(evaluation.finalTotal)}</span>
+              <span className="text-sm text-verdict-muted">из 100</span>
+            </p>
+          </div>
+          <div className="min-w-0 flex-1 space-y-1 pt-1 text-sm text-verdict-muted">
+            <p>{evaluation.finalTotal === null ? 'Нет применимых критериев: балл не считается.' : `Набрано ${formatScore(earned)} из ${formatScore(possible)} возможных`}</p>
+            {naIds.length > 0 && evaluation.finalTotal !== null && <p className="text-xs">Не применимы: {naIds.join(', ')}</p>}
+            {evaluation.originalTotal !== evaluation.finalTotal && <p className="text-xs">Исходная оценка ИИ: {formatScore(evaluation.originalTotal)}</p>}
+            {!evaluation.seriousViolation && <p className="flex items-center gap-2"><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</p>}
+            {(pendingIds.size > 0 || changedCount > 0) && (
+              <p className="flex flex-wrap gap-2 pt-1">
+                {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs text-white">Апелляция: {pendingIds.size}</span>}
+                {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs text-white">Изменено проверяющим: {changedCount}</span>}
+              </p>
+            )}
           </div>
         </div>
-        <p className="mt-1 flex items-baseline gap-2">
-          <span className="text-score-sm font-semibold tracking-tight tabular-nums md:text-score">{formatScore(evaluation.finalTotal)}</span>
-          <span className="text-base text-verdict-muted">из 100</span>
-        </p>
-        {evaluation.originalTotal !== evaluation.finalTotal && <p className="mt-1 text-xs text-verdict-muted">Исходная оценка ИИ: {formatScore(evaluation.originalTotal)}</p>}
-        <p className="mt-2 text-sm text-verdict-muted">
-          {evaluation.finalTotal === null ? 'Нет применимых критериев: балл не считается.' : `Набрано ${formatScore(earned)} из ${formatScore(possible)} возможных баллов`}
-          {naIds.length > 0 && evaluation.finalTotal !== null && <span className="block text-xs">Не применимы и не учитываются: {naIds.join(', ')}</span>}
-        </p>
 
-        {evaluation.seriousViolation ? (
-          <div className="mt-3 rounded-xl bg-verdict-alert-bg p-4 text-verdict-alert" role="alert">
-            <p className="flex items-center gap-2 text-base font-semibold"><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</p>
+        {evaluation.seriousViolation && (
+          <div className="mt-3 border-t border-white/15 pt-3" role="alert">
+            <p className="flex items-center gap-2 text-sm font-semibold"><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</p>
             {reasons.length === 0 && <p className="mt-1 text-sm">Флаг поднят.</p>}
             {reasons.map((r) => (
-              <p key={r.criterionId} className="mt-1 text-sm leading-5 md:text-base md:leading-6">{reasons.length > 1 && <span className="font-medium">{r.title}: </span>}{r.explanation}</p>
+              <p key={r.criterionId} className="mt-1 text-sm leading-5">{reasons.length > 1 && <span className="font-medium">{r.title}: </span>}{r.explanation}</p>
             ))}
           </div>
-        ) : (
-          <p className="mt-3 flex items-center gap-2 text-sm text-verdict-muted"><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</p>
         )}
       </header>
 
@@ -290,17 +296,11 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         </div>
       )}
 
-      <div className="flex-1 space-y-4 bg-surface p-2 pb-4 md:min-h-0 md:overflow-y-auto">
-        {flaggedCount > 0 && (
-          <label className="flex min-h-8 items-center gap-2 px-4 pt-2 text-xs">
-            <input type="checkbox" checked={onlyFlagged} onChange={(e) => onOnlyFlagged(e.target.checked)} className="size-4 accent-brand" />
-            Только требующие внимания ({flaggedCount})
-          </label>
-        )}
+      <div className="flex-1 space-y-2 bg-surface p-2 md:min-h-0 md:overflow-y-auto">
         {groups.map((g) => (
           <div key={g.id}>
-            {g.title && <h3 className="mb-1 mt-2 px-4 text-xs font-medium text-muted">{g.title}</h3>}
-            <ul className="space-y-1">
+            {g.title && <h3 className="px-4 pb-1 pt-2 text-xs font-medium text-muted">{g.title}</h3>}
+            <ul>
               {g.rows.map((r) => (
                 <CriterionRow
                   key={r.criterionId}
@@ -325,8 +325,14 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         {groups.length === 0 && <p className="p-4 text-sm text-muted">Ничего не требует внимания.</p>}
       </div>
 
-      <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-surface px-4 py-2 text-sm text-muted sm:px-6">
-        Экспорт
+      <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line bg-surface px-4 py-2 text-sm text-muted sm:px-6">
+        {flaggedCount > 0 && (
+          <label className="flex min-h-8 items-center gap-2 text-xs text-ink">
+            <input type="checkbox" checked={onlyFlagged} onChange={(e) => onOnlyFlagged(e.target.checked)} className="size-4 accent-brand" />
+            Требуют внимания ({flaggedCount})
+          </label>
+        )}
+        <span className="ml-auto" />
         <button type="button" onClick={() => downloadText(`${conversation.id}-evaluation.csv`, evaluationCsv(conversation, evaluation, checklist), 'text/csv;charset=utf-8')} aria-label="Скачать оценку в CSV" title="Таблица для Excel" className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-ink hover:bg-fill"><Download aria-hidden className="size-4" />CSV</button>
         <button type="button" onClick={() => window.print()} aria-label="Печать или сохранить в PDF" title="Отчёт для печати или сохранения в PDF" className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-ink hover:bg-fill"><Printer aria-hidden className="size-4" />PDF</button>
       </footer>
