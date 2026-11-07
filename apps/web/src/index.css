@@ -76,7 +76,7 @@
   --text-score-sm--line-height: 3rem;
 
   /* Text and fills on the always-dark verdict banner (same in both themes). */
-  /* Muted text on the banner, set per verdict below (5.1:1 on green, 7.5:1 on red at the lightest stop). */
+  /* Muted text on the banner, set per verdict below (4.6:1 on green, 5.6:1 on red where the glow is brightest). */
   --color-verdict-muted: var(--v-muted);
   --color-verdict-warn: #e8be6a;
   --color-verdict-warn-bg: #3a2f14;
@@ -92,7 +92,8 @@
  */
 .verdict {
   --c-focus: #5fd28d;
-  --v-muted: #b7cbbf;
+  /* 4.6:1 even at the brightest point of the glow below (#266c4d), 8.8:1 at the darkest stop. */
+  --v-muted: #cfe0d5;
   /* A soft light from the top left (the ring's side) over the sweep: depth without darkening the edges. */
   background:
     radial-gradient(120% 140% at 0% 0%, rgb(95 210 141 / 0.16), transparent 55%),
