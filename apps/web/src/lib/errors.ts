@@ -40,7 +40,7 @@ const RULES: [RegExp, string | ((m: RegExpMatchArray) => string)][] = [
   [/^evaluation failed$/i, 'Оценка не получилась.'],
 ];
 
-const BY_CODE = { not_found: 'Не найдено. Обновите страницу.', conflict: 'Данные уже изменились. Обновите страницу.', invalid: 'Данные не прошли проверку.' } as const;
+const BY_CODE = { not_found: 'Не найдено. Обновите страницу.', conflict: 'Данные уже изменились. Обновите страницу.', invalid: 'Данные не прошли проверку.', forbidden: 'Эта роль не может выполнить действие.' } as const;
 
 /** Russian text for any thrown value or stored error string (e.g. Evaluation.error). Russian input passes through. */
 export function humanError(e: unknown): HumanError {

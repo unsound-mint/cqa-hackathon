@@ -4,6 +4,7 @@ export type Tone = 'neutral' | 'success' | 'danger' | 'warn';
 
 export const SPEAKER_LABEL: Record<Speaker, string> = { client: 'Клиент', operator: 'Оператор', bot: 'Бот', system: 'Система' };
 
+export const REVIEW_LABEL = { new: 'Новый', in_review: 'В работе', reviewed: 'Проверен' } as const;
 export const SOURCE_LABEL = { rule: 'Правило', hybrid: 'Правило + модель', model: 'Модель', reviewer: 'Проверяющий' } as const;
 export const CONFIDENCE_LABEL = { high: 'высокая', medium: 'средняя', low: 'низкая' } as const;
 

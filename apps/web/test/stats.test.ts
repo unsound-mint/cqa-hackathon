@@ -70,3 +70,20 @@ it('is empty-safe', () => {
   const s = computeStats({ ...base, conversations: [], evaluations: [], appeals: [] });
   expect(s).toMatchObject({ dialogs: 0, evaluated: 0, averageTotal: null, checklist: null, criteria: [] });
 });
+
+it('groups results by assigned operator, counts only appeals of their own dialogs and reviews of the current evaluation', () => {
+  const conversations = [{ ...conv('a', 'RU'), operatorId: 'Алина', review: { status: 'reviewed' as const, evaluationId: 'ea', by: 'М', at: '2026-11-08T00:00:00Z' } }, { ...conv('b', 'RU'), operatorId: 'Алина', review: { status: 'reviewed' as const, evaluationId: 'older', by: 'М', at: '2026-11-08T00:00:00Z' } }, { ...conv('c', 'RU'), operatorId: 'Тимур' }, conv('d', 'RU')];
+  const evaluations = [
+    ev('ea', 'a', 'c1', [r('x1', 10), r('x2', true), r('x3', false)], 20),
+    ev('eb', 'b', 'c1', [r('x1', 0), r('x2', true), r('x3', true)], 10),
+    ev('ec', 'c', 'c1', [r('x1', 5), r('x2', true), r('x3', false)], 15),
+  ];
+  const appeals = [appeal('p1', 'eb', 'pending'), appeal('p2', 'ec', 'upheld'), appeal('fix', 'eb', 'overridden', 'correction')];
+  const s = computeStats({ ...base, conversations, evaluations, appeals });
+  const row = (o: string | null) => s.byOperator.find((x) => x.operator === o)!;
+  expect(s.byOperator.map((x) => x.operator)).toEqual(['Алина', 'Тимур', null]);
+  expect(row('Алина')).toMatchObject({ dialogs: 2, evaluated: 2, seriousViolations: 1, reviewed: 1, appealsPending: 1, appealsTotal: 1 }); // b's check is of an older evaluation
+  expect(row('Тимур')).toMatchObject({ appealsTotal: 1, appealsPending: 0, reviewed: 0 });
+  expect(row(null)).toMatchObject({ dialogs: 1, evaluated: 0 });
+  expect(s.review).toEqual({ new: 3, in_review: 0, reviewed: 1 });
+});

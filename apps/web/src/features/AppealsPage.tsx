@@ -1,5 +1,4 @@
-import type { Appeal, ChecklistVersion, Conversation, Evaluation } from '@cqa/contracts';
-import { Gavel } from 'lucide-react';
+import type { Actor, Appeal, ChecklistVersion, Conversation, Evaluation } from '@cqa/contracts';
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -11,6 +10,7 @@ type Props = {
   checklists: ChecklistVersion[];
   conversations: Conversation[];
   onOpen: (conversationId: string, criterionId: string) => void;
+  identity: Actor;
 };
 
 type Filter = 'pending' | 'decided' | 'all';
@@ -18,8 +18,12 @@ type Filter = 'pending' | 'decided' | 'all';
 const fmt = (iso: string) => new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const STATUS = { pending: { label: 'На рассмотрении', tone: 'warn' }, upheld: { label: 'Оценка ИИ оставлена', tone: 'neutral' }, overridden: { label: 'Оценка изменена', tone: 'neutral' } } as const;
 
-/** The approver's queue: appeals across all dialogs. Opening one lands on the criterion with the decision form. */
-export function AppealsPage({ appeals: all, evaluations, checklists, conversations, onOpen }: Props) {
+/**
+ * Appeals by role. A reviewer or lead gets the approver's queue (across all dialogs; opening one lands on the criterion with
+ * the decision form). An operator gets their own appeals and what was decided; the server already limits the list to them.
+ */
+export function AppealsPage({ appeals: all, evaluations, checklists, conversations, onOpen, identity }: Props) {
+  const mine = identity.role === 'operator';
   const [filter, setFilter] = useState<Filter>('pending');
   // Direct corrections by a reviewer are audit history of a dialog, not disputes: they never enter this queue.
   const appeals = useMemo(() => all.filter((a) => a.kind !== 'correction'), [all]);
@@ -41,8 +45,8 @@ export function AppealsPage({ appeals: all, evaluations, checklists, conversatio
   return (
     <section aria-label="Апелляции" className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
       <div>
-        <h1 className="text-2xl font-semibold leading-8">Апелляции</h1>
-        <p className="max-w-prose text-sm text-muted">Оценки, которые оператор оспорил. Откройте обращение, чтобы подтвердить оценку ИИ или изменить её с указанием причины. Исходный ответ ИИ сохраняется всегда.</p>
+        <h1 className="text-2xl font-semibold leading-8">{mine ? 'Мои апелляции' : 'Апелляции'}</h1>
+        <p className="max-w-prose text-sm text-muted">{mine ? 'Оценки, которые вы оспорили, и решения по ним. Решение принимает проверяющий; до решения балл не меняется.' : 'Оценки, которые оператор оспорил. Откройте обращение, чтобы подтвердить оценку ИИ или изменить её с указанием причины. Исходный ответ ИИ сохраняется всегда.'}</p>
       </div>
 
       <div role="group" aria-label="Что показать" className="flex flex-wrap gap-2">
@@ -53,7 +57,7 @@ export function AppealsPage({ appeals: all, evaluations, checklists, conversatio
 
       {rows.length === 0 ? (
         <div className="rounded-card border border-line bg-surface p-6 text-sm text-muted">
-          {appeals.length === 0 ? 'Апелляций пока нет. Оператор может оспорить оценку в карточке диалога: откройте критерий и нажмите «Оспорить оценку».' : filter === 'pending' ? 'Нет обращений, ожидающих решения.' : 'Нет решённых обращений.'}
+          {appeals.length === 0 ? (mine ? 'Вы пока ничего не оспаривали. Откройте свой диалог, выберите критерий и нажмите «Оспорить оценку».' : 'Апелляций пока нет. Оператор может оспорить оценку в карточке диалога; чтобы попробовать, смените роль на «Оператор».') : filter === 'pending' ? 'Нет обращений, ожидающих решения.' : 'Нет решённых обращений.'}
         </div>
       ) : (
         <div className="min-h-0 overflow-auto rounded-card border border-line bg-surface shadow-card">
@@ -65,6 +69,7 @@ export function AppealsPage({ appeals: all, evaluations, checklists, conversatio
                 <th scope="col" className="hidden px-3 font-medium md:table-cell">Возражение</th>
                 <th scope="col" className="hidden px-3 font-medium sm:table-cell">Оценка</th>
                 <th scope="col" className="hidden px-3 font-medium sm:table-cell">Подана</th>
+                {!mine && <th scope="col" className="hidden px-3 font-medium lg:table-cell">Оператор</th>}
                 <th scope="col" className="px-3 font-medium">Статус</th>
               </tr>
             </thead>
@@ -95,7 +100,11 @@ export function AppealsPage({ appeals: all, evaluations, checklists, conversatio
                       {changed && final && <div className="font-medium">Итог: {grade(criterion, final).label}</div>}
                     </td>
                     <td className="hidden px-3 py-3 text-muted sm:table-cell">{fmt(a.createdAt)}</td>
-                    <td className="px-3 py-3 text-right sm:text-left"><Badge tone={STATUS[a.status].tone}>{STATUS[a.status].label}</Badge></td>
+                    {!mine && <td className="hidden px-3 py-3 lg:table-cell">{a.createdBy ?? conv?.operatorId ?? <span className="text-muted">—</span>}</td>}
+                    <td className="px-3 py-3 text-right sm:text-left">
+                      <Badge tone={STATUS[a.status].tone}>{STATUS[a.status].label}</Badge>
+                      {a.status !== 'pending' && (a.reviewerReason || a.decidedBy) && <p className="mt-1 max-w-xs text-xs text-muted">{a.decidedBy ? `${a.decidedBy}: ` : ''}{a.reviewerReason}</p>}
+                    </td>
                   </tr>
                 );
               })}
@@ -103,7 +112,6 @@ export function AppealsPage({ appeals: all, evaluations, checklists, conversatio
           </table>
         </div>
       )}
-      <p className="flex items-center gap-2 text-xs text-muted"><Gavel aria-hidden className="size-4" />Входа и ролей в демо нет: решение принимает любой, кто открыл обращение.</p>
     </section>
   );
 }

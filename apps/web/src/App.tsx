@@ -1,10 +1,11 @@
-import type { Appeal, ChecklistVersion, Conversation, DecideAppealInput, Evaluation, SaveChecklistInput } from '@cqa/contracts';
+import { can, type Appeal, type ChecklistVersion, type Conversation, type DecideAppealInput, type Evaluation, type SaveChecklistInput } from '@cqa/contracts';
 import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, PanelLeftOpen } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MockCqaApi } from './api';
 import { useApi } from './ApiContext';
 import { cn } from '@/lib/utils';
-import { DEFAULT_FILTERS, counts, matches, needsAttention, type Filters } from '@/lib/queue';
+import { DEFAULT_FILTERS, counts, matches, needsAttention, reviewOf, sortConversations, type Filters } from '@/lib/queue';
+import { setIdentity, useIdentity } from '@/lib/identity';
 import { criterionGroups, formatScore, grade } from '@/lib/present';
 import { useTwoPane, useWide } from '@/lib/media';
 import { PlayerProvider } from '@/lib/player';
@@ -16,6 +17,8 @@ import { LoadingShell } from './features/LoadingShell';
 import { PrintReport } from './features/PrintReport';
 import { QueueRail } from './features/QueueRail';
 import { Sidebar } from './features/Sidebar';
+import { AssignOperator } from './features/AssignOperator';
+import { ReviewControl } from './features/ReviewControl';
 import { StatsPage } from './features/StatsPage';
 import { EvaluationPanel } from './features/EvaluationPanel';
 import type { Correction } from './features/Appeals';
@@ -26,7 +29,11 @@ import { Select } from '@/components/ui/field';
 import { Splitter } from '@/components/ui/splitter';
 import { humanError } from '@/lib/errors';
 
-type Data = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: ChecklistVersion[]; appeals: Appeal[] };
+type Data = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: ChecklistVersion[]; appeals: Appeal[]; operators: string[] };
+type Section = 'dialogs' | 'appeals' | 'checklist' | 'stats';
+/** What each role has in its navigation: the checklist is the lead's; the others work from dialogs, appeals and results. */
+const SECTIONS: Record<'operator' | 'reviewer' | 'lead', Section[]> = { operator: ['dialogs', 'appeals', 'stats'], reviewer: ['dialogs', 'appeals', 'stats'], lead: ['dialogs', 'appeals', 'checklist', 'stats'] };
+const sectionOf = (r: Route): Section => (r.name === 'list' || r.name === 'dialog' ? 'dialogs' : r.name);
 type Load = { status: 'loading' } | { status: 'error'; error: unknown } | { status: 'ready'; data: Data };
 type Pane = 'transcript' | 'evaluation';
 type Route = { name: 'list' } | { name: 'checklist' } | { name: 'appeals' } | { name: 'stats' } | { name: 'dialog'; id: string; criterion?: string };
@@ -52,6 +59,8 @@ const hashFor = (r: Route) => (r.name === 'checklist' ? '#/checklist' : r.name =
 export function App() {
   const api = useApi();
   const [theme, toggleTheme] = useTheme();
+  const identity = useIdentity();
+  const staff = identity.role !== 'operator';
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [route, setRoute] = useState<Route>(parseHash);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -120,6 +129,11 @@ export function App() {
     setRoute(r);
   }, []);
 
+  /** A role without a section (the checklist for a reviewer) lands on the dialogs instead of a screen it may not use. */
+  useEffect(() => {
+    if (!SECTIONS[identity.role].includes(sectionOf(route))) go({ name: 'list' });
+  }, [identity.role, route, go]);
+
   const selectedId = route.name === 'dialog' ? route.id : null;
   useEffect(() => {
     if (selectedId) {
@@ -132,13 +146,15 @@ export function App() {
   }, [selectedId, route.name === 'dialog' ? route.criterion : undefined]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchAll = useCallback(async (): Promise<Data> => {
-    const [conversations, evaluations, checklists, appeals] = await Promise.all([api.listConversations(), api.listEvaluations(), api.listChecklists(), api.listAppeals()]);
-    return { conversations, evaluations, checklists, appeals };
-  }, [api]);
+    const [conversations, evaluations, checklists, appeals, operators] = await Promise.all([api.listConversations(), api.listEvaluations(), api.listChecklists(), api.listAppeals(), api.listOperators()]);
+    return { conversations, evaluations, checklists, appeals, operators };
+    // The role decides what the API returns: a changed role loads everything again.
+  }, [api, identity.role, identity.name]); // eslint-disable-line react-hooks/exhaustive-deps
   const reload = useCallback(async () => setLoad({ status: 'ready', data: await fetchAll() }), [fetchAll]);
 
   useEffect(() => {
     let live = true;
+    setLoad((l) => (l.status === 'ready' ? { status: 'loading' } : l)); // never show one role's data under another
     fetchAll().then(
       (data) => live && setLoad({ status: 'ready', data }),
       (e: unknown) => live && setLoad({ status: 'error', error: e }),
@@ -157,8 +173,8 @@ export function App() {
   const latest = useMemo(() => new Map([...byConversation].map(([id, list]) => [id, list[list.length - 1]!])), [byConversation]);
 
   /** The dialogs the list currently shows: previous/next and J/K walk this queue, not all dialogs. */
-  const queue = useMemo(() => (load.status === 'ready' ? load.data.conversations.filter((c) => matches(c, latest.get(c.id), filters)).map((c) => c.id) : []), [load, latest, filters]);
-  const quickCounts = useMemo(() => (load.status === 'ready' ? counts(load.data.conversations, latest) : { all: 0, violations: 0, review: 0, unevaluated: 0 }), [load, latest]);
+  const queue = useMemo(() => (load.status === 'ready' ? sortConversations(load.data.conversations.filter((c) => matches(c, latest.get(c.id), filters)), latest, filters.sort).map((c) => c.id) : []), [load, latest, filters]);
+  const quickCounts = useMemo(() => (load.status === 'ready' ? counts(load.data.conversations, latest) : { all: 0, violations: 0, review: 0, unevaluated: 0, new: 0, in_review: 0, reviewed: 0 }), [load, latest]);
   const position = selectedId ? queue.indexOf(selectedId) : -1;
   const step = useCallback(
     (by: 1 | -1) => {
@@ -327,6 +343,24 @@ export function App() {
     await runJob(ids, checklistVersionId);
   };
 
+  /** Takes the dialog, finishes its check or reopens it. A finished check moves on to the next dialog nobody has looked at. */
+  const setReview = async (status: 'new' | 'in_review' | 'reviewed') => {
+    if (!conversation) return;
+    await api.setReview(conversation.id, { status });
+    await reload();
+    if (status !== 'reviewed') return;
+    const from = Math.max(queue.indexOf(conversation.id), 0);
+    for (let k = 1; k < queue.length; k++) {
+      const id = queue[(from + k) % queue.length]!;
+      const c = data.conversations.find((x) => x.id === id);
+      if (c && reviewOf(c, latest.get(id)).state === 'new') return go({ name: 'dialog', id });
+    }
+  };
+  const assign = async (conversationIds: string[], operator: string | null) => {
+    await api.assignOperator({ conversationIds, operator });
+    await reload();
+  };
+
   const jump = (index: number) => {
     setPane('transcript');
     setFocus((f) => ({ index, nonce: (f?.nonce ?? 0) + 1 }));
@@ -343,6 +377,17 @@ export function App() {
   const mode = api instanceof MockCqaApi ? 'mock' : 'http';
   const e = evaluation;
 
+  /** Review state for a reviewer; the operator assignment for the lead. Both live under the title, once. */
+  const dialogActions = conversation && staff && (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pb-1">
+      {can(identity, 'review') && (() => {
+        const r = reviewOf(conversation, evaluation);
+        return <ReviewControl state={r.state} stale={r.stale} by={r.by} at={r.at} disabled={evaluation?.status !== 'completed'} onSet={setReview} />;
+      })()}
+      {can(identity, 'assign') && <AssignOperator key={conversation.id} operators={data.operators} current={conversation.operatorId} onAssign={(op) => assign([conversation.id], op)} />}
+    </div>
+  );
+
   /**
    * Title row of the transcript card. Next to the queue rail it is only the title; without the rail (narrower
    * screens) it also carries the queue controls, so the same navigation is never shown twice.
@@ -352,7 +397,7 @@ export function App() {
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         <Button variant="ghost" size="sm" aria-label="К списку диалогов" onClick={() => go({ name: 'list' })} className="-ml-3"><ArrowLeft aria-hidden className="size-4" /></Button>
         <h1 className="text-2xl font-semibold leading-8">{conversation.id}</h1>
-        <p className="text-sm text-muted">{conversation.language} · {conversation.channel === 'voice call' ? 'звонок' : 'чат'} · {conversation.transcript.length} сообщений</p>
+        <p className="text-sm text-muted">{conversation.language} · {conversation.channel === 'voice call' ? 'звонок' : 'чат'} · {conversation.transcript.length} сообщений{staff && conversation.operatorId ? ` · оператор ${conversation.operatorId}` : ''}</p>
       </div>
       {!wide && (
         <div className="flex flex-wrap items-center gap-2">
@@ -373,6 +418,7 @@ export function App() {
           </Button>
         </div>
       )}
+      {dialogActions && <div className="w-full">{dialogActions}</div>}
     </div>
   );
 
@@ -381,6 +427,10 @@ export function App() {
     <div className="flex h-full flex-col md:flex-row print:hidden">
       <a href="#content" onClick={(e) => { e.preventDefault(); document.getElementById('content')?.focus(); }} className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-4 focus:py-2 focus:text-sm focus:text-canvas">Перейти к содержимому</a>
       <Sidebar
+        identity={identity}
+        operators={data.operators}
+        onIdentity={setIdentity}
+        sections={SECTIONS[identity.role]}
         active={route.name === 'checklist' ? 'checklist' : route.name === 'appeals' ? 'appeals' : route.name === 'stats' ? 'stats' : 'dialogs'}
         pendingAppeals={data.appeals.filter((a) => a.status === 'pending').length}
         onNavigate={(to) => go(to === 'checklist' ? { name: 'checklist' } : to === 'appeals' ? { name: 'appeals' } : to === 'stats' ? { name: 'stats' } : { name: 'list' })}
@@ -395,15 +445,15 @@ export function App() {
           </main>
         ) : route.name === 'stats' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
-            <StatsPage conversations={data.conversations} evaluations={data.evaluations} checklists={data.checklists} appeals={data.appeals} />
+            <StatsPage conversations={data.conversations} evaluations={data.evaluations} checklists={data.checklists} appeals={data.appeals} identity={identity} />
           </main>
         ) : route.name === 'appeals' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
-            <AppealsPage appeals={data.appeals} evaluations={data.evaluations} checklists={data.checklists} conversations={data.conversations} onOpen={(id, criterion) => go({ name: 'dialog', id, criterion })} />
+            <AppealsPage appeals={data.appeals} evaluations={data.evaluations} checklists={data.checklists} conversations={data.conversations} onOpen={(id, criterion) => go({ name: 'dialog', id, criterion })} identity={identity} />
           </main>
         ) : route.name === 'list' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
-            <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} focusSignal={searchFocus} />
+            <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} identity={identity} operators={data.operators} onAssign={assign} focusSignal={searchFocus} />
           </main>
         ) : !conversation ? (
           <main id="content" tabIndex={-1} className="p-6 text-sm outline-none">
@@ -435,7 +485,7 @@ export function App() {
             >
               {wide && (
                 <div ref={railRef} className="min-h-0 overflow-hidden rounded-card bg-surface shadow-card">
-                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filters={filters} counts={quickCounts} onFilters={(patch) => setFilters((f) => ({ ...f, ...patch }))} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} onSelect={(id) => go({ name: 'dialog', id })} onHide={() => hideRail(true)} />
+                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filters={filters} counts={quickCounts} staff={staff} onFilters={(patch) => setFilters((f) => ({ ...f, ...patch }))} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} onSelect={(id) => go({ name: 'dialog', id })} onHide={() => hideRail(true)} />
                 </div>
               )}
               {wide && <Splitter label="Ширина очереди" className="hidden xl:flex" measure={() => railRef.current?.offsetWidth ?? 0} min={rem(14)} max={sideMax('rail')} onChange={(px) => setWidth('rail', px)} onReset={() => setWidth('rail', null)} />}
@@ -445,6 +495,7 @@ export function App() {
               <Splitter label="Ширина панели оценки" className="hidden xl:flex" invert measure={() => panelRef.current?.offsetWidth ?? 0} min={rem(24)} max={sideMax('panel')} onChange={(px) => setWidth('panel', px)} onReset={() => setWidth('panel', null)} />
               <div ref={panelRef} className={cn('min-h-0 flex-col overflow-hidden bg-surface xl:rounded-card xl:shadow-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
                 <EvaluationPanel
+                  identity={identity}
                   key={conversation.id}
                   conversation={conversation}
                   evaluation={evaluation}

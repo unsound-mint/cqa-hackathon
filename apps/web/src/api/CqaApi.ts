@@ -1,5 +1,6 @@
 import type {
   Appeal,
+  AssignOperatorInput,
   ChecklistVersion,
   Conversation,
   CreateAppealInput,
@@ -11,6 +12,7 @@ import type {
   ListEvaluationsQuery,
   OverrideCriterionInput,
   SaveChecklistInput,
+  SetReviewInput,
   StartEvaluationInput,
 } from '@cqa/contracts';
 
@@ -33,11 +35,17 @@ export interface CqaApi {
   decideAppeal(input: DecideAppealInput): Promise<Appeal>;
   /** A reviewer corrects one criterion directly; recorded as an already-decided appeal of kind 'correction'. */
   overrideCriterion(input: OverrideCriterionInput): Promise<Appeal>;
+  /** Mark a dialog in review / reviewed, or `new` to reopen it; answers the dialog with its review. */
+  setReview(conversationId: string, input: SetReviewInput): Promise<Conversation>;
+  /** The lead assigns dialogs to an operator (null unassigns). */
+  assignOperator(input: AssignOperatorInput): Promise<void>;
+  /** Operators that have dialogs assigned, for the role picker. */
+  listOperators(): Promise<string[]>;
   /** What an <audio> element plays for a call: the API resolves the organizer's player page to the media file. */
   audioSrc(conversation: Conversation): string | null;
 }
 
-export type CqaApiErrorCode = 'not_found' | 'invalid' | 'conflict';
+export type CqaApiErrorCode = 'not_found' | 'invalid' | 'conflict' | 'forbidden';
 
 export class CqaApiError extends Error {
   constructor(

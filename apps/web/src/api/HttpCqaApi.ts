@@ -1,5 +1,7 @@
 import {
+  ACTOR_HEADER,
   AppealSchema,
+  ROLE_HEADER,
   ChecklistVersionSchema,
   ConversationSchema,
   EvaluationSchema,
@@ -7,6 +9,7 @@ import {
 } from '@cqa/contracts';
 import type {
   Appeal,
+  AssignOperatorInput,
   ChecklistVersion,
   Conversation,
   CreateAppealInput,
@@ -18,8 +21,10 @@ import type {
   ListEvaluationsQuery,
   OverrideCriterionInput,
   SaveChecklistInput,
+  SetReviewInput,
   StartEvaluationInput,
 } from '@cqa/contracts';
+import { getIdentity } from '@/lib/identity';
 import { CqaApiError, type CqaApi } from './CqaApi';
 
 /** Minimal Zod-compatible shape so this file needs no direct zod dependency. */
@@ -109,11 +114,27 @@ export class HttpCqaApi implements CqaApi {
     return this.request('POST', `/api/evaluations/${enc(evaluationId)}/overrides`, body, AppealSchema);
   }
 
+  setReview(conversationId: string, input: SetReviewInput): Promise<Conversation> {
+    return this.request('POST', `/api/conversations/${enc(conversationId)}/review`, input, ConversationSchema);
+  }
+
+  async assignOperator(input: AssignOperatorInput): Promise<void> {
+    await this.request('POST', '/api/conversations/operator', input, { safeParse: () => ({ success: true, data: undefined }) });
+  }
+
+  listOperators(): Promise<string[]> {
+    const parser: Parser<string[]> = { safeParse: (d) => (Array.isArray(d) && d.every((x) => typeof x === 'string') ? { success: true, data: d as string[] } : { success: false }) };
+    return this.request('GET', '/api/operators', undefined, parser);
+  }
+
   private async request<T>(method: 'GET' | 'POST', path: string, body: unknown, parser: Parser<T>): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    const init: RequestInit = { method, headers: { accept: 'application/json' } };
+    // The demo role travels with every call (no login): the server decides what it may do and see.
+    const who = getIdentity();
+    const headers: Record<string, string> = { accept: 'application/json', [ROLE_HEADER]: who.role, [ACTOR_HEADER]: encodeURIComponent(who.name) };
+    const init: RequestInit = { method, headers };
     if (body !== undefined) {
-      init.headers = { accept: 'application/json', 'content-type': 'application/json' };
+      headers['content-type'] = 'application/json';
       init.body = JSON.stringify(body);
     }
 
@@ -124,11 +145,12 @@ export class HttpCqaApi implements CqaApi {
       throw new Error(`Network error: ${method} ${path}`);
     }
 
-    const payload: unknown = await res.json().catch(() => undefined);
+    const payload: unknown = res.status === 204 ? null : await res.json().catch(() => undefined);
 
     if (!res.ok) {
       const detail = serverError(payload);
       const message = detail ?? `${method} ${path} failed with ${res.status}`;
+      if (res.status === 403) throw new CqaApiError('forbidden', message);
       if (res.status === 404) throw new CqaApiError('not_found', message);
       if (res.status === 400) throw new CqaApiError('invalid', message);
       if (res.status === 409) throw new CqaApiError('conflict', message);
