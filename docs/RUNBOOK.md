@@ -12,7 +12,7 @@ The demo runs on one laptop (Fedora or Windows), as one process on one URL. No D
 Production uses the HTTP backend and the evaluations already stored in `DATABASE_PATH`; it does not substitute mock results or automatically regenerate existing evaluations. Development instead: `pnpm dev` (web on :5173 with hot reload, API on :8787), defaulting to fictional mock data. Set `VITE_API_MODE=http` for integrated development or `mock` for an explicit fictional preview. Leave it unset/empty for the normal defaults.
 
 ## State
-Everything lives in one SQLite file (`DATABASE_PATH`, default `data/cqa.sqlite`; the raw download is in `data/raw/`). Both are git-ignored. **Copy `data/cqa.sqlite` before the demo**: restoring it brings back conversations, checklist versions, evaluations and appeals. Call recordings are stored next to it in `data/private/audio/` (`AUDIO_DIR` overrides; git-ignored, real calls), fetched after an import or on first play, so a demo does not depend on the organizer's signed links; copy that folder too.
+Everything lives in one SQLite file (`DATABASE_PATH`, default `data/cqa.sqlite`; the raw download is in `data/raw/`). Both are git-ignored. **Copy `data/cqa.sqlite` before the demo**: restoring it brings back conversations, checklist versions, evaluations and appeals. Call recordings are stored next to it in `data/private/audio/` (`AUDIO_DIR` overrides; git-ignored, real calls), fetched after an import, on every server start for any that are missing, and on first play, so a demo does not depend on the organizer's signed links; copy that folder too.
 
 ## Before going on stage
 - Run the whole flow once on the stage laptop and screenshot it (backup).
