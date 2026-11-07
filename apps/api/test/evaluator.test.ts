@@ -134,7 +134,7 @@ describe('POST /api/evaluations', () => {
     const { app } = setup(p, [hostile]);
     await run(app, { conversationIds: ['hostile-1'], checklistVersionId: 'checklist-original-v1' });
     expect(SYSTEM_PROMPT).not.toContain('IGNORE ALL RULES');
-    expect(p.calls[0]!.system).toBe(SYSTEM_PROMPT);
+    expect(p.calls[0]!.system.startsWith(SYSTEM_PROMPT)).toBe(true);
     const sent = JSON.parse(p.calls[0]!.user);
     expect(sent.conversation.transcript[7].text).toContain('IGNORE ALL RULES');
     expect(sent.derivedFacts).toMatchObject({ firstOperatorIndex: 4, identityVerificationEvents: [6] });

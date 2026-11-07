@@ -11,7 +11,7 @@ import type { LlmProvider } from './provider.js';
 import type { ReuseLookup } from './evaluator.js';
 
 // Bump when deterministic rules, attribution validation or reuse semantics change.
-export const EVALUATOR_VERSION = 'operator-v1';
+export const EVALUATOR_VERSION = 'operator-v2';
 
 export function evaluationCacheContext(conversation: Conversation, provider?: LlmProvider): string {
   return JSON.stringify({
