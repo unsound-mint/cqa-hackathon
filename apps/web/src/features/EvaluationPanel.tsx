@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/field';
+import { ErrorNote } from '@/components/ui/error-note';
 import { cn } from '@/lib/utils';
 import { CONFIDENCE_LABEL, SOURCE_LABEL, criterionGroups, earnedPoints, formatScore, grade, isFlagged, needsReview, sameResult } from '@/lib/present';
 import { downloadText, evaluationCsv } from '@/lib/export';
@@ -19,7 +20,8 @@ type Props = {
   onJump: (index: number) => void;
   onStart: () => void;
   starting: boolean;
-  startError: string | null;
+  /** A failed start of an evaluation (any thrown value; shown in Russian). */
+  startError: unknown;
   /** Appeals of this evaluation, and the handlers that file/decide them. */
   appeals: Appeal[];
   onCreateAppeal: (criterionId: string, comment: string) => Promise<void>;
@@ -198,7 +200,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
           {starting && <Loader2 aria-hidden className="size-4 motion-safe:animate-spin" />}
           {starting ? 'Идёт оценка…' : 'Оценить диалог'}
         </Button>
-        {startError && <p role="alert" className="text-sm text-danger">{startError}</p>}
+        <ErrorNote error={startError} />
       </section>
     );
   }
@@ -207,9 +209,9 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
     return (
       <section aria-label="Оценка" className="flex h-full flex-col items-start gap-3 p-5">
         <h2 className="flex items-center gap-2 text-base font-semibold text-danger"><AlertTriangle aria-hidden className="size-5" />Оценка не получилась</h2>
-        <p className="max-w-prose text-sm">{evaluation.error ?? 'Причина не указана.'}</p>
+        <ErrorNote error={evaluation.error ?? 'Причина не указана.'} className="max-w-prose text-ink" />
         <Button variant="accent" size="lg" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : 'Повторить оценку'}</Button>
-        {startError && <p role="alert" className="text-sm text-danger">{startError}</p>}
+        <ErrorNote error={startError} />
       </section>
     );
   }
@@ -271,7 +273,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         )}
       </header>
 
-      {(versions.length > 1 || newerChecklistVersion !== null || startError) && (
+      {(versions.length > 1 || newerChecklistVersion !== null || !!startError) && (
         <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-3 sm:px-6">
           {versions.length > 1 && (
             <label className="flex items-center gap-2 text-xs">
@@ -284,7 +286,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
           {newerChecklistVersion !== null && (
             <Button size="sm" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : `Есть версия ${newerChecklistVersion}: пересчитать`}</Button>
           )}
-          {startError && <span role="alert" className="text-xs text-danger">{startError}</span>}
+          <ErrorNote error={startError} className="text-xs" />
         </div>
       )}
 

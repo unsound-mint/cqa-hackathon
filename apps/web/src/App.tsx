@@ -20,13 +20,13 @@ import { Transcript, type Focus, type Tag } from './features/Transcript';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/field';
+import { humanError } from '@/lib/errors';
 
 type Data = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: ChecklistVersion[]; appeals: Appeal[] };
-type Load = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: Data };
+type Load = { status: 'loading' } | { status: 'error'; error: unknown } | { status: 'ready'; data: Data };
 type Pane = 'transcript' | 'evaluation';
 type Route = { name: 'list' } | { name: 'checklist' } | { name: 'appeals' } | { name: 'dialog'; id: string; criterion?: string };
 
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function parseHash(): Route {
   const h = window.location.hash;
@@ -56,7 +56,7 @@ export function App() {
   const [focus, setFocus] = useState<Focus>(null);
   const [pane, setPane] = useState<Pane>('evaluation');
   const [starting, setStarting] = useState(false);
-  const [startError, setStartError] = useState<string | null>(null);
+  const [startError, setStartError] = useState<unknown>(null);
   const [searchFocus, setSearchFocus] = useState(0);
   const [onlyFlagged, setOnlyFlagged] = useState(false);
   const wide = useWide();
@@ -93,7 +93,7 @@ export function App() {
     let live = true;
     fetchAll().then(
       (data) => live && setLoad({ status: 'ready', data }),
-      (e: unknown) => live && setLoad({ status: 'error', message: errorText(e) }),
+      (e: unknown) => live && setLoad({ status: 'error', error: e }),
     );
     return () => {
       live = false;
@@ -207,9 +207,10 @@ export function App() {
       <main className="grid h-full place-items-center bg-canvas p-4">
         <div role="alert" className="w-full max-w-md rounded-card bg-surface p-6 shadow-card">
           <h1 className="flex items-center gap-2 text-base font-semibold"><AlertTriangle aria-hidden className="size-5 text-danger" />Не удалось загрузить данные</h1>
-          <p className="mt-2 text-sm text-muted">Сервер не ответил или ответил ошибкой. Ничего не потеряно: оценки хранятся на сервере. Проверьте, что API запущен, и повторите.</p>
-          <p className="mt-2 break-words text-xs text-muted">Подробности: {load.message}</p>
-          <Button variant="primary" className="mt-4" onClick={() => { setLoad({ status: 'loading' }); reload().catch((e: unknown) => setLoad({ status: 'error', message: errorText(e) })); }}>Повторить</Button>
+          <p className="mt-2 text-sm">{humanError(load.error).text}</p>
+          <p className="mt-2 text-sm text-muted">Ничего не потеряно: оценки хранятся на сервере.</p>
+          {humanError(load.error).detail && <p className="mt-2 break-words text-xs text-muted">Подробности: {humanError(load.error).detail}</p>}
+          <Button variant="primary" className="mt-4" onClick={() => { setLoad({ status: 'loading' }); reload().catch((e: unknown) => setLoad({ status: 'error', error: e })); }}>Повторить</Button>
         </div>
       </main>
     );
@@ -261,7 +262,7 @@ export function App() {
     try {
       await runJob([selectedId], newestChecklist.id);
     } catch (e) {
-      setStartError(errorText(e));
+      setStartError(e);
     } finally {
       setStarting(false);
     }

@@ -129,7 +129,9 @@ it('does not invent a score for an unevaluated dialog, and can start an evaluati
 
 it('shows a failed evaluation with its reason and a retry button', async () => {
   renderApp(bundle((b) => { b.evaluations[0].status = 'failed'; b.evaluations[0].error = 'model output failed validation'; }));
-  expect(await screen.findByText(/model output failed validation/)).toBeTruthy();
+  // The reason is in Russian; the model runner's own message is kept folded under "Подробности".
+  expect(await screen.findByText(/Ответ модели не прошёл проверку/)).toBeTruthy();
+  expect(screen.getByText('Подробности')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Повторить оценку' })).toBeTruthy();
 });
 

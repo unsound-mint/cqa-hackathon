@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, CheckCircle2, Plus, RotateCcw, Trash2 } from 'lucid
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
+import { ErrorNote } from '@/components/ui/error-note';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -79,7 +80,7 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
   const [saved, setSaved] = useState<ChecklistVersion | null>(null);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<unknown>(null);
   /** Field errors show once a field was left or a save was tried, not while a new criterion is still empty. */
   const [touched, setTouched] = useState<Set<string>>(() => new Set());
   const [attempted, setAttempted] = useState(false);
@@ -162,7 +163,7 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
       setAttempted(false);
       setRemoved(null);
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : String(e));
+      setSaveError(e);
     } finally {
       setSaving(false);
     }
@@ -175,7 +176,7 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
     try {
       await onEvaluate(saved.id, scope);
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : String(e));
+      setSaveError(e);
     } finally {
       setBusy(null);
     }
@@ -292,7 +293,7 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
           </p>
         )}
         {attempted && errors.get('_')?.get('other') && <p role="alert" className="text-sm text-danger">{errors.get('_')!.get('other')}</p>}
-        {saveError && <p role="alert" className="text-sm text-danger">Не удалось сохранить: {saveError}</p>}
+        <ErrorNote error={saveError} />
         {saved && (
           <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl bg-brand-soft px-4 py-2 text-sm text-accent">
             <CheckCircle2 aria-hidden className="size-4" />

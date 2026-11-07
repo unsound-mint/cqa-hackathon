@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, Textarea } from '@/components/ui/field';
+import { ErrorNote } from '@/components/ui/error-note';
 import { cn } from '@/lib/utils';
 import { earnedPoints, formatScore, outcome } from '@/lib/present';
 
@@ -112,7 +113,7 @@ export function ReviewBox({ evaluation, checklist, criterionId, criterion, appea
   const [answer, setAnswer] = useState('');
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [done, setDone] = useState<string | null>(null);
   const picked = opts.find((o) => o.key === answer);
   /** A form opened from the row's buttons usually starts below the fold: bring it into view. */
@@ -138,7 +139,7 @@ export function ReviewBox({ evaluation, checklist, criterionId, criterion, appea
       reset();
       setDone(message);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(e);
     } finally {
       setBusy(false);
     }
@@ -237,7 +238,7 @@ export function ReviewBox({ evaluation, checklist, criterionId, criterion, appea
         </Box>
       )}
 
-      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+      <ErrorNote error={error} />
 
       {history.length > 0 && (
         <details className="text-sm">
