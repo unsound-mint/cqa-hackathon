@@ -7,7 +7,8 @@ The demo runs on one laptop (Fedora or Windows), as one process on one URL. No D
 2. `pnpm install`
 3. Copy `.env.example` to `.env`. Put `DATASET_IMPORT_URL` (server-only) and, once chosen, the model key there. Quote the URL if you source the file in a shell; the apps read it themselves and do not need quoting.
 4. `pnpm start` builds everything and serves the web app and the API at http://127.0.0.1:8787 (`PORT`/`HOST` to change).
-5. Import the data once: `curl -X POST localhost:8787/api/datasets/import -H "content-type: application/json" -d '{"groupId":"DEV"}'` (PowerShell: `Invoke-RestMethod -Method Post -Uri http://localhost:8787/api/datasets/import -ContentType application/json -Body '{"groupId":"DEV"}'`).
+4b. Or skip the import: `pnpm seed` installs the committed DEV snapshot (`data/seed/`: database with 65 conversations and their evaluations, plus the 5 call recordings) without overwriting an existing database. The snapshot is the organizer's DEV data, published with Denis's decision (2026-11-08).
+5. Import the data once (not needed after `pnpm seed`): `curl -X POST localhost:8787/api/datasets/import -H "content-type: application/json" -d '{"groupId":"DEV"}'` (PowerShell: `Invoke-RestMethod -Method Post -Uri http://localhost:8787/api/datasets/import -ContentType application/json -Body '{"groupId":"DEV"}'`).
 
 Production uses the HTTP backend and the evaluations already stored in `DATABASE_PATH`; it does not substitute mock results or automatically regenerate existing evaluations. Development instead: `pnpm dev` (web on :5173 with hot reload, API on :8787), defaulting to fictional mock data. Set `VITE_API_MODE=http` for integrated development or `mock` for an explicit fictional preview. Leave it unset/empty for the normal defaults.
 
