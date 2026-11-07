@@ -40,3 +40,13 @@ Measure before changing; change one thing per run; judge on the holdout only (An
 4. Fix by cheapest layer per failing criterion: detector (rule), assisted detector (code decides, model answers a narrow question), prompt wording last. Bump `PROMPT_VERSION` on every prompt change.
 5. Report holdout results with `n`; at n of about 20 a per-criterion difference under roughly 20 points is noise.
 
+
+## Semantic-fact evaluator checks
+
+For `eval-v12` / `operator-v3`, include these regression checks before reference comparison:
+- 02: sufficient initial context gives N/A; missing necessary details require operator clarification before the answer, including clause order inside one message. Prior bot questions supply context but cannot prove operator clarification.
+- 04: formulated-request applicability must agree with the request list. Problem reports count even without a question mark. Exercise 0/5/10/15/20, a correct pending next step, explicitly requested minor omissions and multiple material requests. Do not invent an unasked ETA.
+- 06: a forced causal re-ask remains 4 after successful correction; an ordinary new question or refusal of a clear improper offer does not lower clarity. Test actual hold/warning order and exclude internal consultation speech. Voice ASR fragments alone cannot establish incoherence.
+- Reject invented/out-of-range/wrong-role references, contradictory fact combinations and model-supplied grades in facts. Check that expanded index evidence is exact source text, facts persist through appeals, and renamed/reweighted canonical criteria differ from edited criteria.
+
+Run live validation batches one at a time to avoid account rate limits. Keep labels out of requests, exclude real calls without permission, retain complete validated facts/results privately and report provider failures separately from grading mismatches. Reference agreement remains model-to-model agreement until independently human-adjudicated. After any extraction/schema correction, rerun the synthetic checks on the new prompt before reporting final measurements.

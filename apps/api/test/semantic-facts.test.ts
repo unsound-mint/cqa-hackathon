@@ -30,7 +30,7 @@ function decide<A>(helper: AssistedDetector<A>, id: string, raw: unknown, c = co
 }
 const needs = () => ({ ...common(), usedKnownContext: true, missingDetails: [{ detail: 'Platform', clientRequest: ref(0), operatorQuestion: [ref(1, 'Are you using the app or website?')], firstRelevantAnswer: [ref(1, 'Open the app menu.')] }] });
 const request = (materiality: 'main' | 'material' | 'minor', handling: 'answered' | 'concrete_next_step' | 'generic_hint' | 'unanswered', quote: string) => ({ description: quote, clientRequest: ref(0, quote), materiality, handling, operatorEvidence: handling === 'unanswered' ? [] : [ref(3)] });
-const consultation = () => ({ ...common(), requests: [request('main', 'answered', 'Where is the login?')], incorrectKeyRecommendation: [] });
+const consultation = () => ({ ...common(), requestFormulated: true, requests: [request('main', 'answered', 'Where is the login?')], incorrectKeyRecommendation: [] });
 const dialogue = () => ({ ...common(), operatorEvidence: [ref(3)], incoherencePreventingUnderstanding: [], forcedClarifications: [], otherCommunicationFlaws: [], waits: [] });
 
 describe('semantic rubric decisions', () => {
@@ -53,7 +53,7 @@ describe('semantic rubric decisions', () => {
     expect(decide(consultationDetector, '04', { ...base, requests: [request('main', 'generic_hint', 'Where is the login?')] }).value).toBe(5);
     expect(decide(consultationDetector, '04', { ...base, requests: [request('main', 'unanswered', 'Where is the login?')] }).value).toBe(0);
     expect(decide(consultationDetector, '04', { ...base, incorrectKeyRecommendation: [ref(1)] }).value).toBe(0);
-    expect(decide(consultationDetector, '04', { ...base, requests: [] })).toMatchObject({ value: null, isNA: true });
+    expect(decide(consultationDetector, '04', { ...base, requestFormulated: false, requests: [] })).toMatchObject({ value: null, isNA: true });
   });
   it('06 keeps the forced re-ask tier after successful correction', () => {
     const d = { ...dialogue(), forcedClarifications: [{ operatorWording: ref(1, 'Open the app menu.'), clientReask: ref(2), reason: 'Wrong navigation forced a re-ask.' }] };
@@ -76,6 +76,7 @@ describe('semantic rubric decisions', () => {
     ];
     for (const a of invalid) expect(needsDetector.validate(input('02'), a).problems.length).toBeGreaterThan(0);
     expect(dialogueDetector.validate(input('06'), { ...dialogue(), forcedClarifications: [{ operatorWording: ref(3), clientReask: ref(2), reason: 'Bad order.' }] }).problems.join()).toMatch(/follow/);
+    expect(consultationDetector.validate(input('04'), { ...consultation(), requests: [] }).problems.join()).toMatch(/requestFormulated/);
     expect(consultationDetector.validate(input('04'), { ...consultation(), requests: [{ ...request('main', 'answered', 'Where is the login?'), operatorEvidence: [] }] }).problems.join()).toMatch(/requires operator/);
   });
   it('requires actual holds and excludes internal operator speech', () => {
@@ -104,6 +105,24 @@ describe('semantic rubric decisions', () => {
     expect(dialogueDetector.validate(input('06'), { ...raw, operatorEvidence: [99] }).problems.length).toBeGreaterThan(0);
     expect(dialogueDetector.validate(input('06'), { ...raw, operatorEvidence: [0] }).problems.join()).toMatch(/operator/);
     expect(dialogueDetector.validate(input('06'), { ...raw, waits: [{ ...raw.waits[0], advanceWarning: [1, 3] }] }).problems.length).toBeGreaterThan(0);
+  });
+  it('keeps the consultation wire schema compact while validating applicability', () => {
+    for (const helper of [needsDetector, consultationDetector, dialogueDetector]) expect(JSON.parse(JSON.stringify(helper.answersJsonSchema))).toEqual(helper.answersJsonSchema);
+    const schema = consultationDetector.answersJsonSchema as any;
+    expect(schema.properties.requestFormulated.type).toBe('boolean');
+    expect(schema.properties.requests.items.properties.clientRequest).toEqual({ type: 'integer' });
+    expect(schema.properties.requests.items.properties.operatorEvidence.items).toEqual({ type: 'integer' });
+    const raw = { ...consultation(), requests: [{ ...consultation().requests[0], clientRequest: 0, operatorEvidence: [3] }] };
+    expect(decide(consultationDetector, '04', raw).evidence).toContainEqual(ref(0));
+    expect(consultationDetector.validate(input('04'), { ...raw, requestFormulated: false }).problems.join()).toMatch(/requestFormulated/);
+  });
+  it('retains audit facts for arbitrary valid criterion ids, including object property names', async () => {
+    const criterion = { ...input('02').criterion, id: '__proto__' };
+    const r = await evaluateConversation({ name: 'fake', model: 'facts', async complete() {
+      return { output: { results: [], assisted: [{ criterionId: criterion.id, answers: needs() }] } };
+    } }, conversation, { ...ORIGINAL_CHECKLIST, criteria: [criterion] });
+    expect(Object.hasOwn(r.decisionFacts, '__proto__')).toBe(true);
+    expect(JSON.parse(JSON.stringify(r.decisionFacts))['__proto__']).toEqual({ kind: 'needs-facts', facts: needs() });
   });
   it('repairs invalid facts, returns typed facts for audit and applies code grade', async () => {
     let calls = 0;

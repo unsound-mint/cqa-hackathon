@@ -13,7 +13,7 @@ export const needsDetector: AssistedDetector<NeedsFacts> = {
   name: 'needs-facts', description: 'Extract necessary missing information; code applies N/A and question ordering.',
   appliesTo: () => true,
   question: `Extract facts, never a grade. missingDetails lists ONLY details genuinely necessary to answer the actual client request and absent when that request first reached the operator (use earlier client/bot context). No missing necessary information means an empty array, even if the operator asks an optional question. A new follow-up request is not proof that the initial request was incomplete. For each missing detail, cite the client request, the operator's question as a one-item operatorQuestion array ([] if never asked), and the FIRST relevant substantive operator answer as a one-item firstRelevantAnswer array ([] if not yet answered). usedKnownContext says whether the operator used rather than contradicted/re-requested already known details. Inspect the entire transcript and return a concise reason in responseLanguage.`,
-  answersJsonSchema: object({ ...commonJson, fullRange, usedKnownContext: { type: 'boolean' }, missingDetails: list(object({ detail: { type: 'string' }, clientRequest: refJson, operatorQuestion: list(refJson), firstRelevantAnswer: list(refJson) })) }),
+  answersJsonSchema: object({ ...commonJson, usedKnownContext: { type: 'boolean' }, missingDetails: list(object({ detail: { type: 'string' }, clientRequest: refJson, operatorQuestion: list(refJson), firstRelevantAnswer: list(refJson) })) }),
   validate(input, raw) {
     const p = parsed(Schema, raw); if (!p.answers) return p;
     const a = p.answers;

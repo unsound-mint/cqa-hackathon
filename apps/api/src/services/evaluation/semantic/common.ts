@@ -9,8 +9,9 @@ export const common = {
   reason: z.string().trim().min(1), confidence: z.enum(['high', 'medium', 'low']),
 };
 export type Common = { reason: string; confidence: 'high' | 'medium' | 'low' };
-export const object = (properties: Record<string, unknown>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
-export const list = (items: unknown) => ({ type: 'array', items });
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+export const object = (properties: Record<string, JsonValue>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
+export const list = (items: JsonValue) => ({ type: 'array', items });
 // For multi-reference helpers, indices keep the provider grammar compact; code copies exact source text.
 export const indexJson = { type: 'integer' };
 export const refJson = object({ messageIndex: { type: 'integer' }, quote: { type: 'string' } });

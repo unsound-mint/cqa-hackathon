@@ -197,7 +197,7 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
   let latencyMs = 0;
   const started = performance.now();
   const modelResults = new Map<string, CriterionResult>();
-  const decisionFacts: DecisionFacts = {};
+  const decisionFacts = new Map<string, DecisionFacts[string]>();
   let provenance: Provenance = { provider: 'local', model: 'rules+reuse', promptVersion: 'n/a' };
 
   if (undecided.length > 0 || assisted.length > 0) {
@@ -220,7 +220,7 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
         usage.outputTokens += res.usage?.outputTokens ?? 0;
         usage.cacheReadTokens += res.usage?.cacheReadTokens ?? 0;
         usage.cacheWriteTokens += res.usage?.cacheWriteTokens ?? 0;
-          const v = validateModelOutput(res.output, conversation, { ...checklist, criteria });
+        const v = validateModelOutput(res.output, conversation, { ...checklist, criteria });
         const a = validateAssisted(res.output, conversation, assisted);
         if (v.results && a.problems.length === 0) {
           for (const r of v.results) {
@@ -230,7 +230,7 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
           const facts = deriveFacts(conversation);
           for (const { criterion, detector } of assisted) {
             const answers = a.answers.get(criterion.id);
-            decisionFacts[criterion.id] = { kind: detector.name, facts: structuredClone(answers) };
+            decisionFacts.set(criterion.id, { kind: detector.name, facts: structuredClone(answers) });
             decided.set(criterion.id, capConfidence(detector.decide({ conversation, facts, criterion }, answers), facts));
           }
           ok = true;
@@ -246,5 +246,5 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
 
   const results = checklist.criteria.map((c) => decided.get(c.id) ?? modelResults.get(c.id)!);
   const { total, seriousViolation } = scoreEvaluation(checklist, results);
-  return { results, decisionFacts, total, seriousViolation, provenance, usage, latencyMs, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
+  return { results, decisionFacts: Object.fromEntries(decisionFacts), total, seriousViolation, provenance, usage, latencyMs, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
 }
