@@ -4,7 +4,7 @@ import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import demo from '../../../fixtures/demo.json';
 import { ApiProvider } from '../src/ApiContext';
 import { App } from '../src/App';
-import { MockCqaApi } from '../src/api';
+import { HttpCqaApi, MockCqaApi } from '../src/api';
 import { richDemo, richDemoAppeals } from '../src/api/demoExtras';
 
 beforeAll(() => {
@@ -74,10 +74,11 @@ it('shows the dialog: transcript, total, N/A reason and the demo label', async (
 it('states points earned out of points possible, and which criteria are not counted', async () => {
   renderApp();
   await transcriptReady();
-  // Where the points went, with the criteria named: 80 of 85 applicable points, 5 lost on 04.
-  expect(panel().getByText('Потеряно 5 из 85 баллов: 04')).toBeTruthy();
+  // The banner is the score and the verdict; how the total is made (80 of 85 applicable, 02 not counted) is its tooltip,
+  // because the rows below already show every lost point and every N/A.
+  expect(panel().getByTitle('Набрано 80 из 85 применимых баллов; не применимы: 02. Итог пересчитан на 100.')).toBeTruthy();
+  expect(panel().queryByText(/Потеряно/)).toBeNull();
   expect(panel().getByText('Грубых нарушений нет')).toBeTruthy();
-  expect(panel().getByText(/Не применимы: 02/)).toBeTruthy();
 });
 
 it('a collapsed row is one line with points of the weight; lost points are colored and explained when opened', async () => {
@@ -440,19 +441,33 @@ it('the queue rail can be hidden and brought back; the choice is remembered and 
   expect(screen.getByRole('navigation', { name: 'Очередь диалогов' })).toBeTruthy();
 });
 
-it('the queue rail has the same review-state filters as the dialogs page, shared, with counts', async () => {
+it('the queue rail has the dialogs page filters as dropdowns (state with counts, language, channel), shared', async () => {
   window.innerWidth = 1600;
   renderApp(bundle(withSecond));
   await transcriptReady();
   const rail = within(screen.getByRole('navigation', { name: 'Очередь диалогов' }));
   expect(rail.queryByRole('button', { name: /требующему проверки/ })).toBeNull(); // the separate warning button is gone
-  const states = within(rail.getByRole('group', { name: 'Что показать' }));
-  expect(states.getByRole('button', { name: /Все\s*2/ }).getAttribute('aria-pressed')).toBe('true');
-  fireEvent.click(states.getByRole('button', { name: /Не оценены/ }));
-  expect(rail.queryAllByRole('button', { name: /demo-ru-/ }).length).toBe(0); // both demo dialogs are evaluated
+  const state = rail.getByRole('combobox', { name: 'Что показать' }) as HTMLSelectElement;
+  expect([...state.options].map((o) => o.textContent)).toEqual(['Все диалоги · 2', 'Грубые нарушения · 0', 'Нужна проверка · 0', 'Не оценены · 0']);
+  fireEvent.change(rail.getByRole('combobox', { name: 'Язык' }), { target: { value: 'EN' } });
+  expect(rail.queryAllByRole('button', { name: /demo-ru-/ }).length).toBe(0); // both demo dialogs are RU
   fireEvent.click(screen.getByRole('link', { name: 'Диалоги' }));
   const list = within(await screen.findByRole('region', { name: 'Диалоги' }));
-  expect(within(list.getByRole('group', { name: 'Что показать' })).getByRole('button', { name: /Не оценены/ }).getAttribute('aria-pressed')).toBe('true'); // one filter, both places
+  expect((list.getByRole('combobox', { name: 'Язык' }) as HTMLSelectElement).value).toBe('EN'); // one filter, both places
+});
+
+it('the side panes can be resized from the keyboard (and by dragging); the width is remembered and Enter resets it', async () => {
+  window.innerWidth = 1600;
+  renderApp(bundle(withSecond));
+  await transcriptReady();
+  const main = document.getElementById('content')!;
+  const rail = screen.getByRole('separator', { name: 'Ширина очереди' });
+  fireEvent.keyDown(rail, { key: 'End' });
+  expect(main.style.getPropertyValue('--rail')).toBe('448px'); // 28rem at the 16px root of the test
+  expect(JSON.parse(window.localStorage.getItem('cqa-pane-widths')!)).toMatchObject({ rail: 448 });
+  fireEvent.keyDown(rail, { key: 'Enter' });
+  expect(main.style.getPropertyValue('--rail')).toBe('17.5rem');
+  expect(screen.getByRole('separator', { name: 'Ширина панели оценки' })).toBeTruthy();
 });
 
 it('exports the evaluation: CSV download and print for PDF', async () => {
@@ -532,8 +547,11 @@ it('a recording that fails to load says so, links the original, and hides fragme
   expect(screen.getAllByRole('button', { name: /Прослушать фрагмент/ }).length).toBeGreaterThan(0);
   fireEvent(document.querySelector('audio')!, new Event('error'));
   expect(await screen.findByText(/Запись не загрузилась/)).toBeTruthy();
-  expect(screen.getByRole('link', { name: 'Открыть запись у организатора' }).getAttribute('href')).toBe('https://example.invalid/fictional.mp3');
+  expect(screen.getByRole('link', { name: 'открыть запись у организатора' }).getAttribute('href')).toBe('https://example.invalid/fictional.mp3');
   expect(screen.queryByRole('button', { name: /Прослушать фрагмент/ })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Повторить' })); // e.g. the server came back: controls return
+  expect(screen.queryByText(/Запись не загрузилась/)).toBeNull();
+  expect(screen.getAllByRole('button', { name: /Прослушать фрагмент/ }).length).toBeGreaterThan(0);
 });
 
 it('offers no player controls for a chat or for a call without a recording', async () => {
@@ -584,4 +602,19 @@ it('opening an appeal lands on the dialog with that criterion open and the decis
 it('explains an empty approver queue', async () => {
   renderApp(demo, '#/appeals');
   expect(await screen.findByText(/Апелляций пока нет/)).toBeTruthy();
+});
+
+it('does not label an HTTP-backed workspace as a fictional offline demo', async () => {
+  window.location.hash = '';
+  const mock = new MockCqaApi(demo);
+  const payloads: Record<string, unknown> = {
+    '/api/conversations': await mock.listConversations(),
+    '/api/evaluations': await mock.listEvaluations(),
+    '/api/checklists': await mock.listChecklists(),
+    '/api/appeals': await mock.listAppeals(),
+  };
+  const fetchFn = (async (url: string) => new Response(JSON.stringify(payloads[url.split('?')[0]!]), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch;
+  render(<ApiProvider api={new HttpCqaApi({ fetch: fetchFn })}><App /></ApiProvider>);
+  await screen.findByRole('link', { name: 'demo-ru-001' });
+  expect(screen.queryByTitle(/Вымышленные данные/)).toBeNull();
 });

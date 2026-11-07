@@ -70,7 +70,9 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
         {player.failed && conversation.audioUrl && (
           <p role="status" className="text-sm text-muted">
             Запись не загрузилась: ссылка могла устареть или сервер записи недоступен.{' '}
-            <a href={conversation.audioUrl} target="_blank" rel="noreferrer noopener" className="text-accent underline underline-offset-2">Открыть запись у организатора</a>
+            <button type="button" onClick={player.retry} className="font-medium text-accent underline underline-offset-2">Повторить</button>
+            {' или '}
+            <a href={conversation.audioUrl} target="_blank" rel="noreferrer noopener" className="text-accent underline underline-offset-2">открыть запись у организатора</a>
           </p>
         )}
       </header>

@@ -3,8 +3,8 @@ import { Headphones, MessagesSquare, PanelLeftClose, Search, X } from 'lucide-re
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/present';
-import { hasViolation, reviewCount, type Quick } from '@/lib/queue';
-import { Segment } from '@/components/ui/segment';
+import { hasViolation, reviewCount, type Filters, type Quick } from '@/lib/queue';
+import { Select } from '@/components/ui/field';
 
 type Props = {
   conversations: Conversation[];
@@ -12,10 +12,10 @@ type Props = {
   /** Dialogs of the current queue (already filtered, including by the search text). */
   ids: string[];
   selectedId: string;
-  /** The review-state filter, shared with the dialogs page, and the counts it shows. */
-  quick: Quick;
+  /** The filters, shared with the dialogs page, and the per-state counts shown in the options. */
+  filters: Filters;
   counts: Record<Quick, number>;
-  onQuick: (q: Quick) => void;
+  onFilters: (patch: Partial<Filters>) => void;
   query: string;
   onQuery: (q: string) => void;
   /** Bumped to move focus into the search field (sidebar button, Ctrl K). */
@@ -24,6 +24,11 @@ type Props = {
   /** Collapses the rail; the transcript header then carries previous/next and the dialog picker. */
   onHide: () => void;
 };
+
+const QUICK: [Quick, string][] = [['all', 'Все диалоги'], ['violations', 'Грубые нарушения'], ['review', 'Нужна проверка'], ['unevaluated', 'Не оценены']];
+const PILL = 'h-8 min-w-0 rounded-full border-transparent bg-fill pl-3 pr-8 text-sm';
+/** A narrowed filter reads as set: outlined and medium weight. */
+const ACTIVE = 'border-ink font-medium';
 
 /** A short window of the first message containing the query, with the match marked. */
 function Snippet({ c, q }: { c: Conversation; q: string }) {
@@ -44,7 +49,7 @@ function Snippet({ c, q }: { c: Conversation; q: string }) {
 }
 
 /** The queue beside the review, with search on top: results stay in the queue, expanded with the matching phrase. */
-export function QueueRail({ conversations, latest, ids, selectedId, quick, counts, onQuick, query, onQuery, focusSignal, onSelect, onHide }: Props) {
+export function QueueRail({ conversations, latest, ids, selectedId, filters, counts, onFilters, query, onQuery, focusSignal, onSelect, onHide }: Props) {
   const byId = new Map(conversations.map((c) => [c.id, c]));
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -85,17 +90,23 @@ export function QueueRail({ conversations, latest, ids, selectedId, quick, count
             <PanelLeftClose aria-hidden className="size-4" />
           </button>
         </div>
-        {/* The same review states as the dialogs page (one shared filter); N still jumps to the next dialog needing attention. */}
-        <div role="group" aria-label="Что показать" className="grid grid-cols-2 gap-1 rounded-2xl bg-fill p-1">
-          {([['all', 'Все', null], ['violations', 'Нарушения', 'danger'], ['review', 'Проверка', 'warn'], ['unevaluated', 'Не оценены', null]] as const).map(([q, label, tone]) => (
-            <Segment key={q} pressed={quick === q} onClick={() => onQuick(q)} className="min-w-0 justify-between gap-1 px-2 text-xs">
-              <span className="flex min-w-0 items-center gap-1 truncate">
-                {tone && <span aria-hidden className={cn('size-2 shrink-0 rounded-full', tone === 'danger' ? 'bg-danger' : 'bg-warn')} />}
-                {label}
-              </span>
-              <span className="tabular-nums text-muted">{counts[q]}</span>
-            </Segment>
-          ))}
+        {/*
+          The dialogs page's filters in rail form: three compact dropdowns (the rail is 280px; segments did not fit). One
+          shared filter, so a choice here is the same choice on the list. N still jumps to the next dialog needing attention.
+        */}
+        <div className="grid grid-cols-2 gap-2">
+          <Select aria-label="Что показать" value={filters.quick} onChange={(e) => onFilters({ quick: e.target.value as Quick })} className={cn(PILL, 'col-span-2', filters.quick !== 'all' && ACTIVE)}>
+            {QUICK.map(([q, label]) => <option key={q} value={q}>{label} · {counts[q]}</option>)}
+          </Select>
+          <Select aria-label="Язык" value={filters.lang} onChange={(e) => onFilters({ lang: e.target.value as Filters['lang'] })} className={cn(PILL, filters.lang !== 'all' && ACTIVE)}>
+            {/* "Язык"/"Канал" read as the unset state in 120px; the full "Все языки" did not fit. */}
+            {(['all', 'RU', 'KZ', 'EN'] as const).map((l) => <option key={l} value={l}>{l === 'all' ? 'Язык' : l}</option>)}
+          </Select>
+          <Select aria-label="Канал" value={filters.channel} onChange={(e) => onFilters({ channel: e.target.value as Filters['channel'] })} className={cn(PILL, filters.channel !== 'all' && ACTIVE)}>
+            <option value="all">Канал</option>
+            <option value="agent chat">Чат</option>
+            <option value="voice call">Звонок</option>
+          </Select>
         </div>
         {query.trim() && (
           <p className="text-xs text-muted" aria-live="polite">Найдено: {ids.length}</p>

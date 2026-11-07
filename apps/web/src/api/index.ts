@@ -7,7 +7,7 @@ export * from './CqaApi';
 export { HttpCqaApi } from './HttpCqaApi';
 export { MockCqaApi } from './MockCqaApi';
 
-/** Single place that picks the implementation. Development defaults to mock; production defaults to HTTP. VITE_API_MODE overrides either.; components never change. */
+/** Single place that picks the implementation. Development defaults to mock; production defaults to HTTP. VITE_API_MODE overrides either; components never change. */
 export function createApi(): CqaApi {
   const mode = import.meta.env.VITE_API_MODE || (import.meta.env.PROD ? 'http' : 'mock');
   if (mode === 'mock') return new MockCqaApi(richDemo(), richDemoAppeals());

@@ -1,6 +1,7 @@
 import type { Appeal, ChecklistVersion, Conversation, DecideAppealInput, Evaluation, SaveChecklistInput } from '@cqa/contracts';
 import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, PanelLeftOpen } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MockCqaApi } from './api';
 import { useApi } from './ApiContext';
 import { cn } from '@/lib/utils';
 import { DEFAULT_FILTERS, counts, matches, needsAttention, type Filters } from '@/lib/queue';
@@ -21,6 +22,7 @@ import { Transcript, type Focus, type Tag } from './features/Transcript';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/field';
+import { Splitter } from '@/components/ui/splitter';
 import { humanError } from '@/lib/errors';
 
 type Data = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: ChecklistVersion[]; appeals: Appeal[] };
@@ -77,6 +79,31 @@ export function App() {
       /* per-browser convenience only */
     }
   };
+  /**
+   * Pane widths the reviewer dragged (px), remembered per browser. Null = the default (rail 17.5rem, verdict fluid).
+   * The transcript, the main reading surface, never gets narrower than 28rem: the side panes are clamped around it.
+   */
+  const [widths, setWidths] = useState<{ rail: number | null; panel: number | null }>(() => {
+    try {
+      const v = JSON.parse(window.localStorage.getItem('cqa-pane-widths') ?? 'null') as { rail?: unknown; panel?: unknown } | null;
+      return { rail: typeof v?.rail === 'number' ? v.rail : null, panel: typeof v?.panel === 'number' ? v.panel : null };
+    } catch {
+      return { rail: null, panel: null };
+    }
+  });
+  const setWidth = (k: 'rail' | 'panel', px: number | null) =>
+    setWidths((w) => {
+      const next = { ...w, [k]: px };
+      try {
+        window.localStorage.setItem('cqa-pane-widths', JSON.stringify(next));
+      } catch {
+        /* per-browser convenience only */
+      }
+      return next;
+    });
+  const railRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   /** The rail is shown when it fits (1536px+) and was not collapsed; otherwise the transcript header carries the queue. */
   const wide = fits && !railHidden;
   const twoPane = useTwoPane();
@@ -303,7 +330,15 @@ export function App() {
     setFocus((f) => ({ index, nonce: (f?.nonce ?? 0) + 1 }));
   };
 
-  const mode = import.meta.env.VITE_API_MODE ?? 'mock';
+  /** rem in px at the current (fluid) root size. */
+  const rem = (n: number) => n * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+  /** Widest a side pane may get: whatever leaves the transcript its 28rem minimum next to the other side pane. */
+  const sideMax = (k: 'rail' | 'panel') => {
+    const total = (mainRef.current?.clientWidth || window.innerWidth) - rem(2) - (wide ? rem(2) : rem(1));
+    const other = k === 'rail' ? panelRef.current?.offsetWidth ?? 0 : wide ? railRef.current?.offsetWidth ?? 0 : 0;
+    return Math.max(rem(k === 'rail' ? 14 : 24), Math.min(total - other - rem(28), rem(k === 'rail' ? 28 : 60)));
+  };
+  const mode = api instanceof MockCqaApi ? 'mock' : 'http';
   const e = evaluation;
 
   /**
@@ -385,16 +420,24 @@ export function App() {
             )}
 
             <PlayerProvider conversation={conversation}>
-            <main id="content" tabIndex={-1} className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[17.5rem_minmax(0,1fr)_clamp(30rem,30vw,40rem)]' : 'xl:grid-cols-[minmax(0,1fr)_clamp(30rem,30vw,40rem)]')}>
+            <main
+              ref={mainRef}
+              id="content"
+              tabIndex={-1}
+              style={{ '--rail': widths.rail ? `${widths.rail}px` : '17.5rem', '--panel': widths.panel ? `${widths.panel}px` : 'clamp(30rem, 30vw, 40rem)' } as React.CSSProperties}
+              className={cn('grid min-h-0 flex-1 bg-canvas p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[var(--rail)_1rem_minmax(28rem,1fr)_1rem_var(--panel)]' : 'xl:grid-cols-[minmax(28rem,1fr)_1rem_var(--panel)]')}
+            >
               {wide && (
-                <div className="min-h-0 overflow-hidden rounded-card bg-surface shadow-card">
-                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} quick={filters.quick} counts={quickCounts} onQuick={(q) => setFilters((f) => ({ ...f, quick: q }))} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} onSelect={(id) => go({ name: 'dialog', id })} onHide={() => hideRail(true)} />
+                <div ref={railRef} className="min-h-0 overflow-hidden rounded-card bg-surface shadow-card">
+                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filters={filters} counts={quickCounts} onFilters={(patch) => setFilters((f) => ({ ...f, ...patch }))} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} onSelect={(id) => go({ name: 'dialog', id })} onHide={() => hideRail(true)} />
                 </div>
               )}
+              {wide && <Splitter label="Ширина очереди" className="hidden xl:flex" measure={() => railRef.current?.offsetWidth ?? 0} min={rem(14)} max={sideMax('rail')} onChange={(px) => setWidth('rail', px)} onReset={() => setWidth('rail', null)} />}
               <div className={cn('min-h-0 flex-col bg-surface xl:rounded-card xl:shadow-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>
                 <Transcript key={conversation.id} conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} tags={tags} activeId={criterionId} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} toolbar={twoPane ? toolbar : null} />
               </div>
-              <div className={cn('min-h-0 flex-col overflow-hidden bg-surface xl:rounded-card xl:shadow-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
+              <Splitter label="Ширина панели оценки" className="hidden xl:flex" invert measure={() => panelRef.current?.offsetWidth ?? 0} min={rem(24)} max={sideMax('panel')} onChange={(px) => setWidth('panel', px)} onReset={() => setWidth('panel', null)} />
+              <div ref={panelRef} className={cn('min-h-0 flex-col overflow-hidden bg-surface xl:rounded-card xl:shadow-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
                 <EvaluationPanel
                   key={conversation.id}
                   conversation={conversation}

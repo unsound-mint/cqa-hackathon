@@ -280,7 +280,6 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
   const scored = evaluation.finalResults.map((r) => ({ id: r.criterionId, c: lookup(r.criterionId), pts: earnedPoints(lookup(r.criterionId), r) })).filter((x) => x.pts !== null && x.c);
   const earned = scored.reduce((sum, x) => sum + (x.pts ?? 0), 0);
   const possible = scored.reduce((sum, x) => sum + (x.c?.weight ?? 0), 0);
-  const lostIds = scored.filter((x) => (x.pts ?? 0) < (x.c?.weight ?? 0)).map((x) => x.id);
   const naIds = evaluation.finalResults.filter((r) => r.isNA && (lookup(r.criterionId)?.weight ?? 0) > 0).map((r) => r.criterionId);
   const pendingIds = new Set(appeals.filter((a) => a.status === 'pending').map((a) => a.criterionId));
   const flaggedCount = evaluation.finalResults.filter((r) => isFlagged(r, originalById.get(r.criterionId), pendingIds)).length;
@@ -290,44 +289,31 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
   return (
     <section aria-label="Оценка" className="flex h-full min-h-0 flex-col overflow-y-auto md:overflow-hidden">
       {/*
-        Banner hierarchy: (1) is the dialog OK: the score beside the violation status, read as one statement;
-        (2) where points went: lost of possible, with the criteria named; then metadata (version, N/A, original total).
+        Banner hierarchy: is the dialog OK, the large score and the violation status on one line; then state chips only
+        when there are any. Where points went is the list below (colored rows with reasons), so it is not repeated here;
+        how the total is made is the score's tooltip. The checklist version is in the footer: metadata, not verdict.
       */}
       <header className={cn('verdict shrink-0 px-4 py-4 sm:px-6', evaluation.seriousViolation && 'verdict-danger')}>
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-verdict-muted">
-          <h2 className="font-medium">Оценка диалога</h2>
-          <span className="flex flex-wrap items-center gap-2">
-            {versions.length <= 1 && checklist && <span>Чек-лист, версия {checklist.version}</span>}
-            {isMock && !demoMode && <span title="Вымышленный пример, а не оценка модели" aria-label="Демо-данные: вымышленный пример, а не оценка модели" className="inline-flex h-6 items-center gap-1 rounded-full bg-verdict-warn-bg px-2 text-verdict-warn"><FlaskConical aria-hidden className="size-4" />Демо-данные</span>}
-          </span>
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <p className="flex items-baseline gap-2">
-            <span className="text-score-sm font-semibold tracking-tight tabular-nums">{formatScore(evaluation.finalTotal)}</span>
-            <span className="text-sm text-verdict-muted">из 100</span>
+        <h2 className="sr-only">Оценка диалога</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          {/* How the total is made lives in a tooltip: the rows below already show every lost point and every N/A. */}
+          <p className="flex items-baseline gap-2" title={evaluation.finalTotal === null ? undefined : `Набрано ${formatScore(earned)} из ${formatScore(possible)} применимых баллов${naIds.length ? `; не применимы: ${naIds.join(', ')}` : ''}. Итог пересчитан на 100.`}>
+            <span className="text-score-sm font-semibold tracking-tight tabular-nums md:text-score">{formatScore(evaluation.finalTotal)}</span>
+            <span className="text-base text-verdict-muted">из 100</span>
           </p>
-          <p className="inline-flex h-8 items-center gap-2 rounded-full bg-white/10 px-3 text-sm font-medium">
+          <p className="flex items-center gap-2 text-base font-medium">
             {evaluation.seriousViolation ? <><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</> : <><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</>}
           </p>
         </div>
-        <div className="mt-2 space-y-1 text-sm text-verdict-muted">
-          <p>
-            {evaluation.finalTotal === null
-              ? 'Нет применимых критериев: балл не считается.'
-              : lostIds.length === 0
-                ? `Все ${formatScore(possible)} возможных баллов набраны`
-                : `Потеряно ${formatScore(possible - earned)} из ${formatScore(possible)} баллов: ${lostIds.join(', ')}`}
+        {evaluation.finalTotal === null && <p className="mt-1 text-sm text-verdict-muted">Нет применимых критериев: балл не считается.</p>}
+        {(evaluation.originalTotal !== evaluation.finalTotal || pendingIds.size > 0 || changedCount > 0 || (isMock && !demoMode)) && (
+          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-verdict-muted">
+            {evaluation.originalTotal !== evaluation.finalTotal && <span>Исходная оценка ИИ: {formatScore(evaluation.originalTotal)}</span>}
+            {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-white">Апелляция: {pendingIds.size}</span>}
+            {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-white">Изменено проверяющим: {changedCount}</span>}
+            {isMock && !demoMode && <span title="Вымышленный пример, а не оценка модели" aria-label="Демо-данные: вымышленный пример, а не оценка модели" className="inline-flex h-6 items-center gap-1 rounded-full bg-verdict-warn-bg px-2 text-verdict-warn"><FlaskConical aria-hidden className="size-4" />Демо-данные</span>}
           </p>
-          {/* Metadata and state chips share one wrapping line. */}
-          {((naIds.length > 0 && evaluation.finalTotal !== null) || evaluation.originalTotal !== evaluation.finalTotal || pendingIds.size > 0 || changedCount > 0) && (
-            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-              {naIds.length > 0 && evaluation.finalTotal !== null && <span>Не применимы: {naIds.join(', ')}</span>}
-              {evaluation.originalTotal !== evaluation.finalTotal && <span>Исходная оценка ИИ: {formatScore(evaluation.originalTotal)}</span>}
-              {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-white">Апелляция: {pendingIds.size}</span>}
-              {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-white">Изменено проверяющим: {changedCount}</span>}
-            </p>
-          )}
-        </div>
+        )}
 
         {evaluation.seriousViolation && (
           <div className="mt-3 space-y-1 border-t border-white/15 pt-3" role="alert">
@@ -393,7 +379,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
             Требуют внимания ({flaggedCount})
           </label>
         )}
-        <span className="ml-auto" />
+        <span className="ml-auto text-xs">{versions.length <= 1 && checklist ? `Чек-лист, версия ${checklist.version}` : ''}</span>
         <button type="button" onClick={() => downloadText(`${conversation.id}-evaluation.csv`, evaluationCsv(conversation, evaluation, checklist), 'text/csv;charset=utf-8')} aria-label="Скачать оценку в CSV" title="Таблица для Excel" className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-ink hover:bg-fill"><Download aria-hidden className="size-4" />CSV</button>
         <button type="button" onClick={() => window.print()} aria-label="Печать или сохранить в PDF" title="Отчёт для печати или сохранения в PDF" className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-ink hover:bg-fill"><Printer aria-hidden className="size-4" />PDF</button>
       </footer>

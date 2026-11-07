@@ -98,11 +98,13 @@ type Player = {
   stop: () => void;
   /** Moves the player to a message without playing (evidence navigation). */
   seekTo: (index: number) => void;
+  /** After a failed load: forget the failure and load the recording again (the server or link may be back). */
+  retry: () => void;
   /** The transcript's <audio> element registers itself here. */
   register: (el: HTMLAudioElement | null) => void;
 };
 
-const Ctx = createContext<Player>({ available: false, failed: false, playing: null, playFragments: () => {}, stop: () => {}, seekTo: () => {}, register: () => {} });
+const Ctx = createContext<Player>({ available: false, failed: false, playing: null, playFragments: () => {}, stop: () => {}, seekTo: () => {}, retry: () => {}, register: () => {} });
 export const usePlayer = () => useContext(Ctx);
 
 /** One player per open conversation, shared by the transcript (which owns the <audio>) and the verdict panel. */
@@ -206,6 +208,14 @@ export function PlayerProvider({ conversation, children }: { conversation: Conve
         a.currentTime = pos;
       } catch {
         /* media not ready */
+      }
+    },
+    retry: () => {
+      setFailed(false);
+      try {
+        el.current?.load();
+      } catch {
+        /* the next play() loads it anyway */
       }
     },
     register,
