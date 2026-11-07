@@ -13,10 +13,31 @@ A working prototype that scores customer-support conversations (RU / KZ / EN, ch
 
 ## Run it (5 minutes)
 
-Needs Node ≥ 22 (CI uses 24) and pnpm 10. No API key or `.env` is needed to look around; stored evaluations open without a model, a new evaluation needs `ANTHROPIC_API_KEY`.
+Needs Node ≥ 22 (CI uses 24, `.nvmrc` pins it) and pnpm 10. No API key or `.env` is needed to look around; stored evaluations open without a model, a new evaluation needs `ANTHROPIC_API_KEY`.
+
+**Install prerequisites (once)**
 
 ```bash
-pnpm install
+# Linux / macOS: Node 24 via nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+exec $SHELL -l && nvm install 24 && nvm use 24
+
+# Windows (PowerShell): Node 24
+winget install OpenJS.NodeJS      # then open a new terminal
+
+# pnpm: Corepack ships with Node 24 and picks the exact version pinned in package.json
+corepack enable
+#   without Corepack: npm install -g pnpm@10
+
+git clone https://github.com/unsound-mint/cqa-hackathon.git && cd cqa-hackathon
+pnpm install                      # also fetches the prebuilt better-sqlite3 binary
+```
+
+If `better-sqlite3` has no prebuilt binary for your platform, install a C++ toolchain (Fedora: `sudo dnf install gcc-c++ make python3`; Debian/Ubuntu: `sudo apt install build-essential python3`; Windows: Visual Studio Build Tools) and run `pnpm install` again.
+
+**Look around (mock data, no server needed)**
+
+```bash
 pnpm dev            # web http://localhost:5173 with fictional mock data, API on :8787
 ```
 

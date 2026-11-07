@@ -3,7 +3,7 @@
 The demo runs on one laptop (Fedora or Windows), as one process on one URL. No Docker.
 
 ## One-time setup
-1. Install Node 24 and pnpm 10 (`corepack enable` works). Windows: use PowerShell or Git Bash.
+1. Install Node 24 and pnpm 10: commands for Linux, macOS and Windows are in the README ("Install prerequisites"). Short form: `nvm install 24 && corepack enable` (Windows: `winget install OpenJS.NodeJS`, then `corepack enable`).
 2. `pnpm install`
 3. Copy `.env.example` to `.env`. Put `DATASET_IMPORT_URL` (server-only) and, once chosen, the model key there. Quote the URL if you source the file in a shell; the apps read it themselves and do not need quoting.
 4. `pnpm start` builds everything and serves the web app and the API at http://127.0.0.1:8787 (`PORT`/`HOST` to change).
