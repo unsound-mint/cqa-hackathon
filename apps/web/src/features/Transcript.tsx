@@ -33,11 +33,11 @@ type Props = {
 const TAG = { neutral: 'bg-fill text-muted', success: 'bg-brand-soft text-accent', danger: 'bg-danger-soft text-danger', warn: 'bg-warn-soft text-warn' } as const;
 const TAG_ACTIVE = { neutral: 'bg-ink text-canvas', success: 'bg-brand text-[#0e151c]', danger: 'bg-danger text-canvas', warn: 'bg-warn text-canvas' } as const;
 
-/** Client on the left; operator and bot on the right; system events centered. */
+/** Client on the left, operator (the graded party) on the right, bot dimmed, system as small centered notes. */
 const BUBBLE: Record<Speaker, string> = {
-  operator: 'chat-bubble chat-bubble-operator rounded-2xl rounded-tr-sm',
-  client: 'chat-bubble chat-bubble-client rounded-2xl rounded-tl-sm',
-  bot: 'chat-bubble chat-bubble-bot rounded-2xl rounded-tr-sm',
+  operator: 'rounded-2xl rounded-tr-sm bg-brand-soft',
+  client: 'rounded-2xl rounded-tl-sm border border-line-strong bg-surface',
+  bot: 'rounded-2xl rounded-tl-sm bg-fill text-muted',
   system: 'rounded-full bg-fill px-4 py-1 text-sm italic text-muted',
 };
 const NAME: Record<Speaker, string> = { operator: 'text-accent', client: 'text-ink', bot: 'text-muted', system: 'text-muted' };
@@ -130,7 +130,7 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
           const inChecked = checkedRange && m.index >= checkedRange.from && m.index <= checkedRange.to;
           const mine = tags.get(m.index) ?? [];
           const system = m.speaker === 'system';
-          const right = m.speaker === 'operator' || m.speaker === 'bot';
+          const right = m.speaker === 'operator';
           const gap = gapLabel(conversation.transcript[k - 1]?.timestamp, m.timestamp);
           const seg = canPlay ? segmentOf(conversation, m.index) : null;
           const isPlaying = player.playing === m.index;
@@ -144,7 +144,6 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
                 else refs.current.delete(m.index);
               }}
               tabIndex={-1}
-              data-speaker={m.speaker}
               data-cited={isCited || undefined}
               className={cn('relative flex flex-col outline-none transition-opacity duration-300', right ? 'items-end' : system ? 'items-center' : 'items-start', dimmed(m.index) && 'opacity-80 hover:opacity-100 focus-within:opacity-100')}
             >

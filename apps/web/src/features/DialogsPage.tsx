@@ -105,12 +105,12 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
       </div>
 
       {rows.length === 0 ? (
-        <div className="rounded-card border border-line glass-panel p-6 text-sm">
+        <div className="rounded-card border border-line bg-surface p-6 text-sm">
           <p className="text-muted">{conversations.length === 0 ? 'Диалогов пока нет. Импортируйте набор данных.' : 'По этим условиям ничего не найдено.'}</p>
           {conversations.length > 0 && <Button className="mt-3" onClick={() => onFilters(DEFAULT_FILTERS)}>Сбросить фильтры</Button>}
         </div>
       ) : (
-        <div className="min-h-0 overflow-auto rounded-card border border-line glass-panel">
+        <div className="min-h-0 overflow-auto rounded-card border border-line bg-surface shadow-card">
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">Диалоги с оценками</caption>
             <thead className="sticky top-0 z-10 bg-surface text-xs text-muted shadow-[0_1px_0_var(--c-line)]">

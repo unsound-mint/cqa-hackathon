@@ -339,7 +339,7 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
       </div>
 
       <div className={cn('min-h-0 flex-1 gap-4 px-4 pb-4 sm:px-6', twoCol ? 'grid grid-cols-[22rem_minmax(0,1fr)]' : 'flex flex-col')}>
-        <nav aria-label="Критерии" className="flex min-h-0 flex-col overflow-y-auto rounded-card glass-panel p-2">
+        <nav aria-label="Критерии" className="flex min-h-0 flex-col overflow-y-auto rounded-card bg-surface p-2 shadow-card">
           <p className="flex items-baseline justify-between px-3 pb-1 pt-2 text-xs text-muted">
             <span>Критериев: {draft.length}</span>
             <span>Сумма весов: <strong className={weightSum === 100 ? 'text-accent' : 'text-warn'}>{weightSum}</strong></span>
@@ -355,13 +355,13 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
           <div className="pt-1">{addButton}</div>
         </nav>
         {twoCol && (
-          <section aria-label="Критерий" className="min-h-0 overflow-y-auto rounded-card glass-panel p-6">
+          <section aria-label="Критерий" className="min-h-0 overflow-y-auto rounded-card bg-surface p-6 shadow-card">
             {selected ? form(selected) : <p className="text-sm text-muted">Выберите критерий слева или добавьте новый.</p>}
           </section>
         )}
       </div>
 
-      <div className="mx-4 mb-4 space-y-2 rounded-card glass-panel px-4 py-3 sm:mx-6">
+      <div className="mx-4 mb-4 space-y-2 rounded-card bg-surface px-4 py-3 shadow-card sm:mx-6">
         {removed && (
           <p role="status" className="flex flex-wrap items-center gap-3 text-sm">
             Критерий {removed.c.id}{removed.c.title ? ` «${removed.c.title}»` : ''} удалён из черновика.
@@ -378,7 +378,7 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
             <Button size="sm" disabled={busy !== null || conversationCount === 0} onClick={() => evaluate('all')}>{busy === 'all' ? 'Идёт оценка…' : `Оценить все диалоги (${conversationCount})`}</Button>
           </div>
         )}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted">{attempted && !valid ? 'Исправьте отмеченные поля, чтобы сохранить.' : dirty ? 'Есть несохранённые изменения.' : 'Изменений нет.'}</p>
           <div className="flex flex-wrap justify-end gap-2">
             {dirty && base && <Button variant="ghost" onClick={() => loadVersion(base.id)} disabled={saving}>Вернуть версию {base.version}</Button>}

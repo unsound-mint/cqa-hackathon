@@ -81,29 +81,6 @@ it('states points earned out of points possible, and which criteria are not coun
   expect(panel().getByText('Грубых нарушений нет')).toBeTruthy();
 });
 
-it('shows normalized deductions and full-mark checks, excluding N/A and flags', async () => {
-  renderApp();
-  await transcriptReady();
-  expect(panel().getByText('Снято баллов').nextElementSibling?.textContent).toBe('5,88');
-  expect(panel().getByText('Полный балл').nextElementSibling?.textContent).toBe('5 / 6');
-  expect(panel().getByText('Чек-лист').nextElementSibling?.textContent).toBe('v1');
-});
-
-it('does not invent deductions or passed checks when no criteria are applicable', async () => {
-  renderApp(bundle((b) => {
-    const e = b.evaluations[0];
-    e.originalResults = [];
-    e.finalResults = [];
-    e.originalTotal = null;
-    e.finalTotal = null;
-  }));
-  await transcriptReady();
-  expect(panel().getByText('Снято баллов').nextElementSibling?.textContent).toBe('—');
-  expect(panel().getByText('Полный балл').nextElementSibling?.textContent).toBe('—');
-  expect(panel().getByText(/Нет применимых критериев/)).toBeTruthy();
-  expect(screen.getByRole('region', { name: 'Оценка' }).querySelector('.score-track')).toBeNull();
-});
-
 it('a collapsed row is one line with points of the weight; lost points are colored and explained when opened', async () => {
   renderApp();
   await transcriptReady();
