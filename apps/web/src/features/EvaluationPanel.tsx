@@ -10,6 +10,8 @@ import { CONFIDENCE_LABEL, SOURCE_LABEL, criterionGroups, earnedPoints, formatSc
 import { downloadText, evaluationCsv } from '@/lib/export';
 import { violationReasons } from '@/lib/queue';
 import { fragmentLabel, segmentOf, usePlayer } from '@/lib/player';
+import { useCountUp } from '@/lib/motion';
+import { Meter } from '@/components/ui/meter';
 import { ReviewBox, type Correction } from './Appeals';
 
 type Props = {
@@ -116,6 +118,19 @@ function ListenAll({ result, conversation }: { result: CriterionResult; conversa
   );
 }
 
+/** The total as an arc in the banner (decorative: the number beside it is the fact). Uses the banner's focus color, light green or light red. */
+function ScoreRing({ value }: { value: number }) {
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, value)) / 100;
+  return (
+    <svg aria-hidden viewBox="0 0 64 64" className="size-12 shrink-0 -rotate-90 md:size-16">
+      <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" className="stroke-white/15" />
+      <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" strokeLinecap="round" stroke="var(--c-focus)" strokeDasharray={c} strokeDashoffset={c * (1 - pct)} />
+    </svg>
+  );
+}
+
 /** Full marks are quiet (text only); a fill means something to look at: points lost (amber), nothing earned or a violation (red). */
 const CHIP = { neutral: 'text-muted', success: 'text-accent', danger: 'bg-danger-soft text-danger', warn: 'bg-warn-soft text-warn' } as const;
 
@@ -192,14 +207,18 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
           </span>
           <span className="flex shrink-0 items-center gap-2">
             {ai && <span className="text-xs tabular-nums text-muted line-through" aria-label={`Ответ ИИ был: ${grade(criterion, ai).label}`}>ИИ: {grade(criterion, ai).label}</span>}
-            <span className={cn('inline-flex h-6 items-center rounded-full px-2 text-sm font-semibold tabular-nums whitespace-nowrap', CHIP[g.tone])} title={result.isNA ? `Не применим: вес ${weight} не учитывается` : undefined}>{g.label}</span>
+            <span className={cn('relative inline-flex h-6 items-center rounded-full px-2 text-sm font-semibold tabular-nums whitespace-nowrap', CHIP[g.tone])} title={result.isNA ? `Не применим: вес ${weight} не учитывается` : undefined}>
+              {g.label}
+              {/* Lost points drawn as a share of the weight, under the chip so the row stays one line. Full marks stay quiet; N/A, flags and a changed grade (neutral by design) get none. */}
+              {pts !== null && pts < weight && !changed && <Meter value={pts} max={weight} tone={pts === 0 ? 'danger' : 'warn'} className="absolute inset-x-2 -bottom-1" />}
+            </span>
             <ChevronDown aria-hidden className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} />
           </span>
         </span>
       </button>
 
       {open && (
-        <div id={panelId} className="space-y-4 px-4 pb-4 pt-1">
+        <div id={panelId} className="reveal space-y-4 px-4 pb-4 pt-1">
           {(result.isNA || (pts !== null && pts < weight)) && (
             <p className="text-xs text-muted">{result.isNA ? `Не применим: вес ${weight} не входит в итог.` : `Потеряно ${formatScore(weight - (pts ?? 0))} из ${weight} баллов.`}</p>
           )}
@@ -239,6 +258,8 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
     document.getElementById(`row-${evaluation.id}-${selectedCriterionId}`)?.scrollIntoView?.({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
   }, [selectedCriterionId, evaluation?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const lookup = (id: string) => checklist?.criteria.find((c) => c.id === id);
+  // Hooks run before the early returns below; counts once per dialog, not per evaluation version.
+  const shownTotal = useCountUp(evaluation?.status === 'completed' ? evaluation.finalTotal : null, conversation.id);
 
   if (!evaluation) {
     return (
@@ -297,9 +318,14 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         <h2 className="sr-only">Оценка диалога</h2>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           {/* How the total is made lives in a tooltip: the rows below already show every lost point and every N/A. */}
-          <p className="flex items-baseline gap-2" title={evaluation.finalTotal === null ? undefined : `Набрано ${formatScore(earned)} из ${formatScore(possible)} применимых баллов${naIds.length ? `; не применимы: ${naIds.join(', ')}` : ''}. Итог пересчитан на 100.`}>
-            <span className="text-score-sm font-semibold tracking-tight tabular-nums md:text-score">{formatScore(evaluation.finalTotal)}</span>
-            <span className="text-base text-verdict-muted">из 100</span>
+          <p className="flex items-center gap-4" title={evaluation.finalTotal === null ? undefined : `Набрано ${formatScore(earned)} из ${formatScore(possible)} применимых баллов${naIds.length ? `; не применимы: ${naIds.join(', ')}` : ''}. Итог пересчитан на 100.`}>
+            {shownTotal !== null && <ScoreRing value={shownTotal} />}
+            <span className="flex items-baseline gap-2">
+              {/* The number counts up once per dialog; while it runs, assistive tech gets the final value and the count is a hidden copy. */}
+              {shownTotal !== evaluation.finalTotal && <span className="sr-only">{formatScore(evaluation.finalTotal)}</span>}
+              <span aria-hidden={shownTotal !== evaluation.finalTotal || undefined} className="text-score-sm font-semibold tracking-tight tabular-nums md:text-score">{formatScore(shownTotal === null ? null : Math.round(shownTotal * 100) / 100)}</span>
+              <span className="text-base text-verdict-muted">из 100</span>
+            </span>
           </p>
           <p className="flex items-center gap-2 text-base font-medium">
             {evaluation.seriousViolation ? <><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</> : <><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</>}

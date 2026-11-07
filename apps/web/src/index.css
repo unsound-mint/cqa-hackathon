@@ -8,7 +8,7 @@
  * Every theme-dependent color is a variable below; components use the semantic names only.
  */
 :root {
-  --c-bg: #f5f6f7;
+  --c-bg: #eff1f3;
   --c-surface: #ffffff;
   --c-fill: #eceef0;
   --c-ink: #191919;
@@ -26,7 +26,11 @@
   --shadow-card: 0 1px 2px rgb(25 25 25 / 0.05), 0 16px 40px -18px rgb(25 25 25 / 0.18);
 }
 .dark {
-  --c-bg: #161819;
+  /*
+   * Three levels of depth: a darker canvas (#111314), raised cards (#202325, with a faint top highlight in the shadow)
+   * and fills/bubbles above them. Text ratios on the card color are unchanged; on the canvas they only grow.
+   */
+  --c-bg: #111314;
   --c-surface: #202325;
   --c-fill: #2a2e31;
   --c-ink: #f2f3f4;
@@ -40,7 +44,7 @@
   --c-warn: #e8be6a;
   --c-warn-soft: #3a2f14;
   --c-focus: #5fd28d;
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px -18px rgb(0 0 0 / 0.6);
+  --shadow-card: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 1px 2px rgb(0 0 0 / 0.5), 0 24px 48px -24px rgb(0 0 0 / 0.8);
   color-scheme: dark;
 }
 
@@ -89,13 +93,18 @@
 .verdict {
   --c-focus: #5fd28d;
   --v-muted: #b7cbbf;
-  background: linear-gradient(160deg, #1b5841 0%, #164a36 55%, #113d2c 100%);
+  /* A soft light from the top left (the ring's side) over the sweep: depth without darkening the edges. */
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgb(95 210 141 / 0.16), transparent 55%),
+    linear-gradient(160deg, #1b5841 0%, #164a36 55%, #113d2c 100%);
   color: #f4f8f5;
 }
 .verdict.verdict-danger {
   --c-focus: #ffb4a8;
   --v-muted: #f0c9c2;
-  background: linear-gradient(160deg, #6b2019 0%, #5a1b15 55%, #4a1611 100%);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgb(255 180 168 / 0.14), transparent 55%),
+    linear-gradient(160deg, #6b2019 0%, #5a1b15 55%, #4a1611 100%);
 }
 /* On the dark theme the banner is close to the page color: a hairline keeps its edge. */
 .dark .verdict {
@@ -163,6 +172,37 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .flash {
+    animation: none;
+  }
+}
+
+/* An opened criterion's details slide in (they mount on open, so a height transition would not run). */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.reveal {
+  animation: reveal 0.18s ease-out;
+}
+/* Score bars grow from zero when they appear. */
+@keyframes meter {
+  from {
+    transform: scaleX(0);
+  }
+}
+.meter-fill {
+  transform-origin: left;
+  animation: meter 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Evidence of the open criterion: a brand ring with a soft green glow, so it reads at a glance among dimmed messages. */
+.glow {
+  box-shadow: 0 0 0 2px var(--color-brand), 0 8px 24px -8px rgb(2 177 64 / 0.55);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .meter-fill {
     animation: none;
   }
 }

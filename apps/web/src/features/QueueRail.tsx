@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/present';
 import { hasViolation, reviewCount, type Filters, type Quick } from '@/lib/queue';
 import { Select } from '@/components/ui/field';
+import { Meter } from '@/components/ui/meter';
 
 type Props = {
   conversations: Conversation[];
@@ -121,7 +122,7 @@ export function QueueRail({ conversations, latest, ids, selectedId, filters, cou
           const Icon = c?.channel === 'voice call' ? Headphones : MessagesSquare;
           return (
             <li key={id}>
-              <button type="button" onClick={() => onSelect(id)} aria-current={active ? 'true' : undefined} className={cn('w-full rounded-xl px-3 py-3 text-left transition-colors hover:bg-fill', active && 'bg-brand-soft ring-1 ring-brand/60')}>
+              <button type="button" onClick={() => onSelect(id)} aria-current={active ? 'true' : undefined} className={cn('w-full rounded-xl px-3 py-3 text-left transition-[background-color,box-shadow] duration-200 hover:bg-fill', active && 'bg-brand-soft shadow-card ring-1 ring-brand/60')}>
                 <span className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-medium">{id}</span>
                   <span className="text-sm font-semibold tabular-nums">{e?.status === 'completed' ? formatScore(e.finalTotal) : <span className="font-normal text-muted">—</span>}</span>
@@ -132,6 +133,10 @@ export function QueueRail({ conversations, latest, ids, selectedId, filters, cou
                   {reviewCount(e) > 0 && <span className="font-medium text-warn">проверить: {reviewCount(e)}</span>}
                   {!e && <span>не оценён</span>}
                 </span>
+                {/* The total as a bar so the rail scans by shape: neutral by default (most dialogs score high), red for a violation, amber when a human should look. */}
+                {e?.status === 'completed' && e.finalTotal !== null && (
+                  <Meter value={e.finalTotal} max={100} tone={hasViolation(e) ? 'danger' : reviewCount(e) > 0 ? 'warn' : 'neutral'} className={cn('mt-2', active && 'bg-surface/70')} />
+                )}
                 {c && <Snippet c={c} q={query} />}
               </button>
             </li>

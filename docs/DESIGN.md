@@ -25,19 +25,25 @@ Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid
 2. Then the open criterion and its evidence (selected row, tags and ring on the cited messages).
 3. Then the graded party: operator messages carry the weight (tinted row, green name); client is plain; bot and system recede.
 4. Metadata (weights, time, source, confidence) is small and muted. Chips are for state only (answer, needs review, changed, appeal), never for static facts (language, channel are plain text).
-5. Collapsed criterion rows are one line (32 px): id, title, grade chip. Full marks are quiet text; a fill means points lost (amber) or nothing earned / a violation (red). A row that lost points, needs review, has an appeal or was changed shows the first two lines of its explanation without opening; full-marks rows stay one quiet line (the raised flag's reason is in the banner, not repeated). Rows get more air (40 px) from 50rem of viewport height.
+5. Collapsed criterion rows are one line (32 px): id, title, grade chip. Full marks are quiet text; a fill means points lost (amber) or nothing earned / a violation (red). A row that lost points, needs review, has an appeal or was changed shows the first two lines of its explanation without opening; full-marks rows stay one quiet line (the raised flag's reason is in the banner, not repeated). Rows get more air (40 px) from 50rem of viewport height. A row that lost points also draws the share earned as a 4 px bar under its grade chip (inside the row, no extra height); full marks, N/A, flags and changed grades get none.
 6. One score unit on screen: a criterion shows points of its weight ("10,50 из 15", `grade()` in `lib/present.ts`); scale steps appear only in the answer options of a correction. Scores with a fraction always show two digits.
 
 ## Color
 - Neutrals carry the UI; green is an accent: marks, focus, the open row, the primary action. `text-accent` is the green for text (#164734 light, #5FD28D dark). Bright green `#02B140` never carries white text.
-- Red only for a violation or an error, amber only for "needs a human look" or a partial score. A grade a reviewer changed is neutral, not amber or green. Theme colors are CSS variables (`index.css`); components use the semantic names.
+- Red only for a violation or an error, amber only for "needs a human look" or a partial score. A grade a reviewer changed is neutral, not amber or green. Score shapes follow the same rule: the banner's ring around the total, a neutral 4 px bar per queue row (red with a violation, amber when a review is pending), the bar under a lost-points chip (`components/ui/meter.tsx`); they repeat a number shown beside them, so they are `aria-hidden`.
+- Depth: canvas, raised cards (`shadow-card`, a faint top highlight on dark) and fills/bubbles above them are three distinct levels in both themes. Theme colors are CSS variables (`index.css`); components use the semantic names.
 
 ## One place per fact
 - Show each fact once, where it is used. The violation reason is in the verdict banner (the rail and the list carry only a short flag); the queue is the rail beside the dialog, so arrows and a dropdown appear only when the rail does not fit (below 1536 px); the position in the queue is the highlighted row.
 - The score banner states the score and what it is made of ("earned X of Y possible points", which criteria were not counted). Per-criterion detail lives in the rows.
 - Fictional data is announced once: the sidebar "Демо" label in mock mode; the verdict panel labels a mock evaluation only when the app is not in mock mode.
 - No overview that repeats the list below it. Quiet by default: tags on messages are tints, solid only for the open criterion; the "Требуют внимания" filter and export sit in the panel footer, on one line that never wraps.
-- One transcript view: a chat (client left, operator right, system centered). No view toggle and no conversation map: evidence is reached through the numbered tags on messages and the chips in the verdict rows.
+- One transcript view: a chat (client left, operator right, system centered). No view toggle and no conversation map: evidence is reached through the numbered tags on messages and the chips in the verdict rows. Speakers carry a 24 px avatar next to the name.
+- Chats get a time rail in the margin left of the column when the transcript is at least 52rem wide (container query): a hairline with a dot per message (operator green, others receding) that scrolls with the chat; the open criterion's cited messages get a larger dot in its tone. It is decoration, not navigation. Calls get none: the call bar already shows the same moments.
+- Spotlight: with a criterion open, messages it does not cite step back to 80 % opacity (outside the checked range for an absence claim; full on hover or focus) and cited bubbles get the brand ring with a soft glow. Opening a criterion scrolls to its first cited message unless one is already in view.
+
+## Motion
+- Small and functional: the total counts up once per dialog (JS, so it checks reduced motion itself and hands assistive tech the final value only), score bars grow in, an opened criterion's details fade in (`.reveal`), the selected queue row eases its fill. `prefers-reduced-motion` turns all of it off.
 
 ## Reading on every screen
 - **Measure:** 50-75 characters per line (Baymard); WCAG 1.4.8 (AAA) asks for 80 or fewer on average. The chat column is capped at 44rem and bubbles at 80% of it, which gives about 54 `ch` (roughly 60 letters) at every width we measured (1280 to 3840 CSS px). Long paragraphs use `max-w-[65ch]` or `max-w-prose`.
