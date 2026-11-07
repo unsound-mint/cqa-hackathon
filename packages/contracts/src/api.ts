@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AppealStatusSchema, ChannelSchema, CriterionValueSchema, EvaluationStatusSchema, LanguageSchema } from './domain.js';
+import { AppealStatusSchema, ChannelSchema, ReviewStatusSchema, CriterionValueSchema, EvaluationStatusSchema, LanguageSchema } from './domain.js';
 
 /** Request/response shapes shared by MockCqaApi, HttpCqaApi and the Fastify routes. */
 
@@ -71,3 +71,14 @@ export const OverrideCriterionInputSchema = z
     if (!d.isNA && (d.value === undefined || d.value === null)) ctx.addIssue({ code: 'custom', path: ['value'], message: 'override needs a value, or isNA=true' });
   });
 export type OverrideCriterionInput = z.infer<typeof OverrideCriterionInputSchema>;
+
+/** Mark a dialog as in review / reviewed, or `new` to reopen it. The server binds it to the dialog's latest evaluation. */
+export const SetReviewInputSchema = z.object({ status: z.enum(['new', ...ReviewStatusSchema.options]) });
+export type SetReviewInput = z.infer<typeof SetReviewInputSchema>;
+
+/** Assign dialogs to an operator, or `null` to unassign. */
+export const AssignOperatorInputSchema = z.object({
+  conversationIds: z.array(z.string().min(1)).min(1).max(1000),
+  operator: z.string().trim().min(1).max(80).nullable(),
+});
+export type AssignOperatorInput = z.infer<typeof AssignOperatorInputSchema>;

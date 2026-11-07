@@ -79,7 +79,9 @@ export async function importDataset(db: Db, groupId: string, deps: ImportDeps): 
         throw new ImportError('conversation content conflicts with an existing immutable source; import changed input under a new conversation id', 409);
       }
       const row = { id: c.id, datasetGroupId: c.datasetGroupId, language: c.language, channel: c.channel, audioUrl: c.audioUrl, transcript: c.transcript, importedAt: now };
-      tx.insert(conversations).values(row).onConflictDoUpdate({ target: conversations.id, set: row }).run();
+      // importedAt is the first time the dialog was stored: a re-import of the same content must not make it look new.
+      const { importedAt: _first, ...unchanged } = row;
+      tx.insert(conversations).values(row).onConflictDoUpdate({ target: conversations.id, set: unchanged }).run();
     }
   });
   return { groupId, total: parsed.total, imported: parsed.conversations.length, failed: parsed.failed };

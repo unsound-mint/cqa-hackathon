@@ -27,6 +27,18 @@ export const TranscriptMessageSchema = z.object({
 });
 export type TranscriptMessage = z.infer<typeof TranscriptMessageSchema>;
 
+export const ReviewStatusSchema = z.enum(['in_review', 'reviewed']);
+export type ReviewStatus = z.infer<typeof ReviewStatusSchema>;
+
+/** A human's check of a dialog. Bound to the evaluation that was looked at: a newer evaluation makes it stale (the dialog counts as new again). */
+export const ReviewSchema = z.object({
+  status: ReviewStatusSchema,
+  evaluationId: z.string().min(1),
+  by: z.string(),
+  at: z.string(),
+});
+export type Review = z.infer<typeof ReviewSchema>;
+
 export const ConversationSchema = z
   .object({
     /** Original conversation_id. */
@@ -36,6 +48,12 @@ export const ConversationSchema = z
     channel: ChannelSchema,
     transcript: z.array(TranscriptMessageSchema).min(1),
     audioUrl: z.string().nullable(),
+    /** When the API first stored it. Filled by the server; absent in fixtures and at import. Never reset by a re-import. */
+    importedAt: z.string().optional(),
+    /** Operator the dialog is assigned to (the organizer data carries no operator identity; the lead assigns). */
+    operatorId: z.string().nullable().optional(),
+    /** Absent = nobody has looked at it yet. */
+    review: ReviewSchema.optional(),
   })
   .superRefine((c, ctx) => {
     c.transcript.forEach((m, i) => {
@@ -203,6 +221,8 @@ export const EvaluationSchema = z.object({
   finalTotal: z.number().nullable(),
   /** Reflects finalResults. The original flag is derivable: deriveSeriousViolation(criteria, originalResults). */
   seriousViolation: z.boolean(),
+  /** When the evaluation was created (filled by the server). */
+  createdAt: z.string().optional(),
   provenance: ProvenanceSchema.optional(),
   error: z.string().optional(),
 });
@@ -230,6 +250,9 @@ export const AppealSchema = z.object({
   comment: z.string(),
   status: AppealStatusSchema,
   createdAt: z.string(),
+  /** Who filed it / who decided it (display names from the role picker; absent on older data and unrestricted calls). */
+  createdBy: z.string().optional(),
+  decidedBy: z.string().optional(),
   /** Set when decided. 'upheld' = the original AI result stands. */
   decidedAt: z.string().optional(),
   reviewerReason: z.string().optional(),
