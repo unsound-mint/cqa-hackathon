@@ -82,6 +82,10 @@ export function validateModelOutput(output: unknown, conversation: Conversation,
         && !!e.quote?.trim() && m.text.includes(e.quote);
     })) problems.push(`${c.id}: positive action needs verbatim client-facing operator evidence; bot/system/client evidence is context only`);
     if (r.evidence.length === 0 && !r.checkedRange) problems.push(`${c.id}: needs evidence or checkedRange`);
+    // A raised flag (serious violation) is an accusation about the operator: it must point at something the operator said.
+    if (c.criticalFlag && r.value === true && !r.evidence.some((x) => x.quote && conversation.transcript[x.messageIndex]?.speaker === 'operator')) {
+      problems.push(`${c.id}: a raised flag needs a verbatim quote from an operator message`);
+    }
   }
   problems.push(...findEvidenceProblems(conversation, parsed));
   if (problems.length) return { problems };
@@ -107,6 +111,16 @@ export function validateAssisted(output: unknown, conversation: Conversation, as
   }
   for (const g of given) if (!assisted.some((a) => a.criterion.id === g.criterionId)) problems.push(`assisted: unexpected answer for ${g.criterionId}`);
   return { answers, problems };
+}
+
+/**
+ * Deterministic post-check of a model result against the code's facts. Speech inside a recording pause is missing
+ * from the transcript, so a result whose inspected range spans a pause cannot be "high" confidence.
+ */
+export function capConfidence(result: CriterionResult, facts: Pick<ReturnType<typeof deriveFacts>, 'recordingPausedRanges'>): CriterionResult {
+  const range = result.checkedRange;
+  if (result.confidence !== 'high' || !range) return result;
+  return facts.recordingPausedRanges.some((p) => p.from <= range.to && p.to >= range.from) ? { ...result, confidence: 'medium' } : result;
 }
 
 export type ReuseLookup = (signature: string) => { result: CriterionResult; evaluationId: string } | undefined;
@@ -149,7 +163,8 @@ export type EvaluatorResult = {
   total: number | null;
   seriousViolation: boolean;
   provenance: Provenance;
-  usage: { inputTokens: number; outputTokens: number };
+  usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
+  latencyMs: number;
   /** Criteria the model decided or helped decide in this run (empty when rules and reuse covered everything). */
   modelCriteria: string[];
 };
@@ -160,7 +175,8 @@ export type EvaluatorResult = {
  */
 export async function evaluateConversation(provider: LlmProvider | undefined, conversation: Conversation, checklist: ChecklistVersion, reuse?: ReuseLookup, maxAttempts = 2): Promise<EvaluatorResult> {
   const { decided, assisted, undecided } = planCriteria(conversation, checklist, reuse);
-  const usage = { inputTokens: 0, outputTokens: 0 };
+  const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  let latencyMs = 0;
   const modelResults = new Map<string, CriterionResult>();
   let provenance: Provenance = { provider: 'local', model: 'rules+reuse', promptVersion: 'n/a' };
 
@@ -173,12 +189,15 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
       const res = await provider.complete({ system: SYSTEM_PROMPT, user: buildUserPayload(conversation, subset, [...decided.values()], assisted, problems), outputSchema: OUTPUT_SCHEMA as unknown as Record<string, unknown> });
       usage.inputTokens += res.usage?.inputTokens ?? 0;
       usage.outputTokens += res.usage?.outputTokens ?? 0;
+      usage.cacheReadTokens += res.usage?.cacheReadTokens ?? 0;
+      usage.cacheWriteTokens += res.usage?.cacheWriteTokens ?? 0;
+      latencyMs += res.latencyMs ?? 0;
       const v = validateModelOutput(res.output, conversation, { ...checklist, criteria: undecided });
       const a = validateAssisted(res.output, conversation, assisted);
       if (v.results && a.problems.length === 0) {
         for (const r of v.results) {
           const { reusedFrom: _drop, ...clean } = r;
-          modelResults.set(r.criterionId, { ...clean, source: 'model' });
+          modelResults.set(r.criterionId, capConfidence({ ...clean, source: 'model' }, deriveFacts(conversation)));
         }
         const facts = deriveFacts(conversation);
         for (const { criterion, detector } of assisted) decided.set(criterion.id, detector.decide({ conversation, facts, criterion }, a.answers.get(criterion.id)));
@@ -186,10 +205,10 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
       } else problems = [...v.problems, ...a.problems];
     }
     if (!ok) throw new EvaluationFailure(`model output failed validation: ${problems.slice(0, 5).join('; ')}`);
-    provenance = { provider: provider.name, model: provider.model, promptVersion: PROMPT_VERSION };
+    provenance = { provider: provider.name, model: provider.model, promptVersion: PROMPT_VERSION, ...(provider.effort ? { effort: provider.effort } : {}), usage, latencyMs };
   }
 
   const results = checklist.criteria.map((c) => decided.get(c.id) ?? modelResults.get(c.id)!);
   const { total, seriousViolation } = scoreEvaluation(checklist, results);
-  return { results, total, seriousViolation, provenance, usage, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
+  return { results, total, seriousViolation, provenance, usage, latencyMs, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
 }

@@ -17,7 +17,7 @@ export function evaluationCacheContext(conversation: Conversation, provider?: Ll
   return JSON.stringify({
     inputHash: createHash('sha256').update(JSON.stringify(conversation)).digest('hex'),
     evaluatorVersion: EVALUATOR_VERSION, promptVersion: PROMPT_VERSION,
-    provider: provider?.name ?? null, model: provider?.model ?? null,
+    provider: provider?.name ?? null, model: provider?.model ?? null, effort: provider?.effort ?? null,
   });
 }
 
@@ -26,7 +26,7 @@ function compatible(stored: string | null, current: string, hasProvider: boolean
   try {
     const a = JSON.parse(stored), b = JSON.parse(current);
     return a.inputHash === b.inputHash && a.evaluatorVersion === b.evaluatorVersion && a.promptVersion === b.promptVersion
-      && (!hasProvider || (a.provider === b.provider && a.model === b.model));
+      && (!hasProvider || (a.provider === b.provider && a.model === b.model && a.effort === b.effort));
   } catch { return false; }
 }
 

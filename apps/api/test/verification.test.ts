@@ -49,6 +49,42 @@ describe('verification: the verdict comes from code and system events', () => {
     expect(r.explanation).toMatch(/паузы/);
   });
 
+  describe('verification phrasing the code does not know', () => {
+    const NEW = 'Клиент успешно прошёл аутентификацию.';
+    const unk = conv([['client', 'где заказ?'], ['operator', 'Подтвердите код'], ['system', NEW], ['operator', 'Ваш заказ в пути']]);
+    const found = { unrecognizedVerificationEvent: { messageIndex: 2, quote: 'успешно прошёл аутентификацию' } };
+
+    it('without the model spotting it, an unknown phrasing still yields No (the known risk)', () => {
+      expect(decide(unk, ans())).toMatchObject({ value: false });
+    });
+
+    it('a model-spotted system event before the disclosure counts, with confidence capped at medium', () => {
+      const r = decide(unk, ans(found));
+      expect(r).toMatchObject({ value: true, confidence: 'medium', source: 'hybrid' });
+      expect(r.evidence[0]).toEqual({ messageIndex: 2, quote: 'успешно прошёл аутентификацию' });
+    });
+
+    it.each([
+      ['an operator message', { messageIndex: 1, quote: 'Подтвердите код' }, /must be a system message/],
+      ['a quote that is not in the message', { messageIndex: 2, quote: 'нет такой фразы' }, /not found verbatim/],
+      ['an index outside the transcript', { messageIndex: 99, quote: 'x' }, /outside the transcript/],
+    ])('rejects %s as the event', (_n, ev, re) => {
+      expect(det.validate({ conversation: unk, facts: deriveFacts(unk) }, ans({ unrecognizedVerificationEvent: ev })).problems.join()).toMatch(re);
+    });
+
+    it.each(['Customer identity verified: false', 'Customer identity verified?', 'Личность клиента подтверждена: нет', 'Жеке басы расталды: жоқ'])('rejects a model-spotted negative/interrogative event: %s', (text) => {
+      const c = conv([['client','q'],['system',text],['operator','Ваш заказ']]);
+      const output = ans({firstProtectedDisclosure:{messageIndex:2,quote:'Ваш заказ'},unrecognizedVerificationEvent:{messageIndex:1,quote:text}});
+      expect(det.validate({conversation:c,facts:deriveFacts(c)},output).problems.join()).toMatch(/negative or interrogative/);
+    });
+
+    it('rejects naming an event the code already recognised', () => {
+      const known = conv([['client', 'q'], ['system', VERIFIED], ['operator', 'Ваш заказ']]);
+      const v = det.validate({ conversation: known, facts: deriveFacts(known) }, ans({ firstProtectedDisclosure: { messageIndex: 2, quote: 'Ваш заказ' }, unrecognizedVerificationEvent: { messageIndex: 1, quote: 'Личность' } }));
+      expect(v.problems.join()).toMatch(/already a recognised/);
+    });
+  });
+
   it('N/A when verification was not required, carrying the reason', () => {
     const faq = conv([['client', 'как найти отчёт?'], ['operator', 'Откройте меню.']]);
     const r = decide(faq, ans({ verificationRequired: false, reason: 'справочный вопрос', firstProtectedDisclosure: null }));

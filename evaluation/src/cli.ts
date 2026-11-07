@@ -9,11 +9,14 @@ import { compare } from './compare.js';
 import { parseCsv, toCsv } from './csv.js';
 import { buildSheet, parseLabels } from './labels.js';
 import { formatReport } from './report.js';
+import { formatStability, stability } from './stability.js';
 
 const USAGE = `Usage (run from the repo root: pnpm --filter @cqa/evaluation cli <command> ...)
   list    [--api URL]                                   conversations to choose from (no scores shown)
   sheet   --ids a,b,c [--checklist ID] [--out FILE] [--append]   blank label sheet, one row per criterion
-  compare [--labels FILE] [--checklist ID] [--final] [--high-weight N] [--text] [--out FILE] [--json] [--api URL]
+  compare [--labels FILE] [--checklist ID] [--final] [--high-weight N] [--price-in USD --price-out USD] [--text] [--out FILE] [--json] [--api URL]
+  rerun   --ids a,b [--times N] [--checklist ID]    ask the model again (fresh, no reuse) N times, default 2; costs model calls
+  stability [--checklist ID] [--out FILE] [--json]  how often a criterion's value changes between runs of the same conversation
 Defaults: --api http://127.0.0.1:8787, --labels/--out evaluation/private/*  (git-ignored)`;
 
 /** Default: evaluation/private/annotations.csv (git-ignored), wherever the command is run from. */
@@ -36,7 +39,7 @@ async function main() {
   const [command, ...rest] = process.argv.slice(2);
   const { values: v } = parseArgs({
     args: rest,
-    options: { api: { type: 'string' }, ids: { type: 'string' }, checklist: { type: 'string' }, out: { type: 'string' }, labels: { type: 'string' }, append: { type: 'boolean' }, final: { type: 'boolean' }, text: { type: 'boolean' }, json: { type: 'boolean' }, 'high-weight': { type: 'string' } },
+    options: { api: { type: 'string' }, ids: { type: 'string' }, checklist: { type: 'string' }, out: { type: 'string' }, labels: { type: 'string' }, append: { type: 'boolean' }, final: { type: 'boolean' }, text: { type: 'boolean' }, json: { type: 'boolean' }, 'high-weight': { type: 'string' }, 'price-in': { type: 'string' }, 'price-out': { type: 'string' }, times: { type: 'string' } },
   });
   const api = v.api ?? 'http://127.0.0.1:8787';
 
@@ -71,6 +74,36 @@ async function main() {
     return;
   }
 
+  if (command === 'rerun') {
+    if (!v.ids) throw new Error('--ids is required');
+    const checklist = pick(v.checklist, checklists[0]);
+    const times = Number(v.times ?? 2);
+    if (!Number.isInteger(times) || times < 1 || times > 10) throw new Error('--times must be 1..10');
+    const ids = v.ids.split(',').map((s) => s.trim()).filter(Boolean);
+    for (let i = 1; i <= times; i++) {
+      const res = await fetch(new URL('/api/evaluations', api), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ conversationIds: ids, checklistVersionId: checklist.id, fresh: true }) });
+      if (!res.ok) throw new Error(`POST /api/evaluations -> ${res.status} ${await res.text()}`);
+      const { jobId } = (await res.json()) as { jobId: string };
+      for (;;) {
+        const job = await get(api, `/api/jobs/${jobId}`, z.object({ status: z.string(), completed: z.number(), total: z.number() }));
+        if (job.status !== 'running' && job.status !== 'pending') { console.log(`run ${i}/${times}: ${job.status} (${job.completed}/${job.total})`); break; }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+    return;
+  }
+
+  if (command === 'stability') {
+    const evaluations = await get(api, '/api/evaluations', z.array(EvaluationSchema));
+    const counts = new Map<string, number>();
+    for (const e of evaluations) counts.set(e.checklistVersionId, (counts.get(e.checklistVersionId) ?? 0) + 1);
+    const checklist = pick(v.checklist ?? [...counts].sort((a, b) => b[1] - a[1])[0]?.[0], checklists[0]);
+    const report = stability(evaluations, checklist);
+    const text = v.json ? JSON.stringify(report, null, 2) : formatStability(report);
+    if (v.out) { write(here(v.out), text); console.log(`report written to ${here(v.out)}`); } else console.log(text);
+    return;
+  }
+
   if (command === 'compare') {
     const evaluations = await get(api, '/api/evaluations', z.array(EvaluationSchema));
     const counts = new Map<string, number>();
@@ -82,7 +115,7 @@ async function main() {
     const parsed = parseLabels(readFileSync(labelsPath, 'utf8'), checklist);
     for (const p of parsed.problems) console.error(`label problem row ${p.row}${p.conversationId ? ` (${p.conversationId}/${p.criterionId})` : ''}: ${p.message}`);
     const conversations = await get(api, '/api/conversations', z.array(ConversationSchema));
-    const report = compare({ checklist, labels: parsed.labels, blanks: parsed.blanks, conversations, evaluations, useFinal: v.final, highWeight: v['high-weight'] ? Number(v['high-weight']) : undefined });
+    const report = compare({ checklist, labels: parsed.labels, blanks: parsed.blanks, conversations, evaluations, useFinal: v.final, highWeight: v['high-weight'] ? Number(v['high-weight']) : undefined, pricePerMTok: v['price-in'] && v['price-out'] ? { input: Number(v['price-in']), output: Number(v['price-out']) } : undefined });
     const text = v.json ? JSON.stringify(report, null, 2) : formatReport(report, { includeText: v.text });
     if (v.out) { write(here(v.out), text); console.log(`report written to ${here(v.out)}`); } else console.log(text);
     if (parsed.problems.length) process.exitCode = 2;

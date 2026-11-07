@@ -34,6 +34,16 @@ describe('compare', () => {
     expect(r.highWeightFailures).toBe(1);
   });
 
+  it('reports model, effort, tokens, latency and cost from provenance; rule-only evaluations are excluded from the means', () => {
+    const timed: Evaluation = { ...evaluation, provenance: { provider: 'anthropic', model: 'claude-haiku-5-5', promptVersion: 'eval-v6', effort: 'medium', usage: { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 10000 }, latencyMs: 4000 } };
+    const r = run(same, { evaluations: [timed], pricePerMTok: { input: 0.1, output: 0.5 } });
+    expect(r.run).toMatchObject({ evaluations: 1, models: ['claude-haiku-5-5'], efforts: ['medium'], promptVersions: ['eval-v6'], withUsage: 1, meanInputTokens: 11000, meanOutputTokens: 500, meanLatencyMs: 4000 });
+    expect(r.run.meanCostUsd).toBe(0.00045); // (1000 + 10000*0.1) * 0.1/1e6 + 500 * 0.5/1e6
+    expect(formatReport(r)).toMatch(/claude-haiku-5-5; effort: medium; prompt: eval-v6/);
+    const ruleOnly = run(same, { evaluations: [{ ...evaluation, provenance: { provider: 'local', model: 'rules+reuse', promptVersion: 'n/a' } }] });
+    expect(ruleOnly.run).toMatchObject({ withUsage: 0, meanInputTokens: null, meanCostUsd: null });
+  });
+
   it('counts N/A confusion both ways and false N/A', () => {
     const humanSaysNA = run(withLabel(same, '05', { value: null, isNA: false }).map((l) => (l.criterionId === '02' ? { ...l, value: true, isNA: false } : l)));
     expect(humanSaysNA.criteria.find((c) => c.id === '02')!.na).toMatchObject({ modelOnly: 1 }); // model N/A, human answered
