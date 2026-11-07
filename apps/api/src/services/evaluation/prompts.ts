@@ -1,5 +1,5 @@
 /** Versioned prompt. Bump PROMPT_VERSION on any wording change; it is stored with every evaluation. */
-export const PROMPT_VERSION = 'eval-v5';
+export const PROMPT_VERSION = 'eval-v6';
 
 export const SYSTEM_PROMPT = `You evaluate the quality of ONE customer-support conversation (a typed chat or a phone call transcript) against a checklist.
 
@@ -18,6 +18,9 @@ HOW TO JUDGE A CRITERION
 - If the instructions say something must happen before something else, use message order (index), not timestamps alone: timestamps can be equal.
 
 EVIDENCE
+- For enum criteria, also return decisionBasis: "operator_action" for a label asserting operator behavior, or "absence" for a label based on missing behavior. Absence needs checkedRange.
+- Positive action verdicts (including partial consultation credit and serious violations) need a non-empty verbatim quote from a client-facing operator message. Bot/client/system messages can provide context but cannot substitute for the operator action. A checkedRange alone cannot prove an action.
+- For closing N/A, a client disconnection alone does not prove lack of opportunity: consider whether the operator had an earlier chance to close.
 - Cite messageIndex values. "quote" must be copied verbatim (exact characters) from that message; never paraphrase inside a quote and never quote text that is not there.
 - When your answer rests on something NOT happening (no greeting, no verification, no goodbye), give checkedRange: the inclusive range of indices you inspected. Every result needs evidence or a checkedRange.
 
@@ -55,6 +58,7 @@ export const OUTPUT_SCHEMA = {
         type: 'object',
         properties: {
           criterionId: { type: 'string' },
+          decisionBasis: { type: 'string', enum: ['operator_action', 'absence'] },
           value: { type: ['boolean', 'number', 'string', 'null'] },
           isNA: { type: 'boolean' },
           naReason: { type: 'string' },

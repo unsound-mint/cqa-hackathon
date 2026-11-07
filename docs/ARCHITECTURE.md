@@ -83,7 +83,7 @@ Rules fixed in the schemas: `CriterionResult` has exactly one of `isNA` / a valu
 
 ## Rules first, reuse second, model last
 For each criterion of an evaluation, in this order (`services/evaluation/evaluator.ts: planCriteria`):
-1. **Detector** (`Criterion.detector`, rules in `services/evaluation/detectors/`). A detector only *proves* an answer (a greeting + introduction in the client's language in the first operator turn: Yes; a goodbye in the last operator turn: Yes; the client side hung up right after speaking: N/A). If it cannot prove it, it returns undecided, never "No", and the model decides. Unknown detector names are rejected when a checklist is saved.
+1. **Detector** (`Criterion.detector`, rules in `services/evaluation/detectors/`). A detector only *proves* an answer (a greeting + introduction in the client's language in the first operator turn: Yes; a goodbye plus an offer of help in the last operator turn: Yes; client disconnection alone never proves N/A). If it cannot prove it, it returns undecided, never "No", and the model decides. Unknown detector names are rejected when a checklist is saved.
 2. **Reuse** (`reuse.ts`). If the same conversation already has a result for a criterion with the same `criterionSignature` (instructions, kind, values, N/A rule, flag, detector; not weight/title/section/hint), the stored original result is copied with `reusedFrom`. Switching a criterion off (weight 0) or re-weighting therefore rescoring needs **no model call and no API key**. Reviewer overrides are not carried over.
 3. **Model** for what is left, with `alreadyDecided` as context. If nothing is left the model is never called; `POST /api/evaluations` answers 503 up front only when a needed model is missing.
 
@@ -92,3 +92,19 @@ For each criterion of an evaluation, in this order (`services/evaluation/evaluat
 A criterion without a detector (any user-added one) always works through the model, so the changed-checklist requirement holds. Detectors are a fast path, never the only one.
 
 **Criterion 07 is strict (Denis, 2026-11-07):** "summarizes or offers further help AND says goodbye" needs both parts. The `closing` detector proves Yes only when the last operator turn has a goodbye and an offer of help; a bare goodbye is left to the model, whose instructions say it is No unless a summary is present.
+
+## Evaluation correctness and cache compatibility
+
+Positive model action verdicts require a non-empty exact quote from a client-facing operator message. This includes partial numeric credit and serious violations. Bot, client and system evidence remains available as context; absence and N/A can use inspected ranges. Enum model outputs declare decisionBasis (operator_action or absence), so arbitrary absence labels do not require invented action quotes. Hold/internal-consultation speech cannot satisfy client-facing requirements. The semantic relevance of an operator quote still requires model judgement and human validation.
+
+Specialized detectors run only when the criterion signature matches a supported canonical rubric configuration. Editing instructions, scale or N/A semantics while retaining the detector name falls back to generic model evaluation; reweighting and presentation edits retain the fast path.
+
+Reuse requires the same SHA-256 input hash, evaluator version and prompt version. With a configured provider it also requires the same provider/model. Without a provider, compatible existing results remain available for offline reweighting. Legacy evaluations without cache context are retained but never reused. Rule/validator changes must bump EVALUATOR_VERSION; prompt changes bump PROMPT_VERSION.
+
+POST /api/evaluations accepts an optional boolean force (default false) to bypass reuse; deterministic rules still run. The choice is persisted with the job and survives restarts. No existing client needs to change.
+
+Imports preserve immutable conversation sources: identical re-imports succeed; a reused id with different group, language, channel, audio URL or transcript rejects the batch with HTTP 409. Changed input needs a new conversation id. This also protects evidence while jobs are in flight.
+
+On database open, additive idempotent migrations add nullable evaluations.cache_context and jobs.force (default false). Back up the SQLite database before deployment; existing evaluation results and appeal history are untouched.
+
+Identity verification recognizes explicit whole-message affirmative RU/KZ/EN events. Negative statuses, questions and unrecognized extended forms cannot establish verification. Unknown event vocabulary requires a reviewed parser extension. Closing N/A is assessed semantically; client disconnection does not establish whether an earlier closing opportunity existed.

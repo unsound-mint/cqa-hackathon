@@ -9,9 +9,9 @@ export function toEvaluation(row: typeof evaluations.$inferSelect): Evaluation {
 }
 
 /** Used by the evaluation job (issue #5). Final results start as a copy of the originals. */
-export function insertEvaluation(db: Db, e: Evaluation): void {
+export function insertEvaluation(db: Db, e: Evaluation, cacheContext?: string): void {
   db.insert(evaluations)
-    .values({ ...EvaluationSchema.parse(e), provenance: e.provenance ?? null, error: e.error ?? null, createdAt: new Date().toISOString() })
+    .values({ ...EvaluationSchema.parse(e), cacheContext: cacheContext ?? null, provenance: e.provenance ?? null, error: e.error ?? null, createdAt: new Date().toISOString() })
     .run();
 }
 
