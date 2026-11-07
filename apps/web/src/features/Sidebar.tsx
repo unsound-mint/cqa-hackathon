@@ -33,7 +33,7 @@ export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleThe
   );
   const tool = 'grid size-10 place-items-center md:size-12 rounded-xl text-muted transition-colors hover:bg-fill hover:text-ink';
   return (
-    <aside className="glass-panel rounded-card md:my-4 md:ml-4 flex shrink-0 flex-row items-center gap-2 border-b border-line px-2 py-2 sm:gap-4 sm:px-4 md:self-stretch md:w-[4.5rem] md:flex-col md:items-stretch md:gap-0 md:border-b-0 md:border-r md:px-1 md:py-4">
+    <aside className="workspace-sidebar glass-panel rounded-card md:my-4 md:ml-4 flex shrink-0 flex-row items-center gap-2 border-b border-line px-2 py-2 sm:gap-4 sm:px-4 md:self-stretch md:w-[4.5rem] md:flex-col md:items-stretch md:gap-0 md:border-b-0 md:border-r md:px-1 md:py-4">
       <div className="flex shrink-0 items-center justify-center gap-1 md:mb-4" aria-label="CQA">
         <span className="text-base font-semibold tracking-wide">CQA</span>
         <span aria-hidden className="size-2 rounded-full bg-brand" />

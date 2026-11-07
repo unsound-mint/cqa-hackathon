@@ -122,7 +122,7 @@ export function QueueRail({ conversations, latest, ids, selectedId, filters, cou
           const Icon = c?.channel === 'voice call' ? Headphones : MessagesSquare;
           return (
             <li key={id}>
-              <button type="button" onClick={() => onSelect(id)} aria-current={active ? 'true' : undefined} className={cn('w-full rounded-xl px-3 py-3 text-left transition-[background-color,box-shadow] duration-200 hover:bg-fill', active && 'bg-brand-soft shadow-card ring-1 ring-brand/60')}>
+              <button type="button" onClick={() => onSelect(id)} aria-current={active ? 'true' : undefined} className={cn('w-full rounded-xl px-3 py-3 text-left transition-[background-color,box-shadow] duration-200 hover:bg-fill', active && 'queue-selected shadow-card ring-1 ring-brand/60')}>
                 <span className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-medium">{id}</span>
                   <span className="text-sm font-semibold tabular-nums">{e?.status === 'completed' ? formatScore(e.finalTotal) : <span className="font-normal text-muted">—</span>}</span>
