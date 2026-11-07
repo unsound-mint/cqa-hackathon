@@ -2,7 +2,6 @@ import type { Appeal, ChecklistVersion, Conversation, DecideAppealInput, Evaluat
 import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, PanelLeftOpen } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MockCqaApi } from './api';
-import { MockCqaApi } from './api';
 import { useApi } from './ApiContext';
 import { cn } from '@/lib/utils';
 import { DEFAULT_FILTERS, counts, matches, needsAttention, type Filters } from '@/lib/queue';
