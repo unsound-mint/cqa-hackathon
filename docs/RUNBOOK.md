@@ -9,15 +9,15 @@ The demo runs on one laptop (Fedora or Windows), as one process on one URL. No D
 4. `pnpm start` builds everything and serves the web app and the API at http://127.0.0.1:8787 (`PORT`/`HOST` to change).
 5. Import the data once: `curl -X POST localhost:8787/api/datasets/import -H "content-type: application/json" -d '{"groupId":"DEV"}'` (PowerShell: `Invoke-RestMethod -Method Post -Uri http://localhost:8787/api/datasets/import -ContentType application/json -Body '{"groupId":"DEV"}'`).
 
-Development instead: `pnpm dev` (web on :5173 with hot reload, API on :8787).
+Production uses the HTTP backend and the evaluations already stored in `DATABASE_PATH`; it does not substitute mock results or automatically regenerate existing evaluations. Development instead: `pnpm dev` (web on :5173 with hot reload, API on :8787), defaulting to fictional mock data. Set `VITE_API_MODE=http` for integrated development or `mock` for an explicit fictional preview. Leave it unset/empty for the normal defaults.
 
 ## State
 Everything lives in one SQLite file (`DATABASE_PATH`, default `data/cqa.sqlite`; the raw download is in `data/raw/`). Both are git-ignored. **Copy `data/cqa.sqlite` before the demo**: restoring it brings back conversations, checklist versions, evaluations and appeals.
 
 ## Before going on stage
 - Run the whole flow once on the stage laptop and screenshot it (backup).
-- Decide the model path ahead of time. A hosted model needs working internet and a funded key; a local model (Ollama) works offline. Evaluations already stored in the database show without any model call, but a NEW conversation needs the model.
-- Disable sleep and notifications; close heavy apps (a local 7-8B model needs most of the RAM).
+- Decide the model path ahead of time. The configured hosted provider needs working internet and a funded key; no local-model adapter is included. Evaluations already stored in the database show without any model call, but a NEW conversation needs the model.
+- Disable sleep and notifications; close heavy apps.
 - Keep a second browser tab on `/health`.
 - Freeze `main` at a green commit before the control round (see `docs/WORKFLOW.md`).
 
