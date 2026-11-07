@@ -1,4 +1,4 @@
-import type { Criterion } from '@cqa/contracts';
+import type { Criterion, Language } from '@cqa/contracts';
 import type { AssistedItem } from './evaluator.js';
 
 /** Strict tools require closed objects, including nested detector-provided answer schemas. */
@@ -15,7 +15,7 @@ function closeObjects(value: unknown): unknown {
  * one assisted answer per id; strict arrays cannot enforce coverage of multiple different ids.
  * Values, roles and verbatim evidence are still checked by the evaluator, never trusted from the grammar.
  */
-export function buildOutputSchema(criteria: readonly Criterion[], assisted: readonly AssistedItem[]) {
+export function buildOutputSchema(criteria: readonly Criterion[], assisted: readonly AssistedItem[], language?: Language) {
   return {
     type: 'object',
     properties: {
@@ -30,7 +30,7 @@ export function buildOutputSchema(criteria: readonly Criterion[], assisted: read
             value: { enum: [...new Set(criteria.flatMap(c => c.allowedValues)), null] },
             isNA: { type: 'boolean' },
             naReason: { type: 'string', description: 'Explain the applicability condition when isNA=true; otherwise use an empty string.' },
-            explanation: { type: 'string' },
+            explanation: { type: 'string', description: language ? 'Write in ' + language + ' (RU=Russian, KZ=Kazakh, EN=English).' : 'Explain the decision briefly.' },
             confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
             decisionBasis: { type: 'string', enum: ['operator_action', 'absence'] },
             evidence: {

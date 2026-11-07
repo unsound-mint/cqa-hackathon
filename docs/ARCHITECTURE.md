@@ -117,3 +117,11 @@ The evaluator builds a request-specific schema in services/evaluation/output-sch
 Anthropic tool calls use strict mode with closed nested objects. The result schema lists only undecided criterion ids and allowed values; every result includes an inspected range and N/A reason field (empty when applicable). Code still checks per-criterion values and N/A, coverage/duplicates, range bounds, verbatim quotes and operator attribution, then computes totals. Grammar compliance does not establish semantic correctness. Prompt versions invalidate older cached results.
 
 The schema uses only supported strict-tool constraints (minItems 0 or 1, no numerical/string bounds). Multiple assisted answers use required object keys because supported array constraints cannot enforce one answer per distinct id. Source: https://platform.claude.com/docs/en/build-with-claude/structured-outputs#json-schema-limitations
+
+### Rubric calibration (eval-v10)
+
+`rubric.ts` identifies original semantics by criterion signature; `calibration.ts` supplies fictional examples to `systemPromptFor`. Changed instructions/scales/applicability do not inherit incompatible examples. Canonical detectors use the same signature helper. Prompts and strict result schemas explicitly request the validated conversation language.
+
+Original-rubric requests omit first-response SLA measurements and pre-operator gaps from derived facts; raw timestamps/order remain untouched. Requests containing custom criteria retain the complete timing facts, and their instructions remain authoritative. Identity applicability is based on the request's need for account-specific handling, separately from completion/disclosure. Social closing phrases are evaluated in context rather than proved solely by a regex.
+
+See `docs/RUBRIC.md` for reviewed criterion boundaries. Reference agreement measures model-to-model agreement until human adjudication; keep complete original model reasons/evidence in private validation artifacts for diagnosis and report rerun stability.

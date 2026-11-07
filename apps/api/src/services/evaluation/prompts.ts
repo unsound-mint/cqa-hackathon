@@ -1,5 +1,8 @@
 /** Versioned prompt. Bump PROMPT_VERSION on any wording change; it is stored with every evaluation. */
-export const PROMPT_VERSION = 'eval-v9';
+import type { Criterion } from '@cqa/contracts';
+import { calibrationExamples } from './calibration.js';
+
+export const PROMPT_VERSION = 'eval-v10';
 
 export const SYSTEM_PROMPT = `You evaluate the quality of ONE customer-support conversation (a typed chat or a phone call transcript) against a checklist.
 
@@ -28,7 +31,7 @@ ASSISTED QUESTIONS
 - "assistedQuestions" lists criteria whose verdict is computed by code from your answers. For each, answer only the question asked, in "assisted": { "<criterionId>": { ...answers } }, following its answersSchema. Every id in assistedQuestions must be a key in assisted, even when verification was unnecessary (answer verificationRequired=false). Never return a scored result for these criteria or put them in results. If there are no assisted questions, return assisted: {}. Quotes must be verbatim; indices must be real operator messages.
 
 DERIVED FACTS (computed by code from the transcript; trust them over your own counting)
-- identityVerificationEvents: system messages confirming identity verification. A client's or operator's statement that identity was checked is NOT such an event. Verification counts only when an event exists and precedes the protected disclosure or action. If verification was required but no event exists, it was not confirmed.
+- identityVerificationEvents: recognized system confirmation events by original message index. Check their ordering against any protected disclosure or action under the active criterion.
 - holdRanges / operatorMessagesDuringHold: while the client is on hold or an internal consultation is running, "operator" messages are the operator talking to a colleague, not to the client. Do not grade them as client-facing speech, but do check whether the client was warned before the hold started.
 - recordingPausedRanges: speech inside a pause is missing from the transcript. Do not assert that something did not happen inside a pause; say the transcript has a gap and lower your confidence.
 - redactionPlaceholderIndices: text like "[Имя скрыто]" is an anonymization placeholder. A redacted name still counts as the operator giving a name; a placeholder is never a mistake by the operator.
@@ -43,5 +46,11 @@ CONFIDENCE
 
 OUTPUT
 - Deliver everything by calling the tool submit_evaluation exactly once, as your final action. Do not answer in prose.
-- Write each explanation in the conversation's language, briefly (1-3 sentences).
+- Write each explanation in responseLanguage (the validated requested language: RU=Russian, KZ=Kazakh, EN=English), briefly (1-3 sentences), even when checklist instructions are in another language.
 - Return exactly one result per open checklist criterion in results, using the given criterion ids, AND answer every assisted question in assisted. For results with isNA=true provide a non-empty naReason; otherwise use an empty string. The two required fields are results and assisted.`;
+
+/** Calibration applies only to unchanged original semantics; custom/edited criteria remain authoritative. */
+export function systemPromptFor(criteria: readonly Criterion[]): string {
+  const examples = calibrationExamples(criteria);
+  return examples ? SYSTEM_PROMPT + '\n\nRUBRIC CALIBRATION\nApply each example only to the corresponding criterion. Examples never transfer credit or penalties between criteria.\n' + examples : SYSTEM_PROMPT;
+}

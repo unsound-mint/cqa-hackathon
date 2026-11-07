@@ -14,6 +14,7 @@ const GOODBYE: Record<Language, RegExp> = {
 };
 
 /**
+ * Context-dependent social closings (e.g. "Happy to help") go to the model; a phrase alone is not proof.
  * An offer of further help, the second half of rubric 07 ("summarizes OR offers further help, AND says goodbye").
  * A "summary" is semantic and is left to the model; only the offer is provable by phrase.
  */
@@ -27,7 +28,7 @@ const OFFER: Record<Language, RegExp> = {
     'iu',
   ),
   EN: new RegExp(
-    `${L}(?:if\\s+you\\s+(?:have|need|get|run\\s+into)\\s+(?:any\\s+)?(?:further\\s+|more\\s+|other\\s+)?(?:questions?|help|issues?)|feel\\s+free|reach\\s+out|contact\\s+us|let\\s+us\\s+know|anything\\s+else|happy\\s+to\\s+help|write\\s+(?:to\\s+)?us|here\\s+to\\s+help)`,
+    `${L}(?:if\\s+you\\s+(?:have|need|get|run\\s+into)\\s+(?:any\\s+)?(?:further\\s+|more\\s+|other\\s+)?(?:questions?|help|issues?)|feel\\s+free|reach\\s+out|contact\\s+us|let\\s+us\\s+know|anything\\s+else|write\\s+(?:to\\s+)?us)`,
     'iu',
   ),
 };
