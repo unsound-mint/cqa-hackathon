@@ -54,3 +54,15 @@ export const appeals = sqliteTable('appeals', {
   reviewerValue: text('reviewer_value', { mode: 'json' }),
   reviewerIsNA: integer('reviewer_is_na', { mode: 'boolean' }),
 });
+
+/** Evaluation batches. conversation_ids + checklist_version_id make a job resumable after a restart. */
+export const jobs = sqliteTable('jobs', {
+  id: text('id').primaryKey(),
+  checklistVersionId: text('checklist_version_id').notNull(),
+  conversationIds: text('conversation_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  evaluationIds: text('evaluation_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  status: text('status').notNull(),
+  total: integer('total').notNull(),
+  completed: integer('completed').notNull(),
+  createdAt: text('created_at').notNull(),
+});
