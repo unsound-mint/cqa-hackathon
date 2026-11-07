@@ -1,4 +1,4 @@
-import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 /** One row per conversation. `transcript` is the untouched message array (with added `index`) as JSON. */
 export const conversations = sqliteTable(
@@ -14,3 +14,13 @@ export const conversations = sqliteTable(
   },
   (t) => [index('conversations_group_idx').on(t.datasetGroupId)],
 );
+
+/** Immutable checklist versions: rows are only ever inserted. */
+export const checklistVersions = sqliteTable('checklist_versions', {
+  id: text('id').primaryKey(),
+  version: integer('version').notNull().unique(),
+  title: text('title').notNull(),
+  sections: text('sections', { mode: 'json' }),
+  criteria: text('criteria', { mode: 'json' }).notNull(),
+  createdAt: text('created_at').notNull(),
+});
