@@ -1,6 +1,6 @@
-# Shared interface freeze: v0
+# Shared interfaces
 
-> Implemented in `packages/contracts`. Additive v0.1 changes (job `evaluationIds`, `listEvaluations`, `listAppeals`, provenance, appeal timestamps) are listed in `docs/ARCHITECTURE.md` -> "Contract v0.1 additions".
+> **Historical v0 design.** The source of truth is the Zod schemas in `packages/contracts/src` (`domain.ts`, `api.ts`, `checklist.ts`) and the `CqaApi` interface in `apps/web/src/api/CqaApi.ts`; the HTTP routes are listed in `docs/ARCHITECTURE.md` §8. The type sketches below are the kickoff design and are **out of date** (they lack confidence, source, reusedFrom, provenance, appeal `kind`, `force`, listAppeals/listEvaluations/overrideCriterion/audioSrc). Read them for intent, not for exact shapes.
 
 **Owner: Denis.** This is the initial contract for bootstrap, not a substitute for the Zod schemas / TypeScript types published in `packages/contracts`. Publish those types on `main` before Sofia begins. Change shared shapes via a small `area:shared` issue and version the change; do not allow independently invented frontend/backend DTOs.
 
