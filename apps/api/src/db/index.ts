@@ -69,6 +69,10 @@ export function openDb(path: string) {
       created_at TEXT NOT NULL
     );
   `);
+  // Additive migrations: legacy evaluations intentionally have no reusable cache context.
+  const columns = (table: string) => sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!columns('evaluations').some((c) => c.name === 'cache_context')) sqlite.exec('ALTER TABLE evaluations ADD COLUMN cache_context TEXT');
+  if (!columns('jobs').some((c) => c.name === 'force')) sqlite.exec('ALTER TABLE jobs ADD COLUMN force INTEGER NOT NULL DEFAULT 0');
   return drizzle(sqlite, { schema });
 }
 

@@ -92,7 +92,7 @@ export const verificationDetector: AssistedDetector<Answers> = {
     if (before.length > 0) {
       const ev = t[before[before.length - 1]!]!;
       const phrase = IDENTITY_VERIFIED_PATTERNS.map((re) => re.exec(ev.text)?.[0]).find(Boolean) ?? ev.text;
-      return { ...base, value: true, explanation: EXPLAIN[lang].yes(phrase), confidence: a.confidence, evidence: [{ messageIndex: ev.index, quote: phrase }, ...disclosureEvidence], checkedRange } satisfies CriterionResult;
+      return { ...base, value: true, explanation: EXPLAIN[lang].yes(phrase), confidence: a.confidence, evidence: [{ messageIndex: ev.index, quote: phrase.replace(/[.!]\s*$/, '') }, ...disclosureEvidence], checkedRange } satisfies CriterionResult;
     }
 
     const late = facts.identityVerificationEvents.length > 0;

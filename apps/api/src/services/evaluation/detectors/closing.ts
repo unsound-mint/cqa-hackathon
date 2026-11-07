@@ -13,9 +13,6 @@ const GOODBYE: Record<Language, RegExp> = {
   EN: new RegExp(`${L}(?:good\\s*bye|bye|take\\s+care|see\\s+you|farewell|all\\s+the\\s+best|best\\s+wishes|good\\s+day|have\\s+a\\s+(?:nice|great|good|wonderful|lovely|pleasant)\\s+\\p{L}+)${R}`, 'iu'),
 };
 
-/** System events that mean the CLIENT side ended the dialog (not the operator closing it). */
-const CLIENT_SIDE_END = [/клиент\s+(?:покинул|завершил)/iu, /соединение\s+с\s+клиентом\s+прервано/iu, /клиентпен\s+байланыс\s+үзілді/iu, /connection\s+to\s+(?:the\s+)?customer\s+(?:was\s+)?lost/iu, /customer\s+(?:left|disconnected)/iu];
-
 /**
  * An offer of further help, the second half of rubric 07 ("summarizes OR offers further help, AND says goodbye").
  * A "summary" is semantic and is left to the model; only the offer is provable by phrase.
@@ -40,25 +37,19 @@ const EXPLAIN_YES: Record<Language, (offer: string, bye: string) => string> = {
   KZ: (o, b) => `Ереже: оператордың соңғы жауабында көмек ұсынысы («${o}») және қоштасу («${b}») бар.`,
   EN: (o, b) => `Rule: the operator's last turn offers further help ("${o}") and says goodbye ("${b}").`,
 };
-const EXPLAIN_NA: Record<Language, string> = {
-  RU: 'Правило: диалог оборвался на стороне клиента сразу после его последнего сообщения, возможности завершить разговор не было.',
-  KZ: 'Ереже: диалог клиент жағынан оның соңғы хабарламасынан кейін үзілді, аяқтауға мүмкіндік болмады.',
-  EN: "Rule: the dialog ended on the client's side right after the client's last message, so there was no opportunity to close.",
-};
-
 export const closingDetector: Detector = {
   name: 'closing',
-  description: 'Yes when the last operator turn offers further help AND says goodbye (strict); N/A when the client side ended the dialog right after speaking. A bare goodbye is left to the model. Never decides No.',
-  run({ conversation, criterion }) {
+  description: 'Yes when the last operator turn offers further help AND says goodbye. Applicability and bare goodbyes are left to the model.',
+  run({ conversation, criterion, facts }) {
     if (!isBooleanYesNo(criterion)) return null;
     const lang = conversation.language;
-    const t = conversation.transcript;
     const turn = lastOperatorTurn(conversation);
 
     // Strict "AND": an offer of help and a goodbye, both in the last operator turn. A bare goodbye proves nothing.
     let bye: { index: number; text: string } | undefined;
     let offer: { index: number; text: string } | undefined;
     for (const m of turn) {
+      if (facts.operatorMessagesDuringHold.includes(m.index)) continue;
       const g = GOODBYE[lang].exec(m.text);
       if (g) bye = { index: m.index, text: g[0] };
       const o = OFFER[lang].exec(m.text);
@@ -80,25 +71,8 @@ export const closingDetector: Detector = {
       };
     }
 
-    // N/A proof: the final non-system message is the client's and the transcript ends with a client-side departure event.
-    if (criterion.allowNA) {
-      const lastReal = [...t].reverse().find((m) => m.speaker !== 'system');
-      const tail = t.slice((lastReal?.index ?? -1) + 1);
-      const clientSideEnd = tail.find((m) => m.speaker === 'system' && CLIENT_SIDE_END.some((re) => re.test(m.text)));
-      if (lastReal?.speaker === 'client' && clientSideEnd) {
-        return {
-          criterionId: criterion.id,
-          value: null,
-          isNA: true,
-          naReason: EXPLAIN_NA[lang],
-          explanation: EXPLAIN_NA[lang],
-          confidence: 'medium',
-          source: 'rule',
-          evidence: [{ messageIndex: lastReal.index }, { messageIndex: clientSideEnd.index }],
-          checkedRange: { from: lastReal.index, to: t.length - 1 },
-        };
-      }
-    }
+    // Disconnection establishes how the chat ended, not whether an earlier closing opportunity existed.
+    // N/A therefore needs semantic assessment rather than an automatic exemption.
     return null;
   },
 };

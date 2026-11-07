@@ -97,3 +97,16 @@ describe('POST /api/datasets/import', () => {
     expect((await unconfigured.inject({ method: 'POST', url: '/api/datasets/import', payload: { groupId: 'DEV' } })).statusCode).toBe(503);
   });
 });
+
+describe('immutable evidence sources', () => {
+  it('rejects changed re-imports atomically without replacing original text', async () => {
+    let records = [rec('original')];
+    const app = appWith((async () => ok(envelope(records))) as typeof fetch);
+    const request = () => app.inject({method:'POST',url:'/api/datasets/import',payload:{groupId:'G1'}});
+    expect((await request()).statusCode).toBe(200);
+    records = [rec('new'), rec('original', {transcript:[{timestamp:'00:00',speaker:'bot',text:'changed'}]})];
+    expect((await request()).statusCode).toBe(409);
+    expect((await app.inject({url:'/api/conversations/original'})).json().transcript[0].text).toBe('Сәлем');
+    expect((await app.inject({url:'/api/conversations/new'})).statusCode).toBe(404);
+  });
+});
