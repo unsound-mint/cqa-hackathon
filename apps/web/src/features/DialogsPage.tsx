@@ -28,29 +28,27 @@ const CHANNELS: { value: Channel | 'all'; label: string }[] = [
   { value: 'voice call', label: 'Звонок' },
 ];
 
-function Chip({ pressed, onClick, children, tone }: { pressed: boolean; onClick: () => void; children: React.ReactNode; tone?: 'danger' | 'warn' }) {
+/** One option of the review-state switch: a quiet segment; a colored dot (not colored text) marks violations and review. */
+function Segment({ pressed, onClick, children, tone }: { pressed: boolean; onClick: () => void; children: React.ReactNode; tone?: 'danger' | 'warn' }) {
   return (
     <button
       type="button"
       aria-pressed={pressed}
       onClick={onClick}
-      className={cn(
-        'inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm transition-colors',
-        pressed ? 'border-ink bg-ink text-canvas' : 'border-line bg-surface text-ink hover:border-line-strong',
-        !pressed && tone === 'danger' && 'text-danger',
-        !pressed && tone === 'warn' && 'text-warn',
-      )}
+      className={cn('inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm whitespace-nowrap transition-colors', pressed ? 'bg-surface font-medium text-ink shadow-card' : 'text-muted hover:text-ink')}
     >
+      {tone && <span aria-hidden className={cn('size-2 rounded-full', tone === 'danger' ? 'bg-danger' : 'bg-warn')} />}
       {children}
     </button>
   );
 }
 
+/** Only states that ask for something; an evaluated dialog is the normal case and carries no chip. */
 function Status({ e }: { e: Evaluation | undefined }) {
   if (!e) return <Badge>Не оценён</Badge>;
   if (e.status === 'failed') return <Badge tone="danger">Ошибка оценки</Badge>;
   if (e.status !== 'completed') return <Badge tone="warn">Оценивается</Badge>;
-  return <Badge tone="success">Оценён</Badge>;
+  return null;
 }
 
 /** The queue: every dialog with its score, the reason for a serious violation and what needs a human look. */
@@ -72,11 +70,12 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
 
   const set = (patch: Partial<Filters>) => onFilters({ ...filters, ...patch });
   const quick = (q: Quick, label: string, n: number, tone?: 'danger' | 'warn') => (
-    <Chip pressed={filters.quick === q} onClick={() => set({ quick: q })} tone={tone}>
+    <Segment pressed={filters.quick === q} onClick={() => set({ quick: q })} tone={tone}>
       {label}
-      <span className={cn('tabular-nums', filters.quick === q ? 'opacity-80' : 'text-muted')}>{n}</span>
-    </Chip>
+      <span className="tabular-nums text-muted">{n}</span>
+    </Segment>
   );
+  const narrow = 'h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm';
   const th = (key: SortKey, label: string, className?: string) => (
     <th scope="col" aria-sort={sort?.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'} className={cn('px-3 py-2 text-left font-medium', className)}>
       <button type="button" onClick={() => setSort((s) => (s?.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: key === 'score' ? -1 : 1 }))} className="inline-flex items-center gap-1 rounded hover:text-ink">
@@ -93,26 +92,30 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
         <p className="max-w-prose text-sm text-muted">Очередь проверки: откройте диалог, чтобы увидеть оценку и её обоснование.</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="relative block min-w-56 flex-1 sm:max-w-sm">
-          <span className="sr-only">Поиск по номеру и тексту</span>
-          <Search aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-muted" />
-          <input ref={search} type="search" value={filters.query} onChange={(e) => set({ query: e.target.value })} placeholder="Номер или текст диалога" className="h-10 w-full rounded-full border border-line bg-surface pl-9 pr-4 text-sm placeholder:text-muted" />
-        </label>
-        {/* Language and channel narrow the list rarely: two compact selects, so the row of chips below holds only the review states. */}
-        <Select aria-label="Язык" value={filters.lang} onChange={(e) => set({ lang: e.target.value as Filters['lang'] })} className={cn('h-10 w-auto rounded-full px-4', filters.lang !== 'all' && 'border-ink font-medium')}>
-          {LANGS.map((l) => <option key={l} value={l}>{l === 'all' ? 'Все языки' : l}</option>)}
-        </Select>
-        <Select aria-label="Канал" value={filters.channel} onChange={(e) => set({ channel: e.target.value as Filters['channel'] })} className={cn('h-10 w-auto rounded-full px-4', filters.channel !== 'all' && 'border-ink font-medium')}>
-          {CHANNELS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
-        </Select>
-      </div>
-
-      <div role="group" aria-label="Что показать" className="flex flex-wrap gap-2">
-        {quick('all', 'Все', c.all)}
-        {quick('violations', 'Грубые нарушения', c.violations, 'danger')}
-        {quick('review', 'Нужна проверка человеком', c.review, 'warn')}
-        {quick('unevaluated', 'Не оценены', c.unevaluated)}
+      {/*
+        One quiet toolbar: the review-state switch carries the decision (with counts); search and the two rare filters
+        (language, channel) stay small. Nothing here is louder than the table it filters.
+      */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div role="group" aria-label="Что показать" className="flex max-w-full flex-wrap gap-1 rounded-3xl bg-fill p-1">
+          {quick('all', 'Все', c.all)}
+          {quick('violations', 'Грубые нарушения', c.violations, 'danger')}
+          {quick('review', 'Нужна проверка', c.review, 'warn')}
+          {quick('unevaluated', 'Не оценены', c.unevaluated)}
+        </div>
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <label className="relative block min-w-48 flex-1 sm:max-w-xs">
+            <span className="sr-only">Поиск по номеру и тексту</span>
+            <Search aria-hidden className="pointer-events-none absolute left-3 top-2 size-4 text-muted" />
+            <input ref={search} type="search" value={filters.query} onChange={(e) => set({ query: e.target.value })} placeholder="Номер или текст" className="h-8 w-full rounded-full border border-transparent bg-fill pl-9 pr-3 text-sm placeholder:text-muted" />
+          </label>
+          <Select aria-label="Язык" value={filters.lang} onChange={(e) => set({ lang: e.target.value as Filters['lang'] })} className={cn(narrow, filters.lang !== 'all' && 'border-ink font-medium')}>
+            {LANGS.map((l) => <option key={l} value={l}>{l === 'all' ? 'Все языки' : l}</option>)}
+          </Select>
+          <Select aria-label="Канал" value={filters.channel} onChange={(e) => set({ channel: e.target.value as Filters['channel'] })} className={cn(narrow, filters.channel !== 'all' && 'border-ink font-medium')}>
+            {CHANNELS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+          </Select>
+        </div>
       </div>
 
       {rows.length === 0 ? (
