@@ -47,7 +47,7 @@ export class JobRunner {
     if (missing.length) throw new JobError(`conversations not found: ${missing.slice(0, 5).join(', ')}`, 404);
     // A model is needed only if rules + reuse cannot settle every criterion (e.g. switching a criterion off needs none).
     if (!this.provider) {
-      const needing = ids.filter((id) => planCriteria(getConversation(this.db, id)!, checklist, makeReuseLookup(this.db, id)).undecided.length > 0);
+      const needing = ids.filter((id) => ((pl) => pl.undecided.length + pl.assisted.length > 0)(planCriteria(getConversation(this.db, id)!, checklist, makeReuseLookup(this.db, id))));
       if (needing.length) throw new JobError(`no model provider configured (set ANTHROPIC_API_KEY); ${needing.length} conversation(s) have criteria that need a model`, 503);
     }
 

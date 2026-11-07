@@ -15,7 +15,7 @@ const conv = demo.conversations[0]!;
 
 /** Answers any checklist generically from its config in the payload: no knowledge of criterion ids. */
 function genericAnswer(req: ProviderRequest, tweak?: (r: Record<string, unknown>[]) => void) {
-  const payload = JSON.parse(req.user) as { checklist: { criteria: { id: string; kind: string; allowedValues: unknown[] }[] }; conversation: { transcript: { text: string }[] } };
+  const payload = JSON.parse(req.user) as { assistedQuestions?: { criterionId: string }[]; checklist: { criteria: { id: string; kind: string; allowedValues: unknown[] }[] }; conversation: { transcript: { text: string }[] } };
   const results = payload.checklist.criteria.map((c) => ({
     criterionId: c.id,
     value: c.kind === 'discrete-scale' ? Math.max(...(c.allowedValues as number[])) : c.allowedValues.includes(false) && c.id === '08' ? false : c.allowedValues[0],
@@ -24,7 +24,11 @@ function genericAnswer(req: ProviderRequest, tweak?: (r: Record<string, unknown>
     evidence: [{ messageIndex: 4, quote: payload.conversation.transcript[4]!.text.slice(0, 10) }],
   }));
   tweak?.(results);
-  return { results, total: 9999 };
+  const assisted = ((payload as { assistedQuestions?: { criterionId: string }[] }).assistedQuestions ?? []).map((q) => ({
+    criterionId: q.criterionId,
+    answers: { verificationRequired: true, reason: 'ok', confidence: 'high', firstProtectedDisclosure: { messageIndex: 8, quote: 'Вижу заказ' } },
+  }));
+  return { results, assisted, total: 9999 };
 }
 
 function fakeProvider(fn: (req: ProviderRequest, call: number) => unknown): LlmProvider & { calls: ProviderRequest[] } {
@@ -105,7 +109,7 @@ describe('POST /api/evaluations', () => {
     const { job } = await run(app, { conversationIds: [conv.id], checklistVersionId: 'checklist-original-v1' });
     expect(job).toMatchObject({ status: 'completed', completed: 1, total: 1 });
     const ev = (await app.inject({ url: `/api/evaluations/${job.evaluationIds[0]}` })).json();
-    expect(ev).toMatchObject({ status: 'completed', conversationId: conv.id, provenance: { provider: 'fake', model: 'fake-1', promptVersion: 'eval-v4' } });
+    expect(ev).toMatchObject({ status: 'completed', conversationId: conv.id, provenance: { provider: 'fake', model: 'fake-1', promptVersion: 'eval-v5' } });
     expect(ev.originalTotal).not.toBe(9999);
     expect(ev.finalResults).toEqual(ev.originalResults);
     expect(db.select().from(jobs).all()).toHaveLength(1);
