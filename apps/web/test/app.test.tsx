@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import demo from '../../../fixtures/demo.json';
 import { ApiProvider } from '../src/ApiContext';
 import { App } from '../src/App';
 import { HttpCqaApi, MockCqaApi } from '../src/api';
 import { richDemo, richDemoAppeals } from '../src/api/demoExtras';
+import { asRole, withOperator } from './roles';
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
@@ -156,15 +157,22 @@ it('marks a reviewer-changed criterion and shows the AI answer struck next to th
   expect(panel().getByLabelText(/Ответ ИИ был: 15 из 20/)).toBeTruthy();
 });
 
-it('files an appeal, then a reviewer overrides it: total changes, original AI answer stays visible', async () => {
-  renderApp();
+it('the operator files an appeal, a reviewer overrides it: total changes, original AI answer stays visible', async () => {
+  asRole('operator');
+  renderApp(withOperator(demo));
   await transcriptReady();
   fireEvent.click(row(/Корректная и полная консультация/));
-  fireEvent.click(panel().getByRole('button', { name: 'Оспорить' }));
+  expect(panel().queryByRole('button', { name: 'Изменить оценку' })).toBeNull(); // an operator disputes, they do not correct
+  fireEvent.click(panel().getByRole('button', { name: 'Оспорить оценку' }));
   fireEvent.change(panel().getByLabelText('Почему вы не согласны с оценкой?'), { target: { value: 'Клиенту всё объяснили' } });
   fireEvent.click(panel().getByRole('button', { name: 'Отправить апелляцию' }));
-  expect(await panel().findByText('Апелляция ждёт решения')).toBeTruthy();
+  expect(await panel().findByText('Ваша апелляция ждёт решения')).toBeTruthy();
+  expect(panel().queryByRole('button', { name: 'Принять решение' })).toBeNull(); // and cannot decide it
   expect(panel().getAllByText('Апелляция').length).toBeGreaterThan(0);
+
+  act(() => asRole('reviewer'));
+  await screen.findByRole('region', { name: 'Оценка' }); // the app reloads under the new role
+  expect(await panel().findByText('Апелляция ждёт решения')).toBeTruthy();
 
   // No decision is preselected: the reviewer has to choose one.
   expect((panel().getByRole('button', { name: 'Принять решение' }) as HTMLButtonElement).disabled).toBe(true);
@@ -272,19 +280,21 @@ it('previous/next and J/K walk the filtered queue', async () => {
 });
 
 it('keyboard shortcuts are ignored while typing', async () => {
-  renderApp(bundle(withSecond));
+  asRole('operator');
+  renderApp(withOperator(bundle(withSecond)));
   await transcriptReady();
   fireEvent.click(row(/Корректная и полная консультация/));
-  fireEvent.click(panel().getByRole('button', { name: 'Оспорить' }));
+  fireEvent.click(panel().getByRole('button', { name: 'Оспорить оценку' }));
   fireEvent.keyDown(panel().getByLabelText('Почему вы не согласны с оценкой?'), { key: 'j' });
   expect(window.location.hash).toBe('#/dialog/demo-ru-001');
 });
 
 it('an unsent reason holds the dialog even after focus left the field (Russian о/л/т are J/K/N)', async () => {
-  renderApp(bundle(withSecond));
+  asRole('operator');
+  renderApp(withOperator(bundle(withSecond)));
   await transcriptReady();
   fireEvent.click(row(/Корректная и полная консультация/));
-  fireEvent.click(panel().getByRole('button', { name: 'Оспорить' }));
+  fireEvent.click(panel().getByRole('button', { name: 'Оспорить оценку' }));
   fireEvent.change(panel().getByLabelText('Почему вы не согласны с оценкой?'), { target: { value: 'Черновик' } });
   fireEvent.keyDown(document.body, { key: 'о' });
   fireEvent.keyDown(document.body, { key: 'Escape' });
@@ -638,6 +648,7 @@ it('does not label an HTTP-backed workspace as a fictional offline demo', async 
     '/api/evaluations': await mock.listEvaluations(),
     '/api/checklists': await mock.listChecklists(),
     '/api/appeals': await mock.listAppeals(),
+    '/api/operators': [],
   };
   const fetchFn = (async (url: string) => new Response(JSON.stringify(payloads[url.split('?')[0]!]), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch;
   render(<ApiProvider api={new HttpCqaApi({ fetch: fetchFn })}><App /></ApiProvider>);
@@ -652,4 +663,65 @@ it('shows the statistics page from the sidebar for the demo data', async () => {
   expect(screen.getByText('Оценено диалогов')).toBeTruthy();
   expect(screen.getByRole('table', { name: 'Результаты по критериям' })).toBeTruthy();
   expect(document.title).toBe('Статистика · CQA');
+});
+
+const navLink = (name: RegExp) => screen.queryByRole('link', { name });
+const switchRole = async (role: RegExp, name?: string) => {
+  fireEvent.click(await screen.findByRole('button', { name: /^Роль:/ }));
+  fireEvent.click(screen.getByRole('radio', { name: role }));
+  if (name !== undefined) fireEvent.change(screen.getByLabelText(/Какой оператор|Ваше имя/), { target: { value: name } });
+  fireEvent.click(screen.getByRole('button', { name: 'Применить' }));
+};
+
+it('the role picker changes what the app offers: only the lead has the checklist, an operator sees only their dialogs', async () => {
+  renderApp(withOperator(demo), '#/checklist');
+  await screen.findByRole('heading', { level: 1, name: 'Чек-лист' });
+  expect(navLink(/Чек-лист/)).toBeTruthy();
+
+  await switchRole(/Проверяющий/);
+  expect(await screen.findByRole('region', { name: 'Диалоги' })).toBeTruthy(); // the checklist route is not theirs: back to the dialogs
+  expect(navLink(/Чек-лист/)).toBeNull();
+  expect(window.location.hash).toBe('#/');
+
+  await switchRole(/Оператор/, 'Тимур');
+  expect(await screen.findByText(/За вами пока не закреплено ни одного диалога/)).toBeTruthy();
+  expect(screen.getByRole('heading', { level: 1, name: 'Мои диалоги' })).toBeTruthy();
+
+  await switchRole(/Оператор/, 'Алина');
+  expect(await screen.findByRole('link', { name: 'demo-ru-001' })).toBeTruthy();
+  expect(screen.queryByRole('group', { name: 'Проверка' })).toBeNull(); // review state is the reviewers' business
+});
+
+it('a reviewer takes a dialog and marks it reviewed; the list shows who, and the filter finds it', async () => {
+  asRole('reviewer', 'Мария');
+  renderApp(bundle(withSecond));
+  await transcriptReady();
+  fireEvent.click(screen.getByRole('button', { name: 'Взять в работу' }));
+  expect(await screen.findByText(/В работе · Мария/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Проверено' }));
+  // a finished check moves on to the next dialog nobody has looked at
+  await vi.waitFor(() => expect(window.location.hash).toBe('#/dialog/demo-ru-002'));
+
+  fireEvent.click(screen.getByRole('button', { name: 'К списку диалогов' }));
+  const list = within(await screen.findByRole('region', { name: 'Диалоги' }));
+  const checked = list.getByRole('link', { name: 'demo-ru-001' }).closest('tr')!;
+  expect(within(checked).getByText('Проверен')).toBeTruthy();
+  fireEvent.click(list.getByRole('button', { name: /^Новые/ }));
+  expect(list.queryByRole('link', { name: 'demo-ru-001' })).toBeNull();
+  expect(list.getByRole('link', { name: 'demo-ru-002' })).toBeTruthy();
+});
+
+it('the lead assigns an operator to a dialog and, in bulk, from the list', async () => {
+  renderApp(bundle(withSecond));
+  await transcriptReady();
+  fireEvent.change(screen.getByLabelText('Оператор'), { target: { value: 'Алина' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Назначить' }));
+  expect(await screen.findByText(/оператор Алина/)).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: 'К списку диалогов' }));
+  const list = within(await screen.findByRole('region', { name: 'Диалоги' }));
+  fireEvent.click(list.getByLabelText('Выбрать все'));
+  fireEvent.change(within(list.getByRole('group', { name: 'Назначить выбранные' })).getByLabelText('Оператор'), { target: { value: 'Тимур' } });
+  fireEvent.click(list.getByRole('button', { name: 'Назначить оператору' }));
+  await vi.waitFor(() => expect(list.getAllByText('Тимур').length).toBeGreaterThan(1));
 });

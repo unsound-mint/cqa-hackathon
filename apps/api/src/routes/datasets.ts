@@ -3,12 +3,14 @@ import { z } from 'zod';
 import type { Db } from '../db/index.js';
 import { ImportError, importDataset, type ImportDeps } from '../services/import/importer.js';
 import { prefetchAudio, type AudioStore } from '../services/audio.js';
+import { denied } from './actor.js';
 import { conversations } from '../db/schema.js';
 
 const BodySchema = z.object({ groupId: z.string() });
 
 export function datasetRoutes(app: FastifyInstance, db: Db, deps: ImportDeps, audio?: AudioStore) {
   app.post('/api/datasets/import', async (req, reply) => {
+    if (denied(req, reply, 'import')) return;
     const body = BodySchema.safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: 'body must be { groupId: string }' });
     try {

@@ -50,7 +50,7 @@ export function buildApp(opts: AppOptions = {}) {
       const origin = req.headers.origin;
       if (!origin || !corsOrigins.includes(origin)) return;
       reply.header('access-control-allow-origin', origin).header('vary', 'Origin');
-      if (req.method === 'OPTIONS') return reply.header('access-control-allow-methods', 'GET,POST,OPTIONS').header('access-control-allow-headers', 'content-type').code(204).send();
+      if (req.method === 'OPTIONS') return reply.header('access-control-allow-methods', 'GET,POST,OPTIONS').header('access-control-allow-headers', 'content-type,x-cqa-role,x-cqa-actor').code(204).send();
     });
   }
 

@@ -1,25 +1,22 @@
-import { AppealSchema, ScoringError, scoreEvaluation, type Appeal, type CreateAppealInput, type CriterionValue, type DecideAppealInput, type OverrideCriterionInput } from '@cqa/contracts';
+import { AppealSchema, ScoringError, canSee, scoreEvaluation, type Actor, type Appeal, type CreateAppealInput, type CriterionValue, type DecideAppealInput, type OverrideCriterionInput } from '@cqa/contracts';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/index.js';
-import { appeals, evaluations } from '../db/schema.js';
+import { appeals, conversations, evaluations, operatorAssignments } from '../db/schema.js';
 import { getChecklist } from './checklists.js';
+import { ApiError } from './errors.js';
 import { toEvaluation } from './evaluations.js';
+import { noteReviewActivity } from './review.js';
 
 /** Service error carrying the HTTP status the route should answer with. */
-export class AppealError extends Error {
-  constructor(
-    message: string,
-    public readonly status: 400 | 404 | 409,
-  ) {
-    super(message);
-  }
-}
+export class AppealError extends ApiError {}
 
 function toAppeal(row: typeof appeals.$inferSelect): Appeal {
   return AppealSchema.parse({
     ...row,
     kind: row.kind ?? 'appeal',
+    createdBy: row.createdBy ?? undefined,
+    decidedBy: row.decidedBy ?? undefined,
     decidedAt: row.decidedAt ?? undefined,
     reviewerReason: row.reviewerReason ?? undefined,
     reviewerValue: row.reviewerValue === null ? undefined : row.reviewerValue,
@@ -32,20 +29,32 @@ export function listAppeals(db: Db, evaluationId: string): Appeal[] {
   return db.select().from(appeals).where(eq(appeals.evaluationId, evaluationId)).orderBy(asc(appeals.createdAt), asc(sql`rowid`)).all().map(toAppeal);
 }
 
-/** Appeals across all dialogs, oldest first (the approver's queue), optionally only one status. */
-export function listAllAppeals(db: Db, status?: Appeal['status']): Appeal[] {
-  const rows = db.select().from(appeals).where(status ? eq(appeals.status, status) : undefined).orderBy(asc(appeals.createdAt), asc(sql`rowid`)).all();
-  return rows.map(toAppeal);
+/** Whether the actor may see the dialog this evaluation belongs to (operators: only their own). */
+export function evaluationVisible(db: Db, evaluationId: string, actor: Actor | undefined): boolean {
+  if (!actor || actor.role !== 'operator') return true;
+  const conversationId = db.select({ id: evaluations.conversationId }).from(evaluations).where(eq(evaluations.id, evaluationId)).get()?.id;
+  const operator = conversationId ? db.select().from(operatorAssignments).where(eq(operatorAssignments.conversationId, conversationId)).get()?.operator : undefined;
+  return canSee(actor, { operatorId: operator });
 }
 
-export function createAppeal(db: Db, input: CreateAppealInput): Appeal {
+/** Appeals across all dialogs, oldest first (the approver's queue), optionally only one status. An operator gets their own dialogs' appeals only. */
+export function listAllAppeals(db: Db, status?: Appeal['status'], actor?: Actor): Appeal[] {
+  const rows = db.select().from(appeals).where(status ? eq(appeals.status, status) : undefined).orderBy(asc(appeals.createdAt), asc(sql`rowid`)).all();
+  if (!actor || actor.role !== 'operator') return rows.map(toAppeal);
+  const mine = new Set(db.select({ id: conversations.id }).from(conversations).all().map((c) => c.id).filter((id) => db.select().from(operatorAssignments).where(eq(operatorAssignments.conversationId, id)).get()?.operator === actor.name));
+  const evs = new Set(db.select({ id: evaluations.id, c: evaluations.conversationId }).from(evaluations).all().filter((e) => mine.has(e.c)).map((e) => e.id));
+  return rows.filter((r) => evs.has(r.evaluationId)).map(toAppeal);
+}
+
+export function createAppeal(db: Db, input: CreateAppealInput, actor?: Actor): Appeal {
+  if (!evaluationVisible(db, input.evaluationId, actor)) throw new AppealError('evaluation not found', 404);
   return db.transaction((tx) => {
     const ev = tx.select().from(evaluations).where(eq(evaluations.id, input.evaluationId)).get();
     if (!ev) throw new AppealError('evaluation not found', 404);
     if (ev.status !== 'completed') throw new AppealError('only a completed evaluation can be appealed', 409);
     if (!toEvaluation(ev).originalResults.some((r) => r.criterionId === input.criterionId)) throw new AppealError('criterion is not part of this evaluation', 400);
     if (pendingFor(tx, input.evaluationId, input.criterionId)) throw new AppealError('a pending appeal already exists for this criterion', 409);
-    const row = { id: `appeal-${randomUUID()}`, ...input, kind: 'appeal', status: 'pending', createdAt: new Date().toISOString(), decidedAt: null, reviewerReason: null, reviewerValue: null, reviewerIsNA: null };
+    const row = { id: `appeal-${randomUUID()}`, ...input, kind: 'appeal', status: 'pending', createdAt: new Date().toISOString(), createdBy: actor?.name || null, decidedBy: null, decidedAt: null, reviewerReason: null, reviewerValue: null, reviewerIsNA: null };
     tx.insert(appeals).values(row).run();
     return toAppeal(row);
   });
@@ -89,7 +98,7 @@ const pendingFor = (tx: Tx, evaluationId: string, criterionId: string) =>
   tx.select().from(appeals).where(and(eq(appeals.evaluationId, evaluationId), eq(appeals.criterionId, criterionId), eq(appeals.status, 'pending'))).get();
 
 /** Uphold keeps the AI result; override applies the reviewer's value (see applyOverride). */
-export function decideAppeal(db: Db, input: DecideAppealInput): Appeal {
+export function decideAppeal(db: Db, input: DecideAppealInput, actor?: Actor): Appeal {
   return db.transaction((tx) => {
     const appeal = tx.select().from(appeals).where(eq(appeals.id, input.appealId)).get();
     if (!appeal) throw new AppealError('appeal not found', 404);
@@ -97,23 +106,26 @@ export function decideAppeal(db: Db, input: DecideAppealInput): Appeal {
     const decidedAt = new Date().toISOString();
 
     if (input.action === 'uphold') {
-      tx.update(appeals).set({ status: 'upheld', decidedAt, reviewerReason: input.reason }).where(eq(appeals.id, appeal.id)).run();
+      tx.update(appeals).set({ status: 'upheld', decidedAt, decidedBy: actor?.name || null, reviewerReason: input.reason }).where(eq(appeals.id, appeal.id)).run();
+      noteReviewActivity(tx, appeal.evaluationId, actor);
     } else {
       const { value, isNA } = applyOverride(db, tx, appeal.evaluationId, appeal.criterionId, input);
-      tx.update(appeals).set({ status: 'overridden', decidedAt, reviewerReason: input.reason, reviewerValue: value, reviewerIsNA: isNA }).where(eq(appeals.id, appeal.id)).run();
+      tx.update(appeals).set({ status: 'overridden', decidedAt, decidedBy: actor?.name || null, reviewerReason: input.reason, reviewerValue: value, reviewerIsNA: isNA }).where(eq(appeals.id, appeal.id)).run();
+      noteReviewActivity(tx, appeal.evaluationId, actor);
     }
     return toAppeal(tx.select().from(appeals).where(eq(appeals.id, appeal.id)).get()!);
   });
 }
 
 /** A reviewer changes a criterion directly; recorded as an already-decided 'correction' for the audit history. */
-export function overrideCriterion(db: Db, input: OverrideCriterionInput): Appeal {
+export function overrideCriterion(db: Db, input: OverrideCriterionInput, actor?: Actor): Appeal {
   return db.transaction((tx) => {
     if (pendingFor(tx, input.evaluationId, input.criterionId)) throw new AppealError('this criterion has a pending appeal: decide the appeal instead', 409);
     const { value, isNA } = applyOverride(db, tx, input.evaluationId, input.criterionId, input);
     const now = new Date().toISOString();
-    const row = { id: `appeal-${randomUUID()}`, evaluationId: input.evaluationId, criterionId: input.criterionId, kind: 'correction', comment: '', status: 'overridden', createdAt: now, decidedAt: now, reviewerReason: input.reason, reviewerValue: value, reviewerIsNA: isNA };
+    const row = { id: `appeal-${randomUUID()}`, evaluationId: input.evaluationId, criterionId: input.criterionId, kind: 'correction', comment: '', status: 'overridden', createdAt: now, createdBy: actor?.name || null, decidedBy: actor?.name || null, decidedAt: now, reviewerReason: input.reason, reviewerValue: value, reviewerIsNA: isNA };
     tx.insert(appeals).values(row).run();
+    noteReviewActivity(tx, input.evaluationId, actor);
     return toAppeal(row);
   });
 }

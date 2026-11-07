@@ -1,4 +1,4 @@
-import type { Appeal, ChecklistVersion, Conversation, Evaluation, Language } from '@cqa/contracts';
+import type { Actor, Appeal, ChecklistVersion, Conversation, Evaluation, Language } from '@cqa/contracts';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Select } from '@/components/ui/field';
 import { Segment } from '@/components/ui/segment';
@@ -6,7 +6,7 @@ import { formatScore } from '@/lib/present';
 import { computeStats, type CriterionStat } from '@/lib/stats';
 import { cn } from '@/lib/utils';
 
-type Props = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: ChecklistVersion[]; appeals: Appeal[] };
+type Props = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: ChecklistVersion[]; appeals: Appeal[]; identity: Actor };
 
 const pct = (part: number, whole: number) => (whole > 0 ? `${Math.round((part / whole) * 100)} %` : '—');
 
@@ -39,7 +39,8 @@ function Distribution({ s }: { s: CriterionStat }) {
 }
 
 /** Overview of everything evaluated so far. Counts are about the current evaluation of each dialog. */
-export function StatsPage({ conversations, evaluations, checklists, appeals }: Props) {
+export function StatsPage({ conversations, evaluations, checklists, appeals, identity }: Props) {
+  const staff = identity.role !== 'operator';
   const [language, setLanguage] = useState<Language | 'all'>('all');
   const [checklistId, setChecklistId] = useState<string | null>(null);
   const stats = useMemo(() => computeStats({ conversations, evaluations, checklists, appeals, language, checklistId }), [conversations, evaluations, checklists, appeals, language, checklistId]);
@@ -52,7 +53,7 @@ export function StatsPage({ conversations, evaluations, checklists, appeals }: P
     <section aria-label="Статистика" className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col gap-6 overflow-auto p-4 sm:p-6">
       <div>
         <h1 className="text-2xl font-semibold leading-8">Статистика</h1>
-        <p className="max-w-prose text-sm text-muted">Текущая оценка каждого диалога. Цифры пересчитываются при смене чек-листа и после решений по апелляциям.</p>
+        <p className="max-w-prose text-sm text-muted">{staff ? 'Текущая оценка каждого диалога.' : 'Текущая оценка ваших диалогов.'} Цифры пересчитываются при смене чек-листа и после решений по апелляциям.</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
@@ -124,10 +125,46 @@ export function StatsPage({ conversations, evaluations, checklists, appeals }: P
             )}
           </div>
 
+          {staff && stats.byOperator.some((o) => o.operator !== null) && (
+            <div className="rounded-card border border-line bg-surface shadow-card">
+              <h2 className="p-4 pb-2 text-base font-semibold leading-6">По операторам</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
+                  <caption className="sr-only">Результаты по операторам</caption>
+                  <thead className="text-xs text-muted shadow-[0_1px_0_var(--c-line)]">
+                    <tr className="h-10 text-left">
+                      <th scope="col" className="px-4 font-medium">Оператор</th>
+                      <th scope="col" className="px-4 text-right font-medium">Оценено</th>
+                      <th scope="col" className="px-4 text-right font-medium">Средний итог</th>
+                      <th scope="col" className="px-4 text-right font-medium">Нарушений</th>
+                      <th scope="col" className="hidden px-4 text-right font-medium sm:table-cell">Проверено</th>
+                      <th scope="col" className="hidden px-4 text-right font-medium md:table-cell">Апелляций</th>
+                      <th scope="col" className="hidden px-4 text-right font-medium md:table-cell">Ответов ИИ изменено</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {stats.byOperator.map((o) => (
+                      <tr key={o.operator ?? 'none'} className="h-10">
+                        <th scope="row" className="px-4 text-left font-medium">{o.operator ?? <span className="font-normal text-muted">Без оператора</span>}</th>
+                        <td className="px-4 text-right tabular-nums">{o.evaluated} из {o.dialogs}</td>
+                        <td className="px-4 text-right tabular-nums">{formatScore(o.averageTotal === null ? null : Math.round(o.averageTotal * 100) / 100)}</td>
+                        <td className="px-4 text-right tabular-nums">{o.seriousViolations}</td>
+                        <td className="hidden px-4 text-right tabular-nums sm:table-cell">{o.reviewed} из {o.dialogs}</td>
+                        <td className="hidden px-4 text-right tabular-nums md:table-cell">{o.appealsTotal}{o.appealsPending ? ` (ждут: ${o.appealsPending})` : ''}</td>
+                        <td className="hidden px-4 text-right tabular-nums md:table-cell">{o.results ? pct(o.changed, o.results) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-card border border-line bg-surface p-4 shadow-card">
               <h2 className="text-base font-semibold leading-6">Апелляции и проверка</h2>
               <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-sm">
+                {staff && <><dt className="font-medium">Проверено диалогов</dt><dd className="text-right font-medium tabular-nums">{stats.review.reviewed} из {stats.dialogs}{stats.review.in_review > 0 ? ` · в работе ${stats.review.in_review}` : ''}</dd></>}
                 <dt className="text-muted">На рассмотрении</dt><dd className="text-right tabular-nums">{stats.appeals.pending}</dd>
                 <dt className="text-muted">Оценка ИИ оставлена</dt><dd className="text-right tabular-nums">{stats.appeals.upheld}</dd>
                 <dt className="text-muted">Оценка изменена по апелляции</dt><dd className="text-right tabular-nums">{stats.appeals.overridden}</dd>
