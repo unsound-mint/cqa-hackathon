@@ -5,6 +5,12 @@ import type { LlmProvider } from './provider.js';
 
 export class EvaluationFailure extends Error {}
 
+/**
+ * System-event phrasings that confirm identity verification (RU/KZ/EN, from the organizer's data).
+ * Extend here when a new phrasing appears; the model is told these events are the only proof.
+ */
+export const IDENTITY_VERIFIED_PATTERNS = [/личност\p{L}*\s+клиента\s+подтвержд/iu, /жеке\s+басы\s+расталды/iu, /identity\s+(?:was\s+|has\s+been\s+)?verified/iu];
+
 /** Deterministic facts derived from the transcript; given to the model as context, never re-derived by it. */
 export function deriveContext(c: Conversation) {
   const t = c.transcript;
@@ -12,6 +18,7 @@ export function deriveContext(c: Conversation) {
     messageCount: t.length,
     firstOperatorIndex: t.find((m) => m.speaker === 'operator')?.index ?? null,
     operatorMessageIndices: t.filter((m) => m.speaker === 'operator').map((m) => m.index),
+    identityVerificationEvents: t.filter((m) => m.speaker === 'system' && IDENTITY_VERIFIED_PATTERNS.some((re) => re.test(m.text))).map((m) => m.index),
     systemMessages: t.filter((m) => m.speaker === 'system').map((m) => ({ index: m.index, text: m.text })),
   };
 }
