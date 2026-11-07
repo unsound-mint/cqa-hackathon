@@ -21,7 +21,7 @@ Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid
 | Meta | `text-xs` 12/16, muted | timestamps, weights, hints |
 
 ## Hierarchy
-1. What a reviewer came for: is the dialog OK, so the banner is the large score and the violation status on one line, plus state chips only when there are any. Where points went is the list (colored rows with reasons), not repeated in the banner; how the total is made (earned of applicable, N/A) is the score's tooltip; the checklist version is in the panel footer. The banner's color is the verdict: brand dark green without a serious violation, deep red with one (the reason sits in the banner, no nested box).
+1. What a reviewer came for: is the dialog OK, so the banner is the large score and the violation status on one line, plus state chips only when there are any. Where points went is the list (colored rows with reasons), not repeated in the banner; how the total is made (earned of applicable, N/A) is the score's tooltip; the checklist version always sits in one slim bar under the banner (text, or a picker when the dialog was evaluated under several versions, with "Пересчитать по версии N" on the right when a newer one exists). The banner's color is the verdict: brand dark green without a serious violation, deep red with one (the reason sits in the banner, no nested box).
 2. Then the open criterion and its evidence (selected row, tags and ring on the cited messages).
 3. Then the graded party: operator messages carry the weight (tinted row, green name); client is plain; bot and system recede.
 4. Metadata (weights, time, source, confidence) is small and muted. Chips are for state only (answer, needs review, changed, appeal), never for static facts (language, channel are plain text).
@@ -36,7 +36,7 @@ Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid
 - Show each fact once, where it is used. The violation reason is in the verdict banner (the rail and the list carry only a short flag); the queue is the rail beside the dialog, so arrows and a dropdown appear only when the rail does not fit (below 1536 px); the position in the queue is the highlighted row.
 - The score banner states the score and what it is made of ("earned X of Y possible points", which criteria were not counted). Per-criterion detail lives in the rows.
 - Fictional data is announced once: the sidebar "Демо" label in mock mode; the verdict panel labels a mock evaluation only when the app is not in mock mode.
-- No overview that repeats the list below it. Quiet by default: tags on messages are tints, solid only for the open criterion; the "Требуют внимания" filter and export sit in the panel footer.
+- No overview that repeats the list below it. Quiet by default: tags on messages are tints, solid only for the open criterion; the "Требуют внимания" filter and export sit in the panel footer, on one line that never wraps.
 - One transcript view: a chat (client left, operator right, system centered). No view toggle and no conversation map: evidence is reached through the numbered tags on messages and the chips in the verdict rows.
 
 ## Reading on every screen
