@@ -6,7 +6,8 @@ import { openDb, type Db } from './db/index.js';
 import { checklistRoutes } from './routes/checklists.js';
 import { evaluationRoutes } from './routes/evaluations.js';
 import { conversationRoutes } from './routes/conversations.js';
-import type { FetchLike } from './services/audio.js';
+import type { AudioStore, FetchLike } from './services/audio.js';
+import { dirname, join } from 'node:path';
 import { datasetRoutes } from './routes/datasets.js';
 import { AnthropicProvider, EFFORTS, type Effort } from './services/evaluation/anthropic.js';
 import { JobRunner } from './services/evaluation/jobs.js';
@@ -14,7 +15,7 @@ import type { LlmProvider } from './services/evaluation/provider.js';
 import { seedOriginalChecklist } from './services/checklists.js';
 import type { ImportDeps } from './services/import/importer.js';
 
-export type AppOptions = { db?: Db; importDeps?: ImportDeps; provider?: LlmProvider | null; /** Built web app to serve at `/`. Defaults to apps/web/dist when it exists. */ webDist?: string | null; /** Fetch used to resolve call recordings (tests). */ audioFetch?: FetchLike };
+export type AppOptions = { db?: Db; importDeps?: ImportDeps; provider?: LlmProvider | null; /** Built web app to serve at `/`. Defaults to apps/web/dist when it exists. */ webDist?: string | null; /** Fetch used to resolve call recordings (tests). */ audioFetch?: FetchLike; /** Where stored recordings go; default data/private/audio next to the database (AUDIO_DIR overrides). */ audioDir?: string };
 
 // Resolves to apps/web/dist from both src/ (dev) and dist/ (built): each is two levels below apps/web's sibling.
 const DEFAULT_WEB_DIST = fileURLToPath(new URL('../../web/dist', import.meta.url));
@@ -31,7 +32,9 @@ function providerFromEnv(): LlmProvider | null {
 /** App factory (no listen) so tests can use `app.inject`. Defaults read the environment. */
 export function buildApp(opts: AppOptions = {}) {
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test' });
-  const db = opts.db ?? openDb(process.env.DATABASE_PATH ?? '../../data/cqa.sqlite');
+  const dbPath = process.env.DATABASE_PATH ?? '../../data/cqa.sqlite';
+  const db = opts.db ?? openDb(dbPath);
+  const audio: AudioStore = { dir: opts.audioDir ?? process.env.AUDIO_DIR ?? join(dirname(dbPath), 'private', 'audio'), fetchFn: opts.audioFetch };
   const importDeps = opts.importDeps ?? { baseUrl: process.env.DATASET_IMPORT_URL };
 
   seedOriginalChecklist(db);
@@ -40,7 +43,7 @@ export function buildApp(opts: AppOptions = {}) {
   app.addHook('onClose', async () => runner.idle());
 
   app.get('/health', async () => ({ status: 'ok', service: 'cqa-api' }));
-  conversationRoutes(app, db, opts.audioFetch);
+  conversationRoutes(app, db, audio);
   checklistRoutes(app, db);
   evaluationRoutes(app, db, runner);
   runner.resume();
@@ -54,6 +57,7 @@ export function buildApp(opts: AppOptions = {}) {
       return reply.code(404).send({ error: 'not found' });
     });
   }
-  datasetRoutes(app, db, importDeps);
+  // Tests never reach the network or write recordings unless they pass their own audioDir.
+  datasetRoutes(app, db, importDeps, opts.audioDir !== undefined || process.env.NODE_ENV !== 'test' ? audio : undefined);
   return Object.assign(app, { runner });
 }
