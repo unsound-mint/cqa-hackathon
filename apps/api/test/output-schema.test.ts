@@ -3,7 +3,6 @@ import type { Criterion } from '@cqa/contracts';
 import { buildOutputSchema } from '../src/services/evaluation/output-schema.js';
 import { ASSISTED_DETECTORS } from '../src/services/evaluation/detectors/index.js';
 import { ORIGINAL_CHECKLIST } from '../src/services/checklists.js';
-import { deriveFacts } from '../src/services/evaluation/facts.js';
 import { evaluateConversation, validateAssisted } from '../src/services/evaluation/evaluator.js';
 import type { Conversation } from '@cqa/contracts';
 
@@ -32,6 +31,10 @@ describe('request-specific tool schema',()=>{
       expect(a.properties.firstProtectedDisclosure.additionalProperties).toBe(false);
     }
     expect(schema.properties.results.items.properties.criterionId.enum).toEqual(['custom-rule']);
+  });
+  it('requires decisionBasis when a configured enum needs it',()=>{
+    const c:Criterion={...criterion,kind:'enum',allowedValues:['present','absent'],weight:0};
+    expect(buildOutputSchema([c],[]).properties.results.items.required).toContain('decisionBasis');
   });
   it('has an explicit empty assisted object for model-only requests and no phantom result ids',()=>{
     const schema=buildOutputSchema([criterion],[]);

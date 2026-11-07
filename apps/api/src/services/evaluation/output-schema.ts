@@ -50,7 +50,7 @@ export function buildOutputSchema(criteria: readonly Criterion[], assisted: read
               description: 'Inclusive original message indices inspected for this decision, including absence claims.',
             },
           },
-          required: ['criterionId', 'value', 'isNA', 'naReason', 'explanation', 'confidence', 'evidence', 'checkedRange'],
+          required: ['criterionId', 'value', 'isNA', 'naReason', 'explanation', 'confidence', 'evidence', 'checkedRange', ...(criteria.some(c => c.kind === 'enum') ? ['decisionBasis'] : [])],
           additionalProperties: false,
         },
       },
