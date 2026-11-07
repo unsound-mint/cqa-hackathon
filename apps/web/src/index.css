@@ -8,14 +8,7 @@
  * Every theme-dependent color is a variable below; components use the semantic names only.
  */
 :root {
-  --c-bg: #e8f0ed;
-  --glass-fill: rgb(255 255 255 / 0.68);
-  --glass-edge: rgb(255 255 255 / 0.8);
-  --glass-highlight: rgb(255 255 255 / 0.54);
-  --glass-glow: rgb(255 255 255 / 0.2);
-  --ambient-green: rgb(74 181 132 / 0.24);
-  --ambient-teal: rgb(65 146 155 / 0.18);
-  --glass-shadow: 0 16px 40px -16px rgb(20 63 53 / 0.22);
+  --c-bg: #eff1f3;
   --c-surface: #ffffff;
   --c-fill: #eceef0;
   --c-ink: #191919;
@@ -33,21 +26,17 @@
   --shadow-card: 0 1px 2px rgb(25 25 25 / 0.05), 0 16px 40px -18px rgb(25 25 25 / 0.18);
 }
 .dark {
-  /* A deep teal canvas under translucent panels; muted text stays light on every surface. */
-  --c-bg: #102b2e;
-  --glass-fill: rgb(26 57 61 / 0.72);
-  --glass-edge: rgb(182 234 218 / 0.2);
-  --glass-highlight: rgb(223 255 247 / 0.14);
-  --glass-glow: rgb(206 255 242 / 0.06);
-  --ambient-green: rgb(32 183 119 / 0.32);
-  --ambient-teal: rgb(54 153 171 / 0.24);
-  --glass-shadow: 0 16px 40px -16px rgb(0 12 16 / 0.56);
-  --c-surface: #19383b;
-  --c-fill: #26474a;
+  /*
+   * Three levels of depth: a darker canvas (#111314), raised cards (#202325, with a faint top highlight in the shadow)
+   * and fills/bubbles above them. Text ratios on the card color are unchanged; on the canvas they only grow.
+   */
+  --c-bg: #111314;
+  --c-surface: #202325;
+  --c-fill: #2a2e31;
   --c-ink: #f2f3f4;
-  --c-muted: #b7c9c9;
-  --c-line: #3b585a;
-  --c-line-strong: #608083;
+  --c-muted: #a3aaae;
+  --c-line: #2e3235;
+  --c-line-strong: #454b4f;
   --c-soft: #16382a;
   --c-accent: #5fd28d;
   --c-danger: #f2a99c;
@@ -150,10 +139,6 @@
   }
   body {
     @apply bg-canvas font-sans text-ink antialiased;
-    background-image:
-      radial-gradient(ellipse at 82% 4%, var(--ambient-green), transparent 52%),
-      radial-gradient(ellipse at 8% 88%, var(--ambient-teal), transparent 56%);
-    background-attachment: fixed;
   }
   /* Native dropdown arrows sit a few px from the edge; draw our own 12 px in from it. Controls reserve room via pr-8/pr-10. */
   select {
@@ -233,51 +218,4 @@
 
 @page {
   margin: 16mm;
-}
-
-/* Glass is limited to structural panels; opaque popovers keep small text legible. */
-@utility glass-panel {
-  background-color: var(--glass-fill);
-  background-image: linear-gradient(145deg, var(--glass-glow), transparent 60%);
-  box-shadow:
-    inset 0 0 0 1px var(--glass-edge),
-    inset 0 1px 0 var(--glass-highlight),
-    var(--glass-shadow);
-  -webkit-backdrop-filter: blur(24px);
-  backdrop-filter: blur(24px);
-}
-
-@utility glass-inset {
-  background-image: linear-gradient(145deg, var(--glass-glow), transparent 80%);
-  box-shadow: inset 0 0 0 1px var(--glass-edge), inset 0 1px 0 var(--glass-highlight);
-}
-
-@supports not (backdrop-filter: blur(24px)) {
-  .glass-panel {
-    background-color: var(--c-surface);
-  }
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  .glass-panel {
-    background: var(--c-surface);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-  .glass-inset {
-    background: var(--c-surface);
-  }
-}
-
-@media print {
-  body {
-    background: white;
-  }
-  .glass-panel,
-  .glass-inset {
-    background: white;
-    box-shadow: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
 }

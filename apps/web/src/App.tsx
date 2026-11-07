@@ -253,8 +253,8 @@ export function App() {
   if (load.status === 'loading') return <LoadingShell />;
   if (load.status === 'error') {
     return (
-      <main className="grid h-full place-items-center bg-transparent p-4">
-        <div role="alert" className="w-full max-w-md rounded-card glass-panel p-6">
+      <main className="grid h-full place-items-center bg-canvas p-4">
+        <div role="alert" className="w-full max-w-md rounded-card bg-surface p-6 shadow-card">
           <h1 className="flex items-center gap-2 text-base font-semibold"><AlertTriangle aria-hidden className="size-5 text-danger" />Не удалось загрузить данные</h1>
           <p className="mt-2 text-sm">{humanError(load.error).text}</p>
           <p className="mt-2 text-sm text-muted">Ничего не потеряно: оценки хранятся на сервере.</p>
@@ -390,7 +390,7 @@ export function App() {
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {route.name === 'checklist' ? (
-          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-transparent outline-none">
+          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
             <ChecklistEditor checklists={data.checklists} conversationCount={data.conversations.length} onSave={saveChecklist} onEvaluate={evaluateWith} currentConversationId={lastDialogId} />
           </main>
         ) : route.name === 'stats' ? (
@@ -398,11 +398,11 @@ export function App() {
             <StatsPage conversations={data.conversations} evaluations={data.evaluations} checklists={data.checklists} appeals={data.appeals} />
           </main>
         ) : route.name === 'appeals' ? (
-          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-transparent outline-none">
+          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
             <AppealsPage appeals={data.appeals} evaluations={data.evaluations} checklists={data.checklists} conversations={data.conversations} onOpen={(id, criterion) => go({ name: 'dialog', id, criterion })} />
           </main>
         ) : route.name === 'list' ? (
-          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-transparent outline-none">
+          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
             <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} focusSignal={searchFocus} />
           </main>
         ) : !conversation ? (
@@ -431,19 +431,19 @@ export function App() {
               id="content"
               tabIndex={-1}
               style={{ '--rail': widths.rail ? `${widths.rail}px` : '17.5rem', '--panel': widths.panel ? `${widths.panel}px` : 'clamp(30rem, 30vw, 40rem)' } as React.CSSProperties}
-              className={cn('grid min-h-0 flex-1 bg-transparent p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[var(--rail)_1rem_minmax(28rem,1fr)_1rem_var(--panel)]' : 'xl:grid-cols-[minmax(28rem,1fr)_1rem_var(--panel)]')}
+              className={cn('grid min-h-0 flex-1 bg-canvas p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[var(--rail)_1rem_minmax(28rem,1fr)_1rem_var(--panel)]' : 'xl:grid-cols-[minmax(28rem,1fr)_1rem_var(--panel)]')}
             >
               {wide && (
-                <div ref={railRef} className="min-h-0 overflow-hidden rounded-card glass-panel">
+                <div ref={railRef} className="min-h-0 overflow-hidden rounded-card bg-surface shadow-card">
                   <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filters={filters} counts={quickCounts} onFilters={(patch) => setFilters((f) => ({ ...f, ...patch }))} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} onSelect={(id) => go({ name: 'dialog', id })} onHide={() => hideRail(true)} />
                 </div>
               )}
               {wide && <Splitter label="Ширина очереди" className="hidden xl:flex" measure={() => railRef.current?.offsetWidth ?? 0} min={rem(14)} max={sideMax('rail')} onChange={(px) => setWidth('rail', px)} onReset={() => setWidth('rail', null)} />}
-              <div className={cn('min-h-0 flex-col glass-panel rounded-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>
+              <div className={cn('min-h-0 flex-col bg-surface xl:rounded-card xl:shadow-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>
                 <Transcript key={conversation.id} conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} tags={tags} activeId={criterionId} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} toolbar={twoPane ? toolbar : null} />
               </div>
               <Splitter label="Ширина панели оценки" className="hidden xl:flex" invert measure={() => panelRef.current?.offsetWidth ?? 0} min={rem(24)} max={sideMax('panel')} onChange={(px) => setWidth('panel', px)} onReset={() => setWidth('panel', null)} />
-              <div ref={panelRef} className={cn('min-h-0 flex-col overflow-hidden glass-panel rounded-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
+              <div ref={panelRef} className={cn('min-h-0 flex-col overflow-hidden bg-surface xl:rounded-card xl:shadow-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
                 <EvaluationPanel
                   key={conversation.id}
                   conversation={conversation}
