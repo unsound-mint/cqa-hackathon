@@ -10,6 +10,15 @@
 
 Each handoff names the human's decisions, the agent's bounded responsibilities, the initial issue list, an executable prompt to paste into that person's own coding/research agent, acceptance criteria, and how to hand off completed work.
 
+## Quick start
+
+```
+pnpm install
+pnpm dev          # web http://localhost:5173 (MockCqaApi, fictional data) + api http://127.0.0.1:8787/health
+pnpm typecheck && pnpm test && pnpm build
+```
+Needs Node >=22 (verified on 24; CI runs 24) and pnpm 10. No `.env` or API key is required; copy `.env.example` to `.env` for optional server-side settings.
+
 ## Canonical instructions
 
 - [`AGENTS.md`](AGENTS.md): rules for all three agents (Claude Code, Codex or equivalent).
