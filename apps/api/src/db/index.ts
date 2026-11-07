@@ -30,6 +30,34 @@ export function openDb(path: string) {
       criteria TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS evaluations (
+      id TEXT PRIMARY KEY NOT NULL,
+      conversation_id TEXT NOT NULL,
+      checklist_version_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      original_results TEXT NOT NULL,
+      original_total REAL,
+      final_results TEXT NOT NULL,
+      final_total REAL,
+      serious_violation INTEGER NOT NULL,
+      provenance TEXT,
+      error TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS evaluations_conversation_idx ON evaluations (conversation_id);
+    CREATE TABLE IF NOT EXISTS appeals (
+      id TEXT PRIMARY KEY NOT NULL,
+      evaluation_id TEXT NOT NULL,
+      criterion_id TEXT NOT NULL,
+      comment TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      decided_at TEXT,
+      reviewer_reason TEXT,
+      reviewer_value TEXT,
+      reviewer_is_na INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS appeals_evaluation_idx ON appeals (evaluation_id);
   `);
   return drizzle(sqlite, { schema });
 }

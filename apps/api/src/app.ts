@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import { openDb, type Db } from './db/index.js';
 import { checklistRoutes } from './routes/checklists.js';
+import { evaluationRoutes } from './routes/evaluations.js';
 import { conversationRoutes } from './routes/conversations.js';
 import { datasetRoutes } from './routes/datasets.js';
 import { seedOriginalChecklist } from './services/checklists.js';
@@ -19,6 +20,7 @@ export function buildApp(opts: AppOptions = {}) {
   app.get('/health', async () => ({ status: 'ok', service: 'cqa-api' }));
   conversationRoutes(app, db);
   checklistRoutes(app, db);
+  evaluationRoutes(app, db);
   datasetRoutes(app, db, importDeps);
   return app;
 }
