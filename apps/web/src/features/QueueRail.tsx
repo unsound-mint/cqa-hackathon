@@ -113,7 +113,7 @@ export function QueueRail({ conversations, latest, ids, selectedId, filters, cou
           <p className="text-xs text-muted" aria-live="polite">Найдено: {ids.length}</p>
         )}
       </div>
-      <ul className="min-h-0 flex-1 overflow-y-auto p-2">
+      <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3 [scrollbar-gutter:stable]">
         {ids.length === 0 && <li className="px-3 py-4 text-sm text-muted">Ничего не найдено.</li>}
         {ids.map((id) => {
           const c = byId.get(id);
