@@ -126,7 +126,7 @@ Original-rubric requests omit first-response SLA measurements and pre-operator g
 
 See `docs/RUBRIC.md` for reviewed criterion boundaries. Reference agreement measures model-to-model agreement until human adjudication; keep complete original model reasons/evidence in private validation artifacts for diagnosis and report rerun stability.
 
-### Semantic facts and deterministic tiers (eval-v12 / operator-v3)
+### Semantic facts and deterministic tiers (eval-v13 / operator-v3)
 
 Canonical original criteria 02, 04 and 06 now use internal helpers under `services/evaluation/semantic/`; 03 retains its verification helper. Signature matching excludes titles, ids and weights, so renaming/reweighting retains the helper while edited instructions, values or applicability use the generic evaluator.
 

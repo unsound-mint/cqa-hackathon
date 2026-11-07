@@ -14,7 +14,7 @@ export function semanticAnswers(req: Pick<ProviderRequest, 'user'>, withDialogue
     let answers: unknown;
     if (properties.missingDetails) answers = { ...common, usedKnownContext: true, missingDetails: [] };
     else if (properties.requests) answers = { ...common, requestFormulated: true, requests: [{ description: client.text, clientRequest: ref(client), materiality: 'main', handling: 'answered', operatorEvidence: [ref(op)] }], incorrectKeyRecommendation: [] };
-    else if (properties.forcedClarifications) answers = { ...common, operatorEvidence: [ref(op)], incoherencePreventingUnderstanding: [], forcedClarifications: [], otherCommunicationFlaws: withDialogueFlaw ? [{ operatorWording: ref(op), reason: 'Fixture clarity flaw.' }] : [], waits: [] };
+    else if (properties.forcedClarifications) answers = { ...common, operatorEvidence: [ref(op)], incoherencePreventingUnderstanding: [], forcedClarifications: [], otherCommunicationFlaws: withDialogueFlaw ? [{ operatorWording: ref(op), kind: 'ambiguous_wording', reason: 'Fixture clarity flaw.' }] : [], waits: [] };
     else return [];
     return [{ criterionId: q.criterionId, answers }];
   });

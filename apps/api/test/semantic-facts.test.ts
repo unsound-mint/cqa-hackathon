@@ -28,7 +28,7 @@ function decide<A>(helper: AssistedDetector<A>, id: string, raw: unknown, c = co
   expect(checked.answers).toBeDefined();
   return helper.decide(i, checked.answers!);
 }
-const needs = () => ({ ...common(), usedKnownContext: true, missingDetails: [{ detail: 'Platform', clientRequest: ref(0), operatorQuestion: [ref(1, 'Are you using the app or website?')], firstRelevantAnswer: [ref(1, 'Open the app menu.')] }] });
+const needs = () => ({ ...common(), usedKnownContext: true, missingDetails: [{ detail: 'Platform', clientRequest: ref(0), operatorQuestion: [ref(1, 'Are you using the app or website?')], firstSubstantiveOperatorAdvice: [ref(1, 'Open the app menu.')] }] });
 const request = (materiality: 'main' | 'material' | 'minor', handling: 'answered' | 'concrete_next_step' | 'generic_hint' | 'unanswered', quote: string) => ({ description: quote, clientRequest: ref(0, quote), materiality, handling, operatorEvidence: handling === 'unanswered' ? [] : [ref(3)] });
 const consultation = () => ({ ...common(), requestFormulated: true, requests: [request('main', 'answered', 'Where is the login?')], incorrectKeyRecommendation: [] });
 const dialogue = () => ({ ...common(), operatorEvidence: [ref(3)], incoherencePreventingUnderstanding: [], forcedClarifications: [], otherCommunicationFlaws: [], waits: [] });
@@ -56,12 +56,12 @@ describe('semantic rubric decisions', () => {
     expect(decide(consultationDetector, '04', { ...base, requestFormulated: false, requests: [] })).toMatchObject({ value: null, isNA: true });
   });
   it('06 keeps the forced re-ask tier after successful correction', () => {
-    const d = { ...dialogue(), forcedClarifications: [{ operatorWording: ref(1, 'Open the app menu.'), clientReask: ref(2), reason: 'Wrong navigation forced a re-ask.' }] };
+    const d = { ...dialogue(), forcedClarifications: [{ operatorWording: ref(1, 'Open the app menu.'), clientReask: ref(2), kind: 'wrong_navigation', reason: 'Wrong navigation forced a re-ask.' }] };
     expect(decide(dialogueDetector, '06', d).value).toBe(4);
-    expect(decide(dialogueDetector, '06', { ...d, otherCommunicationFlaws: [{ operatorWording: ref(1), reason: 'Disorder.' }] }).value).toBe(4);
+    expect(decide(dialogueDetector, '06', { ...d, otherCommunicationFlaws: [{ operatorWording: ref(1), kind: 'ambiguous_wording', reason: 'Disorder.' }] }).value).toBe(4);
     expect(decide(dialogueDetector, '06', { ...d, incoherencePreventingUnderstanding: [{ operatorEvidence: [ref(1)], clientReaction: [ref(2)], reason: 'Cannot understand.' }] }).value).toBe(0);
     expect(decide(dialogueDetector, '06', dialogue()).value).toBe(10);
-    expect(decide(dialogueDetector, '06', { ...dialogue(), otherCommunicationFlaws: [{ operatorWording: ref(1), reason: 'Notable flaw.' }] }).value).toBe(7);
+    expect(decide(dialogueDetector, '06', { ...dialogue(), otherCommunicationFlaws: [{ operatorWording: ref(1), kind: 'ambiguous_wording', reason: 'Notable flaw.' }] }).value).toBe(7);
   });
   it('06 an announced check is its own advance warning without an ETA', () => {
     expect(decide(dialogueDetector, '06', { ...dialogue(), waits: [{ kind: 'operator_check_announced', start: ref(3, 'I will check the route.'), advanceWarning: [ref(3, 'I will check the route.')] }] }).value).toBe(10);
@@ -75,7 +75,7 @@ describe('semantic rubric decisions', () => {
       { ...needs(), value: true },
     ];
     for (const a of invalid) expect(needsDetector.validate(input('02'), a).problems.length).toBeGreaterThan(0);
-    expect(dialogueDetector.validate(input('06'), { ...dialogue(), forcedClarifications: [{ operatorWording: ref(3), clientReask: ref(2), reason: 'Bad order.' }] }).problems.join()).toMatch(/follow/);
+    expect(dialogueDetector.validate(input('06'), { ...dialogue(), forcedClarifications: [{ operatorWording: ref(3), clientReask: ref(2), kind: 'wrong_navigation', reason: 'Bad order.' }] }).problems.join()).toMatch(/follow/);
     expect(consultationDetector.validate(input('04'), { ...consultation(), requests: [] }).problems.join()).toMatch(/requestFormulated/);
     expect(consultationDetector.validate(input('04'), { ...consultation(), requests: [{ ...request('main', 'answered', 'Where is the login?'), operatorEvidence: [] }] }).problems.join()).toMatch(/requires operator/);
   });
