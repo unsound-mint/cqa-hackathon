@@ -127,7 +127,8 @@ export type EvaluatorResult = {
   total: number | null;
   seriousViolation: boolean;
   provenance: Provenance;
-  usage: { inputTokens: number; outputTokens: number };
+  usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
+  latencyMs: number;
   /** Criteria the model decided or helped decide in this run (empty when rules and reuse covered everything). */
   modelCriteria: string[];
 };
@@ -138,7 +139,8 @@ export type EvaluatorResult = {
  */
 export async function evaluateConversation(provider: LlmProvider | undefined, conversation: Conversation, checklist: ChecklistVersion, reuse?: ReuseLookup, maxAttempts = 2): Promise<EvaluatorResult> {
   const { decided, assisted, undecided } = planCriteria(conversation, checklist, reuse);
-  const usage = { inputTokens: 0, outputTokens: 0 };
+  const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  let latencyMs = 0;
   const modelResults = new Map<string, CriterionResult>();
   let provenance: Provenance = { provider: 'local', model: 'rules+reuse', promptVersion: 'n/a' };
 
@@ -151,6 +153,9 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
       const res = await provider.complete({ system: SYSTEM_PROMPT, user: buildUserPayload(conversation, subset, [...decided.values()], assisted, problems), outputSchema: OUTPUT_SCHEMA as unknown as Record<string, unknown> });
       usage.inputTokens += res.usage?.inputTokens ?? 0;
       usage.outputTokens += res.usage?.outputTokens ?? 0;
+      usage.cacheReadTokens += res.usage?.cacheReadTokens ?? 0;
+      usage.cacheWriteTokens += res.usage?.cacheWriteTokens ?? 0;
+      latencyMs += res.latencyMs ?? 0;
       const v = validateModelOutput(res.output, conversation, { ...checklist, criteria: undecided });
       const a = validateAssisted(res.output, conversation, assisted);
       if (v.results && a.problems.length === 0) {
@@ -164,10 +169,10 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
       } else problems = [...v.problems, ...a.problems];
     }
     if (!ok) throw new EvaluationFailure(`model output failed validation: ${problems.slice(0, 5).join('; ')}`);
-    provenance = { provider: provider.name, model: provider.model, promptVersion: PROMPT_VERSION };
+    provenance = { provider: provider.name, model: provider.model, promptVersion: PROMPT_VERSION, ...(provider.effort ? { effort: provider.effort } : {}), usage, latencyMs };
   }
 
   const results = checklist.criteria.map((c) => decided.get(c.id) ?? modelResults.get(c.id)!);
   const { total, seriousViolation } = scoreEvaluation(checklist, results);
-  return { results, total, seriousViolation, provenance, usage, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
+  return { results, total, seriousViolation, provenance, usage, latencyMs, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
 }

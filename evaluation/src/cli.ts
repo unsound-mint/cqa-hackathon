@@ -13,7 +13,7 @@ import { formatReport } from './report.js';
 const USAGE = `Usage (run from the repo root: pnpm --filter @cqa/evaluation cli <command> ...)
   list    [--api URL]                                   conversations to choose from (no scores shown)
   sheet   --ids a,b,c [--checklist ID] [--out FILE] [--append]   blank label sheet, one row per criterion
-  compare [--labels FILE] [--checklist ID] [--final] [--high-weight N] [--text] [--out FILE] [--json] [--api URL]
+  compare [--labels FILE] [--checklist ID] [--final] [--high-weight N] [--price-in USD --price-out USD] [--text] [--out FILE] [--json] [--api URL]
 Defaults: --api http://127.0.0.1:8787, --labels/--out evaluation/private/*  (git-ignored)`;
 
 /** Default: evaluation/private/annotations.csv (git-ignored), wherever the command is run from. */
@@ -36,7 +36,7 @@ async function main() {
   const [command, ...rest] = process.argv.slice(2);
   const { values: v } = parseArgs({
     args: rest,
-    options: { api: { type: 'string' }, ids: { type: 'string' }, checklist: { type: 'string' }, out: { type: 'string' }, labels: { type: 'string' }, append: { type: 'boolean' }, final: { type: 'boolean' }, text: { type: 'boolean' }, json: { type: 'boolean' }, 'high-weight': { type: 'string' } },
+    options: { api: { type: 'string' }, ids: { type: 'string' }, checklist: { type: 'string' }, out: { type: 'string' }, labels: { type: 'string' }, append: { type: 'boolean' }, final: { type: 'boolean' }, text: { type: 'boolean' }, json: { type: 'boolean' }, 'high-weight': { type: 'string' }, 'price-in': { type: 'string' }, 'price-out': { type: 'string' } },
   });
   const api = v.api ?? 'http://127.0.0.1:8787';
 
@@ -82,7 +82,7 @@ async function main() {
     const parsed = parseLabels(readFileSync(labelsPath, 'utf8'), checklist);
     for (const p of parsed.problems) console.error(`label problem row ${p.row}${p.conversationId ? ` (${p.conversationId}/${p.criterionId})` : ''}: ${p.message}`);
     const conversations = await get(api, '/api/conversations', z.array(ConversationSchema));
-    const report = compare({ checklist, labels: parsed.labels, blanks: parsed.blanks, conversations, evaluations, useFinal: v.final, highWeight: v['high-weight'] ? Number(v['high-weight']) : undefined });
+    const report = compare({ checklist, labels: parsed.labels, blanks: parsed.blanks, conversations, evaluations, useFinal: v.final, highWeight: v['high-weight'] ? Number(v['high-weight']) : undefined, pricePerMTok: v['price-in'] && v['price-out'] ? { input: Number(v['price-in']), output: Number(v['price-out']) } : undefined });
     const text = v.json ? JSON.stringify(report, null, 2) : formatReport(report, { includeText: v.text });
     if (v.out) { write(here(v.out), text); console.log(`report written to ${here(v.out)}`); } else console.log(text);
     if (parsed.problems.length) process.exitCode = 2;

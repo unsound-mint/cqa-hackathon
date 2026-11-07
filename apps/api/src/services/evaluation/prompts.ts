@@ -1,5 +1,5 @@
 /** Versioned prompt. Bump PROMPT_VERSION on any wording change; it is stored with every evaluation. */
-export const PROMPT_VERSION = 'eval-v5';
+export const PROMPT_VERSION = 'eval-v6';
 
 export const SYSTEM_PROMPT = `You evaluate the quality of ONE customer-support conversation (a typed chat or a phone call transcript) against a checklist.
 
@@ -39,6 +39,7 @@ CONFIDENCE
 - Set "confidence" to "high", "medium" or "low" for every result. Use "low" when the transcript is too noisy, incomplete or ambiguous to be sure, and say why in the explanation. Still choose the best-supported allowed value; a human will review low-confidence results.
 
 OUTPUT
+- Deliver everything by calling the tool submit_evaluation exactly once, as your final action. Do not answer in prose.
 - Write each explanation in the conversation's language, briefly (1-3 sentences).
 - Return exactly one result per criterion, using the given criterion ids.`;
 
@@ -62,10 +63,11 @@ export const OUTPUT_SCHEMA = {
           confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
           evidence: {
             type: 'array',
-            items: { type: 'object', properties: { messageIndex: { type: 'integer' }, quote: { type: 'string' } }, required: ['messageIndex'] },
+            items: { type: 'object', properties: { messageIndex: { type: 'integer' }, quote: { type: 'string' } }, required: ['messageIndex'], additionalProperties: false },
           },
-          checkedRange: { type: 'object', properties: { from: { type: 'integer' }, to: { type: 'integer' } }, required: ['from', 'to'] },
+          checkedRange: { type: 'object', properties: { from: { type: 'integer' }, to: { type: 'integer' } }, required: ['from', 'to'], additionalProperties: false },
         },
+        additionalProperties: false,
         required: ['criterionId', 'value', 'isNA', 'explanation', 'confidence', 'evidence'],
       },
     },

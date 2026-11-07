@@ -96,7 +96,7 @@ export class JobRunner {
         let ev: Evaluation;
         try {
           const r = await evaluateConversation(provider, conversation, checklist, makeReuseLookup(this.db, id));
-          this.log.info({ conversationId: id, provider: r.provenance.provider, model: r.provenance.model, modelCriteria: r.modelCriteria.length, ...r.usage }, 'evaluation cost');
+          this.log.info({ conversationId: id, provider: r.provenance.provider, model: r.provenance.model, modelCriteria: r.modelCriteria.length, latencyMs: r.latencyMs, ...r.usage }, 'evaluation cost');
           ev = { ...base, status: 'completed', originalResults: r.results, originalTotal: r.total, finalResults: structuredClone(r.results), finalTotal: r.total, seriousViolation: r.seriousViolation, provenance: r.provenance };
         } catch (e) {
           const message = e instanceof Error ? e.message : 'evaluation failed';

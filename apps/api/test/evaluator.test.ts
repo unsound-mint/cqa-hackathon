@@ -7,7 +7,7 @@ import { conversations, jobs } from '../src/db/schema.js';
 import { ORIGINAL_CHECKLIST } from '../src/services/checklists.js';
 import { AnthropicProvider } from '../src/services/evaluation/anthropic.js';
 import { deriveContext, validateModelOutput } from '../src/services/evaluation/evaluator.js';
-import { SYSTEM_PROMPT } from '../src/services/evaluation/prompts.js';
+import { PROMPT_VERSION, SYSTEM_PROMPT } from '../src/services/evaluation/prompts.js';
 import { ProviderError, type LlmProvider, type ProviderRequest } from '../src/services/evaluation/provider.js';
 
 const demo = DemoBundleSchema.parse(JSON.parse(readFileSync(new URL('../../../fixtures/demo.json', import.meta.url), 'utf8')));
@@ -109,7 +109,7 @@ describe('POST /api/evaluations', () => {
     const { job } = await run(app, { conversationIds: [conv.id], checklistVersionId: 'checklist-original-v1' });
     expect(job).toMatchObject({ status: 'completed', completed: 1, total: 1 });
     const ev = (await app.inject({ url: `/api/evaluations/${job.evaluationIds[0]}` })).json();
-    expect(ev).toMatchObject({ status: 'completed', conversationId: conv.id, provenance: { provider: 'fake', model: 'fake-1', promptVersion: 'eval-v5' } });
+    expect(ev).toMatchObject({ status: 'completed', conversationId: conv.id, provenance: { provider: 'fake', model: 'fake-1', promptVersion: PROMPT_VERSION } });
     expect(ev.originalTotal).not.toBe(9999);
     expect(ev.finalResults).toEqual(ev.originalResults);
     expect(db.select().from(jobs).all()).toHaveLength(1);
@@ -205,15 +205,53 @@ describe('AnthropicProvider', () => {
   const ok = (input: unknown) => new Response(JSON.stringify({ content: [{ type: 'tool_use', input }], usage: { input_tokens: 7, output_tokens: 3 } }), { status: 200 });
   const req: ProviderRequest = { system: 's', user: 'u', outputSchema: { type: 'object' } };
 
-  it('forces a tool call, retries 429, and returns the tool input with usage', async () => {
+  it('retries 429 and returns the tool input with usage and latency', async () => {
     const f = vi.fn().mockResolvedValueOnce(new Response('', { status: 429 })).mockResolvedValueOnce(ok({ results: [] }));
     const p = new AnthropicProvider({ apiKey: 'k', model: 'm', retryDelayMs: 1, fetch: f });
-    expect(await p.complete(req)).toEqual({ output: { results: [] }, usage: { inputTokens: 7, outputTokens: 3 } });
+    const out = await p.complete(req);
+    expect(out).toMatchObject({ output: { results: [] }, usage: { inputTokens: 7, outputTokens: 3 } });
+    expect(out.latencyMs).toBeGreaterThanOrEqual(0);
     expect(f).toHaveBeenCalledTimes(2);
-    const body = JSON.parse(f.mock.calls[1]![1].body);
-    expect(body.tool_choice).toEqual({ type: 'tool', name: 'submit_evaluation' });
-    expect(body.model).toBe('m');
     expect(f.mock.calls[1]![1].headers['x-api-key']).toBe('k');
+  });
+
+  it('sends a request shape Haiku 5.5 accepts: no sampling params, auto tool choice, explicit effort, room for thinking', async () => {
+    const f = vi.fn().mockResolvedValue(ok({ results: [] }));
+    await new AnthropicProvider({ apiKey: 'k', model: 'm', effort: 'low', fetch: f }).complete(req);
+    const body = JSON.parse(f.mock.calls[0]![1].body);
+    for (const banned of ['temperature', 'top_p', 'top_k', 'thinking']) expect(body).not.toHaveProperty(banned);
+    expect(body.tool_choice).toEqual({ type: 'auto' });
+    expect(body.output_config).toEqual({ effort: 'low' });
+    expect(body.max_tokens).toBeGreaterThanOrEqual(16000);
+    expect(body.model).toBe('m');
+    expect(body.system[0]).toMatchObject({ type: 'text', text: 's', cache_control: { type: 'ephemeral' } });
+    expect(body.tools[0].name).toBe('submit_evaluation');
+  });
+
+  it('defaults to medium effort', async () => {
+    const f = vi.fn().mockResolvedValue(ok({ results: [] }));
+    await new AnthropicProvider({ apiKey: 'k', model: 'm', fetch: f }).complete(req);
+    expect(JSON.parse(f.mock.calls[0]![1].body).output_config).toEqual({ effort: 'medium' });
+  });
+
+  it('reads cache token counts', async () => {
+    const f = vi.fn().mockResolvedValue(new Response(JSON.stringify({ content: [{ type: 'tool_use', input: {} }], usage: { input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 90, cache_creation_input_tokens: 5 } }), { status: 200 }));
+    expect((await new AnthropicProvider({ apiKey: 'k', model: 'm', fetch: f }).complete(req)).usage).toEqual({ inputTokens: 1, outputTokens: 2, cacheReadTokens: 90, cacheWriteTokens: 5 });
+  });
+
+  it('fails clearly on max_tokens and refusal instead of passing on partial output', async () => {
+    const stop = (stop_reason: string, extra: object = {}) => vi.fn().mockResolvedValue(new Response(JSON.stringify({ content: [{ type: 'tool_use', input: { results: [] } }], stop_reason, ...extra }), { status: 200 }));
+    await expect(new AnthropicProvider({ apiKey: 'k', model: 'm', fetch: stop('max_tokens') }).complete(req)).rejects.toThrow(/max_tokens/);
+    await expect(new AnthropicProvider({ apiKey: 'k', model: 'm', fetch: stop('refusal', { stop_details: { category: 'general_harms' } }) }).complete(req)).rejects.toThrow(/refused \(general_harms\)/);
+  });
+
+  it('retries once when the model answers without calling the tool, then gives up', async () => {
+    const prose = () => new Response(JSON.stringify({ content: [{ type: 'text', text: 'hi' }], stop_reason: 'end_turn' }), { status: 200 });
+    const f = vi.fn().mockResolvedValueOnce(prose()).mockResolvedValueOnce(ok({ results: [] }));
+    expect((await new AnthropicProvider({ apiKey: 'k', model: 'm', retryDelayMs: 1, fetch: f }).complete(req)).output).toEqual({ results: [] });
+    const g = vi.fn().mockImplementation(async () => prose());
+    await expect(new AnthropicProvider({ apiKey: 'k', model: 'm', retryDelayMs: 1, fetch: g }).complete(req)).rejects.toThrow(/no tool call/);
+    expect(g).toHaveBeenCalledTimes(2);
   });
 
   it('does not retry client errors and does not leak the key in the error', async () => {

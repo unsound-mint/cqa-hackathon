@@ -69,7 +69,7 @@ Implemented in `packages/contracts` (Zod). v0 in `docs/INTERFACES.md` is unchang
 | `CriterionResult.confidence` (`high`/`medium`/`low`, optional) | | model certainty; `low` (noisy speech recognition, recording gap) should be routed to human review in the UI |
 | `Criterion.detector?` | `GET /api/detectors` | optional deterministic rule per criterion |
 | `CriterionResult.source?` (`rule`/`hybrid`/`model`), `reusedFrom?` | | who decided; set only by code, never by the model |
-| `Evaluation.provenance {provider, model, promptVersion}` | | per-evaluation provenance; `provider: 'mock'` marks fictional output, the UI must label it |
+| `Evaluation.provenance {provider, model, promptVersion, effort?, usage?, latencyMs?}` | | per-evaluation provenance; `provider: 'mock'` marks fictional output, the UI must label it |
 
 Rules fixed in the schemas: `CriterionResult` has exactly one of `isNA` / a value; `boolean` allows `[true,false]`; `discrete-scale` needs >=2 non-negative numeric tiers (top tier = full weight); `enum` criteria must have weight 0 (no numeric meaning defined); `criticalFlag` criteria are boolean with weight 0; criterion ids unique per checklist; `Conversation.transcript[i].index === i`.
 

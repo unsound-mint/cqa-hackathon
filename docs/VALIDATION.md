@@ -30,3 +30,12 @@ Human score rows may be stored locally in ignored `evaluation/private/` if they 
 
 ## Reporting
 For each model: `n`, exact per-criterion accuracy, total score MAE, serious violation sensitivity/precision, N/A confusion, model-parse failure rate, evidence validity rate, mean cost and latency. Include uncertainty and disagreeing examples. Public benchmark results are prior evidence only, not proof for this dataset.
+
+## Improving a weak model result (procedure)
+Measure before changing; change one thing per run; judge on the holdout only (Anthropic's talks on prompting agents say the same: small realistic eval first, read the transcripts, add instructions only for failures you have seen).
+1. Request shape first: Haiku 5.5 takes no `temperature`/`top_p`/`top_k`; the provider sends `output_config.effort` (`CQA_EFFORT`, default `medium`) and `tool_choice: auto`. A failed evaluation is a request/parse problem, not a judgment problem: check the coverage section of the report before reading agreement.
+2. Sweep `CQA_EFFORT` (low, medium, high) on the train labels; compare agreement, mean cost and latency from the report's Run section (`--price-in/--price-out`).
+3. Ceiling check (measurement only, never the default): run a stronger model once on the same labels. If it is no better, the gap is the labels or the rubric reading, not model size.
+4. Fix by cheapest layer per failing criterion: detector (rule), assisted detector (code decides, model answers a narrow question), prompt wording last. Bump `PROMPT_VERSION` on every prompt change.
+5. Report holdout results with `n`; at n of about 20 a per-criterion difference under roughly 20 points is noise.
+
