@@ -1,5 +1,5 @@
 import type { Appeal, ChecklistVersion, Conversation, DecideAppealInput, Evaluation, SaveChecklistInput } from '@cqa/contracts';
-import { ArrowLeft, ChevronLeft, ChevronRight, Moon, PanelLeft, Search, Sun } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApi } from './ApiContext';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,7 @@ import { ChecklistEditor } from './features/ChecklistEditor';
 import { CommandSearch } from './features/CommandSearch';
 import { DialogsPage } from './features/DialogsPage';
 import { QueueRail } from './features/QueueRail';
+import { Sidebar } from './features/Sidebar';
 import { EvaluationPanel } from './features/EvaluationPanel';
 import { Transcript, type Focus, type Tag } from './features/Transcript';
 import { Badge } from '@/components/ui/badge';
@@ -243,38 +244,46 @@ export function App() {
   };
 
   const mode = import.meta.env.VITE_API_MODE ?? 'mock';
-  const tab = (label: string, active: boolean, to: Route) => (
-    <a href={hashFor(to)} onClick={(e) => { e.preventDefault(); go(to); }} aria-current={active ? 'page' : undefined} className={cn('flex min-h-14 items-center text-sm transition-colors', active ? 'font-medium text-ink shadow-[inset_0_-2px_0_var(--color-brand)]' : 'text-muted hover:text-ink')}>
-      {label}
-    </a>
-  );
-  const ThemeIcon = theme === 'dark' ? Sun : Moon;
   const filterLabel = filters.quick === 'violations' ? 'Грубые нарушения' : filters.quick === 'review' ? 'Нужна проверка' : filters.quick === 'unevaluated' ? 'Не оценены' : null;
   const e = evaluation;
 
+  /** Title and queue controls live at the top of the transcript card, so no separate bar takes vertical space. */
+  const toolbar = conversation && (
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+        <Button variant="ghost" size="sm" aria-label="К списку диалогов" onClick={() => go({ name: 'list' })} className="-ml-3"><ArrowLeft aria-hidden className="size-4" /></Button>
+        <h1 className="text-2xl font-semibold leading-8">{conversation.id}</h1>
+        {hasViolation(e) && <Badge tone="danger">Грубое нарушение</Badge>}
+        {reviewCount(e) > 0 && <Badge tone="warn">Проверить: {reviewCount(e)}</Badge>}
+        <p className="text-sm text-muted">{conversation.language} · {conversation.channel === 'voice call' ? 'звонок' : 'чат'} · {conversation.transcript.length} сообщений · индексы с нуля</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => setRailOpen((o) => !o)} aria-pressed={railOpen} className="hidden xl:inline-flex"><PanelLeft aria-hidden className="size-4" />Очередь</Button>
+        <Button variant="outline" size="sm" aria-label="Предыдущий диалог (K)" disabled={position <= 0} onClick={() => step(-1)}><ChevronLeft aria-hidden className="size-4" /></Button>
+        <label className="sr-only" htmlFor="dialog-switch">Диалог</label>
+        <Select id="dialog-switch" value={conversation.id} onChange={(ev) => go({ name: 'dialog', id: ev.target.value })} className="h-8 w-auto max-w-56 rounded-full text-sm font-medium xl:hidden">
+          {position < 0 && <option value={conversation.id}>{conversation.id} (вне фильтра)</option>}
+          {queue.map((id) => {
+            const ev = latest.get(id);
+            return <option key={id} value={id}>{id}{ev?.status === 'completed' ? ` · ${formatScore(ev.finalTotal)}` : ''}</option>;
+          })}
+        </Select>
+        <Button variant="outline" size="sm" aria-label="Следующий диалог (J)" disabled={position < 0 || position >= queue.length - 1} onClick={() => step(1)}><ChevronRight aria-hidden className="size-4" /></Button>
+        <p className="min-w-16 text-sm text-muted" aria-live="polite">{position >= 0 ? `${position + 1} из ${queue.length}` : 'вне фильтра'}</p>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-line bg-surface px-4 sm:px-6">
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-2"><span className="text-base font-semibold tracking-wide">CQA</span><span aria-hidden className="size-2 rounded-full bg-brand" /></div>
-          <nav aria-label="Разделы" className="flex gap-6">
-            {tab('Диалоги', route.name !== 'checklist', { name: 'list' })}
-            {tab('Чек-лист', route.name === 'checklist', { name: 'checklist' })}
-          </nav>
-        </div>
-        <div className="flex items-center gap-3 py-2">
-          <button type="button" onClick={() => setSearchOpen(true)} aria-label="Найти диалог (Ctrl K)" className="hidden h-10 w-64 items-center gap-2 rounded-full border border-line bg-canvas px-4 text-sm text-muted hover:border-line-strong md:flex">
-            <Search aria-hidden className="size-4" />
-            <span className="flex-1 text-left">Найти диалог</span>
-            <kbd className="rounded-md bg-fill px-2 text-xs">Ctrl K</kbd>
-          </button>
-          <button type="button" onClick={() => setSearchOpen(true)} aria-label="Найти диалог" className="grid size-10 place-items-center rounded-full border border-line hover:bg-fill md:hidden"><Search aria-hidden className="size-4" /></button>
-          {mode === 'mock' && <Badge tone="warn" className="hidden lg:inline-flex">Демо: вымышленные данные</Badge>}
-          <button type="button" onClick={toggleTheme} aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} className="grid size-10 place-items-center rounded-full border border-line text-ink hover:bg-fill">
-            <ThemeIcon aria-hidden className="size-4" />
-          </button>
-        </div>
-      </header>
+    <div className="flex h-full flex-col md:flex-row">
+      <Sidebar
+        active={route.name === 'checklist' ? 'checklist' : 'dialogs'}
+        onNavigate={(to) => go(to === 'checklist' ? { name: 'checklist' } : { name: 'list' })}
+        onSearch={() => setSearchOpen(true)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        demo={mode === 'mock'}
+      />
       {searchOpen && (
         <CommandSearch
           conversations={data.conversations}
@@ -287,102 +296,73 @@ export function App() {
         />
       )}
 
-      {route.name === 'checklist' ? (
-        <main className="min-h-0 flex-1 bg-canvas">
-          <ChecklistEditor checklists={data.checklists} conversationCount={data.conversations.length} onSave={saveChecklist} onEvaluate={evaluateWith} hasCurrentConversation={!!lastDialogId} />
-        </main>
-      ) : route.name === 'list' ? (
-        <main className="min-h-0 flex-1 bg-canvas">
-          <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} />
-        </main>
-      ) : !conversation ? (
-        <main className="p-6 text-sm">
-          <p className="text-muted">Диалог «{selectedId}» не найден.</p>
-          <Button className="mt-4" onClick={() => go({ name: 'list' })}>К списку диалогов</Button>
-        </main>
-      ) : (
-        <>
-          <div className="shrink-0 border-b border-line bg-surface px-4 py-4 sm:px-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <button type="button" onClick={() => go({ name: 'list' })} className="mb-1 inline-flex items-center gap-1 text-sm text-muted hover:text-ink"><ArrowLeft aria-hidden className="size-4" />Диалоги</button>
-                <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-2xl font-semibold leading-8">{conversation.id}</h1>
-                  {hasViolation(e) && <Badge tone="danger">Грубое нарушение</Badge>}
-                  {reviewCount(e) > 0 && <Badge tone="warn">Проверить: {reviewCount(e)}</Badge>}
-                </div>
-                <p className="mt-1 text-sm text-muted">
-                  {conversation.language} · {conversation.channel === 'voice call' ? 'звонок' : 'чат'} · {conversation.transcript.length} сообщений
-                  {checklist && e ? ` · чек-лист версии ${checklist.version}` : ''}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="md" onClick={() => setRailOpen((o) => !o)} aria-pressed={railOpen} className="hidden xl:inline-flex"><PanelLeft aria-hidden className="size-4" />Очередь</Button>
-                <Button variant="outline" size="md" aria-label="Предыдущий диалог (K)" disabled={position <= 0} onClick={() => step(-1)}><ChevronLeft aria-hidden className="size-4" /></Button>
-                <label className="sr-only" htmlFor="dialog-switch">Диалог</label>
-                <Select id="dialog-switch" value={conversation.id} onChange={(ev) => go({ name: 'dialog', id: ev.target.value })} className="w-auto max-w-56 rounded-full text-sm font-medium xl:hidden">
-                  {position < 0 && <option value={conversation.id}>{conversation.id} (вне фильтра)</option>}
-                  {queue.map((id) => {
-                    const ev = latest.get(id);
-                    return <option key={id} value={id}>{id}{ev?.status === 'completed' ? ` · ${formatScore(ev.finalTotal)}` : ''}</option>;
-                  })}
-                </Select>
-                <Button variant="outline" size="md" aria-label="Следующий диалог (J)" disabled={position < 0 || position >= queue.length - 1} onClick={() => step(1)}><ChevronRight aria-hidden className="size-4" /></Button>
-                <p className="min-w-16 text-sm text-muted" aria-live="polite">{position >= 0 ? `${position + 1} из ${queue.length}` : 'вне фильтра'}</p>
-              </div>
-            </div>
-          </div>
-
-          <nav aria-label="Разделы экрана" className="flex gap-1 border-b border-line bg-surface p-2 xl:hidden">
-            {([['evaluation', 'Оценка'], ['transcript', 'Транскрипт']] as const).map(([id, label]) => (
-              <button key={id} type="button" aria-pressed={pane === id} onClick={() => setPane(id)} className={cn('h-10 flex-1 rounded-full text-sm font-medium', pane === id ? 'bg-ink text-canvas' : 'text-muted')}>
-                {label}
-              </button>
-            ))}
-          </nav>
-
-          <main className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 xl:p-4', railOpen ? 'xl:grid-cols-[280px_minmax(0,1fr)_480px]' : 'xl:grid-cols-[minmax(0,1fr)_480px]')}>
-            {railOpen && (
-              <div className="hidden min-h-0 overflow-hidden rounded-card bg-surface shadow-card xl:block">
-                <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filterLabel={filterLabel} onSelect={(id) => go({ name: 'dialog', id })} />
-              </div>
-            )}
-            <div className={cn('min-h-0 flex-col bg-surface xl:rounded-card xl:shadow-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>
-              <Transcript conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} markers={markers} tags={tags} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} onSeek={jump} />
-            </div>
-            <div className={cn('min-h-0 flex-col overflow-hidden bg-surface xl:rounded-card xl:shadow-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
-              <EvaluationPanel
-                conversation={conversation}
-                evaluation={evaluation}
-                checklist={checklist}
-                selectedCriterionId={criterionId}
-                onSelectCriterion={(id) => setCriterionId((cur) => (cur === id ? null : id))}
-                onJump={jump}
-                onStart={start}
-                starting={starting}
-                startError={startError}
-                appeals={appeals}
-                onCreateAppeal={async (cid, comment) => {
-                  if (!evaluation) return;
-                  const a = await api.createAppeal({ evaluationId: evaluation.id, criterionId: cid, comment });
-                  setAppeals((cur) => [...cur, a]);
-                }}
-                onDecideAppeal={async (input: DecideAppealInput) => {
-                  const a = await api.decideAppeal(input);
-                  setAppeals((cur) => cur.map((x) => (x.id === a.id ? a : x)));
-                  await reload(); // an override changes finalResults, the total and the violation flag
-                }}
-                versions={list.map((ev, i) => ({ id: ev.id, label: `Версия ${versionOf(ev) ?? '?'}${i === list.length - 1 ? ' (последняя)' : ''}` }))}
-                onPickEvaluation={(id) => {
-                  setPickedEvaluationId(id);
-                  setCriterionId(null);
-                }}
-                newerChecklistVersion={newer}
-              />
-            </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {route.name === 'checklist' ? (
+          <main className="min-h-0 flex-1 bg-canvas">
+            <ChecklistEditor checklists={data.checklists} conversationCount={data.conversations.length} onSave={saveChecklist} onEvaluate={evaluateWith} hasCurrentConversation={!!lastDialogId} />
           </main>
-        </>
-      )}
+        ) : route.name === 'list' ? (
+          <main className="min-h-0 flex-1 bg-canvas">
+            <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} demo={mode === 'mock'} />
+          </main>
+        ) : !conversation ? (
+          <main className="p-6 text-sm">
+            <p className="text-muted">Диалог «{selectedId}» не найден.</p>
+            <Button className="mt-4" onClick={() => go({ name: 'list' })}>К списку диалогов</Button>
+          </main>
+        ) : (
+          <>
+            <nav aria-label="Разделы экрана" className="flex gap-1 border-b border-line bg-surface p-2 xl:hidden">
+              {([['evaluation', 'Оценка'], ['transcript', 'Транскрипт']] as const).map(([id, label]) => (
+                <button key={id} type="button" aria-pressed={pane === id} onClick={() => setPane(id)} className={cn('h-10 flex-1 rounded-full text-sm font-medium', pane === id ? 'bg-ink text-canvas' : 'text-muted')}>
+                  {label}
+                </button>
+              ))}
+            </nav>
+
+            <main className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 xl:p-4', railOpen ? 'xl:grid-cols-[280px_minmax(0,1fr)_480px]' : 'xl:grid-cols-[minmax(0,1fr)_480px]')}>
+              {railOpen && (
+                <div className="hidden min-h-0 overflow-hidden rounded-card bg-surface shadow-card xl:block">
+                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filterLabel={filterLabel} onSelect={(id) => go({ name: 'dialog', id })} />
+                </div>
+              )}
+              <div className={cn('min-h-0 flex-col bg-surface xl:rounded-card xl:shadow-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>
+                <Transcript conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} markers={markers} tags={tags} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} onSeek={jump} toolbar={toolbar} />
+              </div>
+              <div className={cn('min-h-0 flex-col overflow-hidden bg-surface xl:rounded-card xl:shadow-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
+                <EvaluationPanel
+                  conversation={conversation}
+                  evaluation={evaluation}
+                  checklist={checklist}
+                  selectedCriterionId={criterionId}
+                  onSelectCriterion={(id) => setCriterionId((cur) => (cur === id ? null : id))}
+                  onJump={jump}
+                  onStart={start}
+                  starting={starting}
+                  startError={startError}
+                  appeals={appeals}
+                  onCreateAppeal={async (cid, comment) => {
+                    if (!evaluation) return;
+                    const a = await api.createAppeal({ evaluationId: evaluation.id, criterionId: cid, comment });
+                    setAppeals((cur) => [...cur, a]);
+                  }}
+                  onDecideAppeal={async (input: DecideAppealInput) => {
+                    const a = await api.decideAppeal(input);
+                    setAppeals((cur) => cur.map((x) => (x.id === a.id ? a : x)));
+                    await reload(); // an override changes finalResults, the total and the violation flag
+                  }}
+                  versions={list.map((ev, i) => ({ id: ev.id, label: `Версия ${versionOf(ev) ?? '?'}${i === list.length - 1 ? ' (последняя)' : ''}` }))}
+                  onPickEvaluation={(id) => {
+                    setPickedEvaluationId(id);
+                    setCriterionId(null);
+                  }}
+                  newerChecklistVersion={newer}
+                />
+              </div>
+            </main>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import type { Conversation, Speaker } from '@cqa/contracts';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { SPEAKER_LABEL, type Tone } from '@/lib/present';
@@ -21,6 +21,8 @@ type Props = {
   tags: ReadonlyMap<number, Tag[]>;
   onTag: (criterionId: string) => void;
   onSeek: (index: number) => void;
+  /** Title and queue controls of the dialog, rendered at the top of the card (replaces a separate title bar). */
+  toolbar: ReactNode;
 };
 
 const TICK: Record<Speaker, string> = { client: 'h-5 bg-muted', operator: 'h-5 bg-accent', bot: 'h-5 bg-line-strong', system: 'h-2 bg-line-strong' };
@@ -73,7 +75,7 @@ const ROW: Record<Speaker, string> = {
 };
 const NAME: Record<Speaker, string> = { operator: 'text-accent', client: 'text-ink', bot: 'text-muted', system: 'text-muted' };
 
-export function Transcript({ conversation, cited, checkedRange, focus, markers, tags, onTag, onSeek }: Props) {
+export function Transcript({ conversation, cited, checkedRange, focus, markers, tags, onTag, onSeek, toolbar }: Props) {
   const refs = useRef(new Map<number, HTMLLIElement>());
 
   useEffect(() => {
@@ -90,13 +92,8 @@ export function Transcript({ conversation, cited, checkedRange, focus, markers, 
   return (
     <section aria-label="Транскрипт" className="flex h-full min-h-0 flex-col">
       <header className="space-y-3 border-b border-line px-6 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-base font-semibold">Ход диалога</h2>
-            <p className="text-xs text-muted">{conversation.transcript.length} сообщений · индексы с нуля, время как в исходнике</p>
-          </div>
-          {conversation.channel === 'voice call' && <Badge tone="warn">Распознанная речь: возможны ошибки в словах</Badge>}
-        </div>
+        {toolbar}
+        {conversation.channel === 'voice call' && <Badge tone="warn">Распознанная речь: возможны ошибки в словах</Badge>}
         {conversation.audioUrl && <audio controls preload="none" src={conversation.audioUrl} aria-label="Запись звонка" className="h-10 w-full" />}
         <div className="flex items-center gap-4">
           <ConversationMap conversation={conversation} markers={markers} current={focus?.index ?? 0} onSeek={onSeek} />

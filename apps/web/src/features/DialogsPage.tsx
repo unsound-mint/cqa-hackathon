@@ -14,6 +14,8 @@ type Props = {
   filters: Filters;
   onFilters: (f: Filters) => void;
   onOpen: (id: string) => void;
+  /** Mock mode: say so next to the title. */
+  demo?: boolean;
 };
 
 type SortKey = 'id' | 'score';
@@ -51,7 +53,7 @@ function Status({ e }: { e: Evaluation | undefined }) {
 }
 
 /** The queue: every dialog with its score, the reason for a serious violation and what needs a human look. */
-export function DialogsPage({ conversations, latest, checklists, filters, onFilters, onOpen }: Props) {
+export function DialogsPage({ conversations, latest, checklists, filters, onFilters, onOpen, demo }: Props) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
   const c = useMemo(() => counts(conversations, latest), [conversations, latest]);
   const checklistOf = (e: Evaluation | undefined) => checklists.find((x) => x.id === e?.checklistVersionId);
@@ -82,7 +84,10 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
   return (
     <section aria-label="Диалоги" className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
       <div>
-        <h1 className="text-2xl font-semibold leading-8">Диалоги</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold leading-8">Диалоги</h1>
+          {demo && <Badge tone="warn">Демо: вымышленные данные</Badge>}
+        </div>
         <p className="text-sm text-muted">Очередь проверки: откройте диалог, чтобы увидеть оценку и её обоснование.</p>
       </div>
 

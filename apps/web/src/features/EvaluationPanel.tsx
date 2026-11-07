@@ -206,22 +206,21 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
 
   return (
     <section aria-label="Оценка" className="flex h-full min-h-0 flex-col">
-      {isMock && (
-        <p className="flex items-center gap-2 bg-warn-soft px-6 py-2 text-xs text-warn" role="note">
-          <FlaskConical aria-hidden className="size-4 shrink-0" />
-          Демо-данные: вымышленный пример, а не оценка модели.
-        </p>
-      )}
-
-      <header className="verdict px-6 py-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-medium text-[#9fb5a9]">Оценка</h2>
+      <header className="verdict px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <h2 className="text-sm font-medium text-[#9fb5a9]">Оценка{versions.length <= 1 && checklist ? ` · чек-лист, версия ${checklist.version}` : ''}</h2>
           <div className="flex flex-wrap gap-2">
             {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Апелляция: {pendingIds.size}</span>}
             {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Изменено ревьюером: {changedCount}</span>}
           </div>
         </div>
-        <p className="mt-2 flex items-baseline gap-2">
+        {isMock && (
+          <p className="mt-1 flex items-center gap-2 text-xs text-[#e8be6a]" role="note">
+            <FlaskConical aria-hidden className="size-4 shrink-0" />
+            Демо-данные: вымышленный пример, а не оценка модели.
+          </p>
+        )}
+        <p className="mt-1 flex items-baseline gap-2">
           <span className="text-score font-semibold tracking-tight tabular-nums">{formatScore(evaluation.finalTotal)}</span>
           <span className="text-base text-[#9fb5a9]">из 100</span>
         </p>
@@ -236,7 +235,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         </p>
 
         {evaluation.seriousViolation ? (
-          <div className="mt-4 rounded-xl bg-[#3a1a16] p-4 text-[#ffd3cb]" role="alert">
+          <div className="mt-3 rounded-xl bg-[#3a1a16] p-4 text-[#ffd3cb]" role="alert">
             <p className="flex items-center gap-2 text-base font-semibold"><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</p>
             {reasons.length === 0 && <p className="mt-1 text-sm">Флаг поднят.</p>}
             {reasons.map((r) => (
@@ -244,34 +243,37 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
             ))}
           </div>
         ) : (
-          <p className="mt-4 inline-flex h-8 items-center gap-2 rounded-full bg-white/10 px-3 text-sm"><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</p>
+          <p className="mt-3 inline-flex h-8 items-center gap-2 rounded-full bg-white/10 px-3 text-sm"><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</p>
         )}
       </header>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-6 py-3">
-        {versions.length > 1 && (
-          <label className="flex items-center gap-2 text-xs">
-            <span className="text-muted">Оценка по версии:</span>
-            <Select aria-label="Оценка по версии чек-листа" value={evaluation.id} onChange={(e) => onPickEvaluation(e.target.value)} className="h-8 w-auto rounded-full text-xs">
-              {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
-            </Select>
-          </label>
-        )}
-        {versions.length <= 1 && <span className="text-xs text-muted">Чек-лист: {checklist ? `версия ${checklist.version}` : evaluation.checklistVersionId}</span>}
-        {newerChecklistVersion !== null && (
-          <Button size="sm" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : `Есть версия ${newerChecklistVersion}: пересчитать`}</Button>
-        )}
-        {flaggedCount > 0 && (
-          <label className="ml-auto flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={onlyFlagged} onChange={(e) => setOnlyFlagged(e.target.checked)} className="size-4 accent-brand" />
-            Только требующие внимания ({flaggedCount})
-          </label>
-        )}
-        {startError && <span role="alert" className="text-xs text-danger">{startError}</span>}
-      </div>
+      {(versions.length > 1 || newerChecklistVersion !== null || startError) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-6 py-3">
+          {versions.length > 1 && (
+            <label className="flex items-center gap-2 text-xs">
+              <span className="text-muted">Оценка по версии:</span>
+              <Select aria-label="Оценка по версии чек-листа" value={evaluation.id} onChange={(e) => onPickEvaluation(e.target.value)} className="h-8 w-auto rounded-full text-xs">
+                {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+              </Select>
+            </label>
+          )}
+          {newerChecklistVersion !== null && (
+            <Button size="sm" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : `Есть версия ${newerChecklistVersion}: пересчитать`}</Button>
+          )}
+          {startError && <span role="alert" className="text-xs text-danger">{startError}</span>}
+        </div>
+      )}
 
-      <div className="border-b border-line bg-surface px-6 py-4">
-        <p className="mb-2 text-xs font-medium text-muted">Критерии: нажмите, чтобы открыть</p>
+      <div className="border-b border-line bg-surface px-6 py-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-medium text-muted">Критерии: нажмите, чтобы открыть</p>
+          {flaggedCount > 0 && (
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={onlyFlagged} onChange={(e) => setOnlyFlagged(e.target.checked)} className="size-4 accent-brand" />
+              Только требующие внимания ({flaggedCount})
+            </label>
+          )}
+        </div>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(56px,1fr))] gap-2">
           {scorecardRows.map(({ r, c }) => {
             const o = outcome(c, r);
