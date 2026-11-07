@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, Headphones, MessagesSquare, Search } from 'lucide-r
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/present';
 import { DEFAULT_FILTERS, counts, hasViolation, matches, reviewCount, violationReasons, type Filters, type Quick } from '@/lib/queue';
@@ -14,8 +15,6 @@ type Props = {
   filters: Filters;
   onFilters: (f: Filters) => void;
   onOpen: (id: string) => void;
-  /** Mock mode: say so next to the title. */
-  demo?: boolean;
   /** Bumped to move focus into the search field. */
   focusSignal?: number;
 };
@@ -55,7 +54,7 @@ function Status({ e }: { e: Evaluation | undefined }) {
 }
 
 /** The queue: every dialog with its score, the reason for a serious violation and what needs a human look. */
-export function DialogsPage({ conversations, latest, checklists, filters, onFilters, onOpen, demo, focusSignal = 0 }: Props) {
+export function DialogsPage({ conversations, latest, checklists, filters, onFilters, onOpen, focusSignal = 0 }: Props) {
   const search = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (focusSignal > 0) search.current?.focus();
@@ -90,10 +89,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
   return (
     <section aria-label="Диалоги" className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
       <div>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold leading-8">Диалоги</h1>
-          {demo && <Badge tone="warn">Демо: вымышленные данные</Badge>}
-        </div>
+        <h1 className="text-2xl font-semibold leading-8">Диалоги</h1>
         <p className="max-w-prose text-sm text-muted">Очередь проверки: откройте диалог, чтобы увидеть оценку и её обоснование.</p>
       </div>
 
@@ -103,16 +99,13 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
           <Search aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-muted" />
           <input ref={search} type="search" value={filters.query} onChange={(e) => set({ query: e.target.value })} placeholder="Номер или текст диалога" className="h-10 w-full rounded-full border border-line bg-surface pl-9 pr-4 text-sm placeholder:text-muted" />
         </label>
-        <div role="group" aria-label="Язык" className="flex gap-2">
-          {LANGS.map((l) => (
-            <Chip key={l} pressed={filters.lang === l} onClick={() => set({ lang: l })}>{l === 'all' ? 'Все языки' : l}</Chip>
-          ))}
-        </div>
-        <div role="group" aria-label="Канал" className="flex gap-2">
-          {CHANNELS.map((x) => (
-            <Chip key={x.value} pressed={filters.channel === x.value} onClick={() => set({ channel: x.value })}>{x.label}</Chip>
-          ))}
-        </div>
+        {/* Language and channel narrow the list rarely: two compact selects, so the row of chips below holds only the review states. */}
+        <Select aria-label="Язык" value={filters.lang} onChange={(e) => set({ lang: e.target.value as Filters['lang'] })} className={cn('h-10 w-auto rounded-full px-4', filters.lang !== 'all' && 'border-ink font-medium')}>
+          {LANGS.map((l) => <option key={l} value={l}>{l === 'all' ? 'Все языки' : l}</option>)}
+        </Select>
+        <Select aria-label="Канал" value={filters.channel} onChange={(e) => set({ channel: e.target.value as Filters['channel'] })} className={cn('h-10 w-auto rounded-full px-4', filters.channel !== 'all' && 'border-ink font-medium')}>
+          {CHANNELS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+        </Select>
       </div>
 
       <div role="group" aria-label="Что показать" className="flex flex-wrap gap-2">
@@ -154,7 +147,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
                       {reasons.length > 0 && <p className="mt-1 text-xs text-danger md:hidden">{reasons[0]!.explanation}</p>}
                     </td>
                     <td className="hidden px-3 py-3 sm:table-cell">
-                      <span className="inline-flex items-center gap-2"><Badge tone="dark">{x.language}</Badge><span className="inline-flex items-center gap-1 text-muted"><Icon aria-hidden className="size-4" />{x.channel === 'voice call' ? 'Звонок' : 'Чат'}</span></span>
+                      <span className="inline-flex items-center gap-3"><span className="text-sm font-medium tabular-nums">{x.language}</span><span className="inline-flex items-center gap-1 text-muted"><Icon aria-hidden className="size-4" />{x.channel === 'voice call' ? 'Звонок' : 'Чат'}</span></span>
                     </td>
                     <td className="px-3 py-3 text-base font-semibold tabular-nums">{e?.status === 'completed' ? formatScore(e.finalTotal) : <span className="font-normal text-muted">—</span>}</td>
                     <td className="hidden max-w-md px-3 py-3 md:table-cell">

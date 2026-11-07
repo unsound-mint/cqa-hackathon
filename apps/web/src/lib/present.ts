@@ -1,13 +1,17 @@
-import type { ChecklistVersion, Criterion, CriterionResult, Speaker } from '@cqa/contracts';
+import type { Appeal, ChecklistVersion, Criterion, CriterionResult, Evaluation, Speaker } from '@cqa/contracts';
 
 export type Tone = 'neutral' | 'success' | 'danger' | 'warn';
 
 export const SPEAKER_LABEL: Record<Speaker, string> = { client: 'Клиент', operator: 'Оператор', bot: 'Бот', system: 'Система' };
 
-export const SOURCE_LABEL = { rule: 'Правило', hybrid: 'Правило + модель', model: 'Модель' } as const;
+export const SOURCE_LABEL = { rule: 'Правило', hybrid: 'Правило + модель', model: 'Модель', reviewer: 'Проверяющий' } as const;
 export const CONFIDENCE_LABEL = { high: 'высокая', medium: 'средняя', low: 'низкая' } as const;
 
-/** Outcome text and tone for one criterion result. No criterion ids: everything comes from the checklist config. */
+/**
+ * Outcome text and tone for one criterion result in the criterion's own terms (scale step, Да/Нет). For data
+ * (CSV export) and the override options; on screen use `grade`, which states points so one row never shows two
+ * different "из" numbers. No criterion ids: everything comes from the checklist config.
+ */
 export function outcome(criterion: Criterion | undefined, r: CriterionResult): { label: string; tone: Tone } {
   if (r.isNA) return { label: 'N/A', tone: 'neutral' };
   const v = r.value;
@@ -21,12 +25,24 @@ export function outcome(criterion: Criterion | undefined, r: CriterionResult): {
   return { label: String(v), tone: 'neutral' };
 }
 
+/**
+ * What the reviewer sees for a result: points earned of the criterion's weight ("10,5 из 15") whenever the criterion
+ * carries points, otherwise the outcome (flags, N/A, zero-weight and list criteria). Tone as in `outcome`.
+ */
+export function grade(criterion: Criterion | undefined, r: CriterionResult): { label: string; tone: Tone } {
+  const o = outcome(criterion, r);
+  const pts = earnedPoints(criterion, r);
+  if (pts === null || !criterion) return o;
+  const ratio = criterion.weight > 0 ? pts / criterion.weight : 0;
+  return { label: `${formatScore(pts)} из ${criterion.weight}`, tone: ratio >= 0.75 ? 'success' : ratio >= 0.4 ? 'warn' : 'danger' };
+}
+
 export const sameResult = (a: CriterionResult | undefined, b: CriterionResult | undefined) => !!a && !!b && a.isNA === b.isNA && a.value === b.value;
 
 export const criterionById = (checklist: ChecklistVersion | undefined) => (id: string) => checklist?.criteria.find((c) => c.id === id);
 
-/** "12.5" -> "12,5": the UI is Russian. */
-export const formatScore = (n: number | null) => (n === null ? '—' : n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }));
+/** "12.5" -> "12,50", "100" -> "100": the UI is Russian; fractions always show two digits so columns of scores line up. */
+export const formatScore = (n: number | null) => (n === null ? '—' : n.toLocaleString('ru-RU', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }));
 
 /** Weighted points a criterion earned (null for N/A, flag-only and zero-weight criteria: they carry no points). */
 export function earnedPoints(c: Criterion | undefined, r: CriterionResult): number | null {
@@ -68,4 +84,30 @@ export function gapLabel(prev: string | undefined, cur: string): { text: string 
 export function offsetSeconds(ts: string | undefined): number | null {
   const m = ts ? /^(\d+):(\d{2})$/.exec(ts) : null;
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/** A result that needs the reviewer: low confidence, a pending appeal, or a grade a person changed. */
+export function isFlagged(r: CriterionResult, original: CriterionResult | undefined, pendingIds: Set<string>) {
+  return needsReview(r) || pendingIds.has(r.criterionId) || !sameResult(original, r);
+}
+
+export type CriterionGroup = { id: string; title: string; rows: CriterionResult[] };
+
+/**
+ * The criterion rows exactly as the verdict panel lists them: grouped by checklist section (unsectioned last, under
+ * "Прочее"), optionally only the flagged ones. The digit shortcuts read the same list, so "3" opens the third row shown.
+ */
+export function criterionGroups(evaluation: Evaluation, checklist: ChecklistVersion | undefined, appeals: Appeal[], onlyFlagged: boolean): CriterionGroup[] {
+  const original = new Map(evaluation.originalResults.map((r) => [r.criterionId, r]));
+  const pendingIds = new Set(appeals.filter((a) => a.status === 'pending').map((a) => a.criterionId));
+  const flagged = evaluation.finalResults.filter((r) => isFlagged(r, original.get(r.criterionId), pendingIds));
+  // With nothing flagged the filter has nothing to show (and its checkbox is hidden): list everything.
+  const shown = onlyFlagged && flagged.length ? flagged : evaluation.finalResults;
+  const sections = checklist?.sections ?? [];
+  if (!sections.length) return shown.length ? [{ id: '_', title: '', rows: shown }] : [];
+  const sectionOf = (r: CriterionResult) => checklist?.criteria.find((c) => c.id === r.criterionId)?.sectionId;
+  return [
+    ...sections.map((s) => ({ id: s.id, title: s.title, rows: shown.filter((r) => sectionOf(r) === s.id) })),
+    { id: '_', title: 'Прочее', rows: shown.filter((r) => !sections.some((s) => s.id === sectionOf(r))) },
+  ].filter((g) => g.rows.length);
 }

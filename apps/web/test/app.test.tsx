@@ -57,14 +57,16 @@ it('opens at the dialogs list: score, language and channel per row, no invented 
   expect(within(r).getByText('94,12')).toBeTruthy();
   expect(within(r).getByText('RU')).toBeTruthy();
   expect(list.getByText('Показано 1 из 1')).toBeTruthy();
-  expect(screen.getAllByText(/вымышленн/i).length).toBeGreaterThan(0);
+  expect(screen.getByTitle(/Вымышленные данные/)).toBeTruthy();
 });
 
 it('shows the dialog: transcript, total, N/A reason and the demo label', async () => {
   renderApp();
   await transcriptReady();
   expect(panel().getByText('94,12')).toBeTruthy();
-  expect(panel().getByLabelText(/Демо-данные: вымышленный пример/)).toBeTruthy();
+  // Mock mode is announced once, in the sidebar; the panel does not repeat it for every dialog.
+  expect(screen.getByTitle(/Вымышленные данные/)).toBeTruthy();
+  expect(panel().queryByLabelText(/Демо-данные/)).toBeNull();
   fireEvent.click(row(/Выявление потребности/));
   expect(panel().getByText(/Данных для ответа хватало с самого начала/)).toBeTruthy();
 });
@@ -79,8 +81,10 @@ it('states points earned out of points possible, and which criteria are not coun
 it('a row shows a points bar only where points were lost, with the amount', async () => {
   renderApp();
   await transcriptReady();
-  expect(row(/Корректная и полная консультация/).textContent).toContain('15 / 20 (−5)');
-  expect(row(/Установление контакта/).textContent).not.toMatch(/\//); // full points: no bar, no fraction
+  // One unit per row: the chip states points of the weight, the bar line only the loss.
+  expect(row(/Корректная и полная консультация/).textContent).toContain('15 из 20');
+  expect(row(/Корректная и полная консультация/).textContent).toContain('−5');
+  expect(row(/Установление контакта/).textContent).not.toMatch(/−/); // full points: no bar
 });
 
 it('keeps the original zero-based index and raw timestamp on every message', async () => {
@@ -145,21 +149,27 @@ it('files an appeal, then a reviewer overrides it: total changes, original AI an
   renderApp();
   await transcriptReady();
   fireEvent.click(row(/Корректная и полная консультация/));
-  fireEvent.click(panel().getByRole('button', { name: 'Оспорить оценку' }));
+  fireEvent.click(panel().getByRole('button', { name: 'Оспорить' }));
   fireEvent.change(panel().getByLabelText('Почему вы не согласны с оценкой?'), { target: { value: 'Клиенту всё объяснили' } });
   fireEvent.click(panel().getByRole('button', { name: 'Отправить апелляцию' }));
-  expect(await panel().findByText('На рассмотрении')).toBeTruthy();
+  expect(await panel().findByText('Апелляция ждёт решения')).toBeTruthy();
   expect(panel().getAllByText('Апелляция').length).toBeGreaterThan(0);
 
+  // No decision is preselected: the reviewer has to choose one.
+  expect((panel().getByRole('button', { name: 'Принять решение' }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(panel().getByLabelText('Изменить оценку'));
-  fireEvent.change(panel().getByLabelText('Новое значение'), { target: { value: 'v4' } });
+  fireEvent.click(panel().getByLabelText(/Ступень 20 · 20 из 20/));
+  expect(panel().getByText(/Итог диалога:/).textContent).toMatch(/94,12 → 100/);
   fireEvent.change(panel().getByLabelText('Обоснование решения'), { target: { value: 'Второстепенная деталь не требовалась' } });
   fireEvent.click(panel().getByRole('button', { name: 'Принять решение' }));
 
-  expect(await panel().findByText('Оценка изменена проверяющим')).toBeTruthy();
-  expect(await panel().findByText('100')).toBeTruthy();
+  expect(await panel().findByText(/Сохранено\. Итог диалога: 100/)).toBeTruthy();
   expect(panel().getByText(/Исходная оценка ИИ: 94,12/)).toBeTruthy();
   expect(panel().getByLabelText(/Ответ ИИ был: 15 из 20/)).toBeTruthy();
+  // The reviewer's reason and the AI's own reasoning are both on screen, in Russian, without a system prefix.
+  expect(panel().getAllByText('Второстепенная деталь не требовалась').length).toBeGreaterThan(0);
+  expect(panel().getByText(/Исходный ответ ИИ: 15 из 20/)).toBeTruthy();
+  expect(panel().queryByText(/Reviewer override/)).toBeNull();
 });
 
 it('adds a criterion in the editor, saves a new version, and evaluates a dialog with it without code changes', async () => {
@@ -172,7 +182,7 @@ it('adds a criterion in the editor, saves a new version, and evaluates a dialog 
   fireEvent.change(screen.getByLabelText('Вес'), { target: { value: '5' } });
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить как новую версию' }));
   expect(await screen.findByText(/Сохранена версия 2/)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Оценить выбранный диалог' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Оценить диалог demo-ru-001' }));
   fireEvent.click(screen.getByRole('link', { name: 'Диалоги' }));
   fireEvent.click(await screen.findByRole('link', { name: 'demo-ru-001' }));
   expect(await within(await screen.findByRole('region', { name: 'Оценка' })).findByText(/Назвал срок решения/, {}, { timeout: 4000 })).toBeTruthy();
@@ -184,8 +194,24 @@ it('blocks saving an invalid criterion and says why', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Добавить критерий' }));
   fireEvent.change(screen.getByLabelText('Тип ответа'), { target: { value: 'discrete-scale' } });
   fireEvent.change(screen.getByLabelText(/Ступени баллов/), { target: { value: '5' } });
-  expect((screen.getByRole('button', { name: 'Сохранить как новую версию' }) as HTMLButtonElement).disabled).toBe(true);
-  expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
+  // A fresh criterion is not covered in errors before the reviewer has done anything wrong.
+  expect(screen.queryByText(/Введите название критерия/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить как новую версию' }));
+  // The attempt names each problem next to its field, in Russian; an empty instruction blocks the save too.
+  expect(await screen.findByText(/Введите название критерия/)).toBeTruthy();
+  expect(screen.getByText(/Нужно не меньше двух ступеней/)).toBeTruthy();
+  expect(screen.getByText(/Опишите, как оценивать/)).toBeTruthy();
+  expect(screen.queryByText(/expected|Too small/i)).toBeNull();
+  expect(screen.queryByText(/Сохранена версия/)).toBeNull();
+});
+
+it('a deleted criterion can be put back before saving', async () => {
+  renderApp(demo, '#/checklist');
+  fireEvent.click(await screen.findByRole('button', { name: 'Удалить критерий 03' }));
+  expect(screen.queryByRole('button', { name: 'Удалить критерий 03' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Вернуть' }));
+  expect(screen.getByRole('button', { name: 'Удалить критерий 03' })).toBeTruthy();
+  expect(screen.getByText('Изменений нет.')).toBeTruthy();
 });
 
 it('lists dialogs with a serious violation together with the reason, via the quick filter', async () => {
@@ -236,9 +262,48 @@ it('keyboard shortcuts are ignored while typing', async () => {
   renderApp(bundle(withSecond));
   await transcriptReady();
   fireEvent.click(row(/Корректная и полная консультация/));
-  fireEvent.click(panel().getByRole('button', { name: 'Оспорить оценку' }));
+  fireEvent.click(panel().getByRole('button', { name: 'Оспорить' }));
   fireEvent.keyDown(panel().getByLabelText('Почему вы не согласны с оценкой?'), { key: 'j' });
   expect(window.location.hash).toBe('#/dialog/demo-ru-001');
+});
+
+it('an unsent reason holds the dialog even after focus left the field (Russian о/л/т are J/K/N)', async () => {
+  renderApp(bundle(withSecond));
+  await transcriptReady();
+  fireEvent.click(row(/Корректная и полная консультация/));
+  fireEvent.click(panel().getByRole('button', { name: 'Оспорить' }));
+  fireEvent.change(panel().getByLabelText('Почему вы не согласны с оценкой?'), { target: { value: 'Черновик' } });
+  fireEvent.keyDown(document.body, { key: 'о' });
+  fireEvent.keyDown(document.body, { key: 'Escape' });
+  expect(window.location.hash).toBe('#/dialog/demo-ru-001');
+  expect((panel().getByLabelText('Почему вы не согласны с оценкой?') as HTMLTextAreaElement).value).toBe('Черновик');
+});
+
+it('a reviewer corrects a grade directly, without an appeal; the appeals queue stays for disputes', async () => {
+  renderApp();
+  await transcriptReady();
+  fireEvent.click(row(/Корректная и полная консультация/));
+  fireEvent.click(panel().getByRole('button', { name: 'Изменить оценку' }));
+  expect((panel().getByLabelText(/Ступень 15 · 15 из 20/) as HTMLInputElement).disabled).toBe(true); // the current answer
+  fireEvent.click(panel().getByLabelText(/Ступень 20 · 20 из 20/));
+  fireEvent.change(panel().getByLabelText('Почему оценка другая'), { target: { value: 'Консультация полная' } });
+  fireEvent.click(panel().getByRole('button', { name: 'Сохранить оценку' }));
+  expect(await panel().findByText(/Сохранено\. Итог диалога: 100/)).toBeTruthy();
+  expect(panel().getAllByText('Консультация полная').length).toBeGreaterThan(0);
+  expect(panel().getByText(/Исходный ответ ИИ: 15 из 20/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('link', { name: /Апелляции/ }));
+  const list = within(await screen.findByRole('region', { name: 'Апелляции' }));
+  expect(list.getByText(/Апелляций пока нет/)).toBeTruthy();
+});
+
+it('digit keys follow the rows as shown, also with only the rows needing attention', async () => {
+  renderApp(bundle((b) => {
+    for (const r of [...b.evaluations[0].originalResults, ...b.evaluations[0].finalResults]) if (r.criterionId === '07') r.confidence = 'low';
+  }));
+  await transcriptReady();
+  fireEvent.click(panel().getByLabelText(/Только требующие внимания/));
+  fireEvent.keyDown(document.body, { key: '1' });
+  expect(row(/^07/).getAttribute('aria-expanded')).toBe('true'); // the first row shown, not criterion 01
 });
 
 it('low-confidence results are visible without opening a row and can be isolated', async () => {
@@ -271,7 +336,7 @@ it('shows numbered criterion tags on the messages that back a grade, and a tag o
   const msg8 = within(document.getElementById('msg-8')!);
   const tags = msg8.getAllByRole('button', { name: /Открыть критерий/ }).map((b) => b.textContent);
   expect(tags).toEqual(expect.arrayContaining(['03', '04', '05']));
-  expect(msg8.getByRole('button', { name: /^Открыть критерий 05: Эмпатия.*Да$/ })).toBeTruthy();
+  expect(msg8.getByRole('button', { name: /^Открыть критерий 05: Эмпатия.*15 из 15$/ })).toBeTruthy();
   expect(msg8.getAllByText(/Клиент пожаловался на неудобство/).length).toBeGreaterThan(0); // preview text is in the DOM, shown on hover/focus
   fireEvent.click(msg8.getByRole('button', { name: /^Открыть критерий 05/ }));
   expect(row(/Эмпатия/).getAttribute('aria-expanded')).toBe('true');
@@ -417,10 +482,10 @@ it('opening an appeal lands on the dialog with that criterion open and the decis
   const form = await screen.findByRole('form', { name: /Решение по апелляции, критерий 04/ });
   expect(window.location.hash).toBe('#/dialog/demo-en-007?criterion=04');
   fireEvent.click(within(form).getByLabelText('Изменить оценку'));
-  fireEvent.change(within(form).getByLabelText('Новое значение'), { target: { value: 'v3' } }); // tier 15
+  fireEvent.click(within(form).getByLabelText(/Ступень 15 ·/));
   fireEvent.change(within(form).getByLabelText('Обоснование решения'), { target: { value: 'Совет открыть трекинг считается подсказкой' } });
   fireEvent.click(within(form).getByRole('button', { name: 'Принять решение' }));
-  expect(await screen.findByText('Оценка изменена проверяющим')).toBeTruthy();
+  expect(await screen.findByText(/Сохранено\. Итог диалога/)).toBeTruthy();
   expect(screen.queryByLabelText(/ждут решения/)).toBeNull(); // nothing waiting any more
   fireEvent.click(screen.getByRole('link', { name: /Апелляции/ }));
   const list = within(await screen.findByRole('region', { name: 'Апелляции' }));

@@ -53,3 +53,17 @@ export const DecideAppealInputSchema = z
     }
   });
 export type DecideAppealInput = z.infer<typeof DecideAppealInputSchema>;
+
+/** A reviewer changes one criterion directly (no appeal first). Refused while that criterion has a pending appeal. */
+export const OverrideCriterionInputSchema = z
+  .object({
+    evaluationId: z.string().min(1),
+    criterionId: z.string().min(1),
+    reason: z.string().min(1),
+    value: CriterionValueSchema.nullable().optional(),
+    isNA: z.boolean().optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (!d.isNA && (d.value === undefined || d.value === null)) ctx.addIssue({ code: 'custom', path: ['value'], message: 'override needs a value, or isNA=true' });
+  });
+export type OverrideCriterionInput = z.infer<typeof OverrideCriterionInputSchema>;

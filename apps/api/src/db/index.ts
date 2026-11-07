@@ -49,6 +49,7 @@ export function openDb(path: string) {
       id TEXT PRIMARY KEY NOT NULL,
       evaluation_id TEXT NOT NULL,
       criterion_id TEXT NOT NULL,
+      kind TEXT,
       comment TEXT NOT NULL,
       status TEXT NOT NULL,
       created_at TEXT NOT NULL,
@@ -69,6 +70,9 @@ export function openDb(path: string) {
       created_at TEXT NOT NULL
     );
   `);
+  // Columns added after a table existed: CREATE TABLE IF NOT EXISTS does not add them to an existing file.
+  const hasColumn = (table: string, column: string) => (sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === column);
+  if (!hasColumn('appeals', 'kind')) sqlite.exec('ALTER TABLE appeals ADD COLUMN kind TEXT');
   return drizzle(sqlite, { schema });
 }
 

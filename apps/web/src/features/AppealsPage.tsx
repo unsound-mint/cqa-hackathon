@@ -3,7 +3,7 @@ import { Gavel } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { outcome } from '@/lib/present';
+import { grade } from '@/lib/present';
 
 type Props = {
   appeals: Appeal[];
@@ -16,11 +16,13 @@ type Props = {
 type Filter = 'pending' | 'decided' | 'all';
 
 const fmt = (iso: string) => new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-const STATUS = { pending: { label: 'На рассмотрении', tone: 'warn' }, upheld: { label: 'Оценка ИИ оставлена', tone: 'neutral' }, overridden: { label: 'Оценка изменена', tone: 'success' } } as const;
+const STATUS = { pending: { label: 'На рассмотрении', tone: 'warn' }, upheld: { label: 'Оценка ИИ оставлена', tone: 'neutral' }, overridden: { label: 'Оценка изменена', tone: 'neutral' } } as const;
 
 /** The approver's queue: appeals across all dialogs. Opening one lands on the criterion with the decision form. */
-export function AppealsPage({ appeals, evaluations, checklists, conversations, onOpen }: Props) {
+export function AppealsPage({ appeals: all, evaluations, checklists, conversations, onOpen }: Props) {
   const [filter, setFilter] = useState<Filter>('pending');
+  // Direct corrections by a reviewer are audit history of a dialog, not disputes: they never enter this queue.
+  const appeals = useMemo(() => all.filter((a) => a.kind !== 'correction'), [all]);
   const pending = appeals.filter((a) => a.status === 'pending').length;
 
   const rows = useMemo(() => {
@@ -61,7 +63,7 @@ export function AppealsPage({ appeals, evaluations, checklists, conversations, o
               <tr className="h-10 text-left">
                 <th scope="col" className="px-3 font-medium">Диалог и критерий</th>
                 <th scope="col" className="hidden px-3 font-medium md:table-cell">Возражение</th>
-                <th scope="col" className="px-3 font-medium">Оценка</th>
+                <th scope="col" className="hidden px-3 font-medium sm:table-cell">Оценка</th>
                 <th scope="col" className="hidden px-3 font-medium sm:table-cell">Подана</th>
                 <th scope="col" className="px-3 font-medium">Статус</th>
               </tr>
@@ -85,14 +87,15 @@ export function AppealsPage({ appeals, evaluations, checklists, conversations, o
                       )}
                       <div className="text-sm">{a.criterionId} {criterion?.title}</div>
                       <p className="mt-1 text-xs text-muted md:hidden">{a.comment}</p>
+                      <p className="mt-1 text-xs tabular-nums sm:hidden">{original && `ИИ: ${grade(criterion, original).label}`}{changed && final ? ` → ${grade(criterion, final).label}` : ''}</p>
                     </td>
                     <td className="hidden max-w-md px-3 py-3 md:table-cell"><p className="line-clamp-3 max-w-[65ch] text-sm">{a.comment}</p></td>
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      {original && <span className={changed ? 'text-muted line-through' : ''} title="Ответ ИИ">ИИ: {outcome(criterion, original).label}</span>}
-                      {changed && final && <div className="font-medium">Итог: {outcome(criterion, final).label}</div>}
+                    <td className="hidden px-3 py-3 whitespace-nowrap tabular-nums sm:table-cell">
+                      {original && <span className={changed ? 'text-muted line-through' : ''} title="Ответ ИИ">ИИ: {grade(criterion, original).label}</span>}
+                      {changed && final && <div className="font-medium">Итог: {grade(criterion, final).label}</div>}
                     </td>
                     <td className="hidden px-3 py-3 text-muted sm:table-cell">{fmt(a.createdAt)}</td>
-                    <td className="px-3 py-3"><Badge tone={STATUS[a.status].tone}>{STATUS[a.status].label}</Badge></td>
+                    <td className="px-3 py-3 text-right sm:text-left"><Badge tone={STATUS[a.status].tone}>{STATUS[a.status].label}</Badge></td>
                   </tr>
                 );
               })}

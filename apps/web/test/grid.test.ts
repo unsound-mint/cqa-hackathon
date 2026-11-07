@@ -10,6 +10,14 @@ import { expect, it } from 'vitest';
 const SPACING = /(?<![\w-])-?(?:p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap|gap-x|gap-y|space-x|space-y|size|w|h|min-w|min-h|max-w|max-h|top|left|right|bottom|inset|translate-x|translate-y)-(\d+\.5)(?![\w.])/g;
 const ARBITRARY = /(?<![\w-])-?(?:p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb|ml|mr|gap|size|w|h|min-w|min-h|max-w|max-h|top|left|right|bottom|text)-\[(\d+(?:\.\d+)?)(px|rem)\]/g;
 
+/**
+ * Radii: 4 (bubble tails), 8 inputs, 12 rows and messages, 16 cards, full for pills. Tailwind's `rounded-md` is 6px
+ * and bare `rounded` is 4px used ad hoc; both break the scale.
+ */
+const RADIUS = /(?<![\w-])rounded(?:-(?:t|b|l|r|tl|tr|bl|br|s|e))?-(md)(?![\w-])/g;
+/** Control heights are 32 / 40 / 48 (h-8, h-10, h-12): 28, 36 and 44px (h-7, h-9, h-11) sit off the 8px rhythm. */
+const HEIGHT = /(?<![\w-])(?:h|min-h)-(7|9|11)(?![\w.-])/g;
+
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((f) => {
     const p = join(dir, f);
@@ -17,7 +25,7 @@ function files(dir: string): string[] {
   });
 }
 
-it('uses no half-step spacing and no off-grid arbitrary sizes', () => {
+it('uses no half-step spacing, off-grid arbitrary sizes, off-scale radii or control heights', () => {
   const bad: string[] = [];
   for (const f of files(join(__dirname, '../src'))) {
     const text = readFileSync(f, 'utf8');
@@ -26,6 +34,8 @@ it('uses no half-step spacing and no off-grid arbitrary sizes', () => {
       const px = m[2] === 'rem' ? Number(m[1]) * 16 : Number(m[1]);
       if (px % 4 !== 0) bad.push(`${f.split('/src/')[1]}: ${m[0]} (${px}px is not a multiple of 4)`);
     }
+    for (const m of text.matchAll(RADIUS)) bad.push(`${f.split('/src/')[1]}: ${m[0]} (6px radius is off the scale)`);
+    for (const m of text.matchAll(HEIGHT)) bad.push(`${f.split('/src/')[1]}: ${m[0]} (control height off the 8px rhythm)`);
   }
   expect(bad).toEqual([]);
 });

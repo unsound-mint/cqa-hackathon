@@ -3,6 +3,7 @@ import {
   SaveChecklistInputSchema,
   CreateAppealInputSchema,
   DecideAppealInputSchema,
+  OverrideCriterionInputSchema,
   StartEvaluationInputSchema,
   scoreEvaluation,
   type Appeal,
@@ -10,6 +11,7 @@ import {
   type Conversation,
   type Criterion,
   type CriterionResult,
+  type CriterionValue,
   type Evaluation,
   type Job,
 } from '@cqa/contracts';
@@ -146,12 +148,39 @@ export class MockCqaApi implements CqaApi {
     if (!ev.originalResults.some((r) => r.criterionId === parsed.data.criterionId)) {
       throw new CqaApiError('invalid', `criterion ${parsed.data.criterionId} is not part of this evaluation`);
     }
-    const appeal: Appeal = { id: this.nextId('appeal-mock'), ...parsed.data, status: 'pending', createdAt: new Date().toISOString() };
+    const appeal: Appeal = { id: this.nextId('appeal-mock'), ...parsed.data, kind: 'appeal', status: 'pending', createdAt: new Date().toISOString() };
     this.appeals.push(appeal);
     return later(appeal);
   }
 
-  /** Override rewrites finalResults + finalTotal only; originalResults/originalTotal are never touched. */
+  /**
+   * Same rule as the API (apps/api/src/services/appeals.ts applyOverride): rewrites finalResults + finalTotal only;
+   * originalResults/originalTotal are never touched. The result carries the reviewer's reason and source 'reviewer'.
+   */
+  private applyOverride(evaluationId: string, criterionId: string, d: { reason: string; value?: CriterionValue | null; isNA?: boolean }) {
+    const ev = this.evaluations.find((e) => e.id === evaluationId);
+    if (!ev) throw new CqaApiError('not_found', `evaluation ${evaluationId} not found`);
+    if (ev.status !== 'completed') throw new CqaApiError('conflict', 'only a completed evaluation can be changed');
+    const checklist = this.checklists.find((c) => c.id === ev.checklistVersionId)!;
+    const idx = ev.finalResults.findIndex((r) => r.criterionId === criterionId);
+    if (idx < 0) throw new CqaApiError('invalid', `criterion ${criterionId} is not part of this evaluation`);
+    const isNA = d.isNA === true;
+    const value = isNA ? null : (d.value ?? null);
+    const next = clone(ev.finalResults);
+    const { confidence: _c, reusedFrom: _r, naReason: _n, ...rest } = next[idx]!;
+    next[idx] = { ...rest, value, isNA, ...(isNA ? { naReason: d.reason } : {}), explanation: d.reason, source: 'reviewer' };
+    let scored;
+    try {
+      scored = scoreEvaluation(checklist, next); // rejects disallowed values / N/A before anything is mutated
+    } catch (e) {
+      throw new CqaApiError('invalid', e instanceof Error ? e.message : 'invalid override');
+    }
+    ev.finalResults = next;
+    ev.finalTotal = scored.total;
+    ev.seriousViolation = scored.seriousViolation;
+    return { value, isNA };
+  }
+
   async decideAppeal(input: unknown) {
     const parsed = DecideAppealInputSchema.safeParse(input);
     if (!parsed.success) throw new CqaApiError('invalid', parsed.error.message);
@@ -159,31 +188,30 @@ export class MockCqaApi implements CqaApi {
     const appeal = this.appeals.find((a) => a.id === d.appealId);
     if (!appeal) throw new CqaApiError('not_found', `appeal ${d.appealId} not found`);
     if (appeal.status !== 'pending') throw new CqaApiError('conflict', `appeal ${appeal.id} is already ${appeal.status}`);
-    const ev = this.evaluations.find((e) => e.id === appeal.evaluationId)!;
-    const checklist = this.checklists.find((c) => c.id === ev.checklistVersionId)!;
-
     if (d.action === 'override') {
-      const next = clone(ev.finalResults);
-      const idx = next.findIndex((r) => r.criterionId === appeal.criterionId);
-      const isNA = d.isNA === true;
-      next[idx] = { ...next[idx]!, value: isNA ? null : (d.value ?? null), isNA, explanation: `Reviewer override: ${d.reason}` };
-      let scored;
-      try {
-        scored = scoreEvaluation(checklist, next); // rejects disallowed values / N/A before anything is mutated
-      } catch (e) {
-        throw new CqaApiError('invalid', e instanceof Error ? e.message : 'invalid override');
-      }
-      ev.finalResults = next;
-      ev.finalTotal = scored.total;
-      ev.seriousViolation = scored.seriousViolation;
+      const { value, isNA } = this.applyOverride(appeal.evaluationId, appeal.criterionId, d);
       appeal.status = 'overridden';
-      appeal.reviewerValue = isNA ? null : (d.value ?? null);
+      appeal.reviewerValue = value;
       appeal.reviewerIsNA = isNA;
     } else {
       appeal.status = 'upheld';
     }
     appeal.decidedAt = new Date().toISOString();
     appeal.reviewerReason = d.reason;
+    return later(appeal);
+  }
+
+  async overrideCriterion(input: unknown) {
+    const parsed = OverrideCriterionInputSchema.safeParse(input);
+    if (!parsed.success) throw new CqaApiError('invalid', parsed.error.message);
+    const d = parsed.data;
+    if (this.appeals.some((a) => a.evaluationId === d.evaluationId && a.criterionId === d.criterionId && a.status === 'pending')) {
+      throw new CqaApiError('conflict', 'this criterion has a pending appeal: decide the appeal instead');
+    }
+    const { value, isNA } = this.applyOverride(d.evaluationId, d.criterionId, d);
+    const now = new Date().toISOString();
+    const appeal: Appeal = { id: this.nextId('appeal-mock'), evaluationId: d.evaluationId, criterionId: d.criterionId, kind: 'correction', comment: '', status: 'overridden', createdAt: now, decidedAt: now, reviewerReason: d.reason, reviewerValue: value, reviewerIsNA: isNA };
+    this.appeals.push(appeal);
     return later(appeal);
   }
 }

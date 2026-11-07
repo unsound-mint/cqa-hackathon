@@ -16,6 +16,7 @@ import type {
   ListAppealsQuery,
   ListConversationsQuery,
   ListEvaluationsQuery,
+  OverrideCriterionInput,
   SaveChecklistInput,
   StartEvaluationInput,
 } from '@cqa/contracts';
@@ -97,6 +98,11 @@ export class HttpCqaApi implements CqaApi {
   decideAppeal(input: DecideAppealInput): Promise<Appeal> {
     const { appealId, ...body } = input;
     return this.request('POST', `/api/appeals/${enc(appealId)}/decision`, body, AppealSchema);
+  }
+
+  overrideCriterion(input: OverrideCriterionInput): Promise<Appeal> {
+    const { evaluationId, ...body } = input;
+    return this.request('POST', `/api/evaluations/${enc(evaluationId)}/overrides`, body, AppealSchema);
   }
 
   private async request<T>(method: 'GET' | 'POST', path: string, body: unknown, parser: Parser<T>): Promise<T> {

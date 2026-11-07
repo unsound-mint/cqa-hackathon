@@ -84,6 +84,12 @@ describe('HttpCqaApi', () => {
     expect(d.calls[0]).toMatchObject({ url: `/api/appeals/${appeal.id}/decision`, method: 'POST', body: { action: 'uphold', reason: 'r' } });
     expect(d.calls[0]!.body).not.toHaveProperty('appealId');
 
+    const correction = await new MockCqaApi().overrideCriterion({ evaluationId: ev.id, criterionId: crit, reason: 'r', isNA: false, value: false });
+    const o = setup(201, correction);
+    expect(await o.api.overrideCriterion({ evaluationId: ev.id, criterionId: crit, reason: 'r', value: false, isNA: false })).toEqual(correction);
+    expect(o.calls[0]).toMatchObject({ url: `/api/evaluations/${ev.id}/overrides`, method: 'POST', body: { criterionId: crit, reason: 'r', value: false } });
+    expect(o.calls[0]!.body).not.toHaveProperty('evaluationId');
+
     const l = setup(200, [appeal]);
     expect(await l.api.listAppeals({ evaluationId: ev.id })).toEqual([appeal]);
     expect(l.calls[0]).toMatchObject({ url: `/api/evaluations/${ev.id}/appeals`, method: 'GET' });

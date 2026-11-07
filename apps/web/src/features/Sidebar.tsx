@@ -22,7 +22,7 @@ export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleThe
         onNavigate(id);
       }}
       aria-current={active === id ? 'page' : undefined}
-      className={cn('flex min-h-12 min-w-16 flex-col items-center justify-center gap-1 rounded-xl px-1 text-xs transition-colors', active === id ? 'bg-brand-soft font-medium text-accent' : 'text-muted hover:bg-fill hover:text-ink')}
+      className={cn('flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-xs transition-colors md:w-full', active === id ? 'bg-brand-soft font-medium text-accent' : 'text-muted hover:bg-fill hover:text-ink')}
     >
       <span className="relative">
         <Icon aria-hidden className="size-5" />
@@ -31,21 +31,21 @@ export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleThe
       {label}
     </a>
   );
-  const tool = 'grid size-12 place-items-center rounded-xl text-muted transition-colors hover:bg-fill hover:text-ink';
+  const tool = 'grid size-10 place-items-center md:size-12 rounded-xl text-muted transition-colors hover:bg-fill hover:text-ink';
   return (
-    <aside className="flex shrink-0 flex-row items-center gap-4 border-b border-line bg-surface px-4 py-2 md:h-full md:w-[4.5rem] md:flex-col md:items-stretch md:gap-0 md:border-b-0 md:border-r md:px-2 md:py-4">
-      <div className="flex items-center justify-center gap-1 md:mb-4" aria-label="CQA">
+    <aside className="flex shrink-0 flex-row items-center gap-2 border-b border-line bg-surface px-2 py-2 sm:gap-4 sm:px-4 md:h-full md:w-[4.5rem] md:flex-col md:items-stretch md:gap-0 md:border-b-0 md:border-r md:px-1 md:py-4">
+      <div className="flex shrink-0 items-center justify-center gap-1 md:mb-4" aria-label="CQA">
         <span className="text-base font-semibold tracking-wide">CQA</span>
         <span aria-hidden className="size-2 rounded-full bg-brand" />
       </div>
-      <nav aria-label="Разделы" className="flex flex-1 flex-row gap-1 md:flex-none md:flex-col md:items-center">
+      <nav aria-label="Разделы" className="flex min-w-0 flex-1 flex-row gap-1 md:flex-none md:flex-col md:items-center">
         {item('dialogs', 'Диалоги', MessagesSquare, '#/')}
         {item('appeals', 'Апелляции', Gavel, '#/appeals', pendingAppeals)}
         {item('checklist', 'Чек-лист', ListChecks, '#/checklist')}
       </nav>
-      <div className="flex flex-row items-center gap-1 md:mt-auto md:flex-col">
+      <div className="flex shrink-0 flex-row items-center gap-1 md:mt-auto md:flex-col">
         {demo && <span title="Вымышленные данные: демо без сервера" className="inline-flex h-6 items-center rounded-full bg-warn-soft px-2 text-xs font-medium text-warn md:mb-2">Демо</span>}
-        <button type="button" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} title="Тема" className={tool}>
+        <button type="button" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} className={tool}>
           <ThemeIcon aria-hidden className="size-5" />
         </button>
       </div>

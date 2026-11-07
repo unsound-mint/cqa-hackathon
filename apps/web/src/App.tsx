@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApi } from './ApiContext';
 import { cn } from '@/lib/utils';
 import { DEFAULT_FILTERS, hasViolation, matches, needsAttention, reviewCount, type Filters } from '@/lib/queue';
-import { formatScore, outcome, type Tone } from '@/lib/present';
-import { useWide } from '@/lib/media';
+import { criterionGroups, formatScore, grade } from '@/lib/present';
+import { useTwoPane, useWide } from '@/lib/media';
 import { useTheme } from '@/lib/theme';
 import { AppealsPage } from './features/AppealsPage';
 import { ChecklistEditor } from './features/ChecklistEditor';
@@ -15,6 +15,7 @@ import { PrintReport } from './features/PrintReport';
 import { QueueRail } from './features/QueueRail';
 import { Sidebar } from './features/Sidebar';
 import { EvaluationPanel } from './features/EvaluationPanel';
+import type { Correction } from './features/Appeals';
 import { Transcript, type Focus, type Tag } from './features/Transcript';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -57,7 +58,9 @@ export function App() {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [searchFocus, setSearchFocus] = useState(0);
+  const [onlyFlagged, setOnlyFlagged] = useState(false);
   const wide = useWide();
+  const twoPane = useTwoPane();
 
   useEffect(() => {
     const onHash = () => setRoute(parseHash());
@@ -169,18 +172,23 @@ export function App() {
     return (list?.find((e) => e.id === pickedEvaluationId) ?? list?.[list.length - 1])?.id ?? null;
   })();
 
-  /** Results the digit keys 1-9 open, in the order the panel lists them. */
+  /** Results the digit keys 1-9 open: the rows exactly as the panel lists them (sections, attention filter). */
   const shortcutResults = useMemo(() => {
     const list = selectedId ? byConversation.get(selectedId) : undefined;
     const ev = list?.find((e) => e.id === evaluationId);
-    return ev?.status === 'completed' ? ev.finalResults : [];
-  }, [byConversation, selectedId, evaluationId]);
+    if (ev?.status !== 'completed' || load.status !== 'ready') return [];
+    const checklist = load.data.checklists.find((c) => c.id === ev.checklistVersionId);
+    return criterionGroups(ev, checklist, load.data.appeals.filter((a) => a.evaluationId === ev.id), onlyFlagged).flatMap((g) => g.rows);
+  }, [byConversation, selectedId, evaluationId, load, onlyFlagged]);
 
   useEffect(() => {
     if (route.name !== 'dialog') return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (e.ctrlKey || e.metaKey || e.altKey || (t instanceof Element && t.closest('input, textarea, select, [contenteditable]'))) return;
+      // A form with unsent text (reason, objection) holds the screen even when focus slipped out of its field:
+      // a stray Russian letter (о/л/т are J/K/N) must not switch dialogs and throw the draft away.
+      if (document.querySelector('[data-draft="dirty"]')) return;
       if (e.key === 'j' || e.key === 'о') step(1);
       else if (e.key === 'k' || e.key === 'л') step(-1);
       else if ((e.key === 'n' || e.key === 'т') && nextAttention) go({ name: 'dialog', id: nextAttention });
@@ -196,10 +204,14 @@ export function App() {
   if (load.status === 'loading') return <LoadingShell />;
   if (load.status === 'error') {
     return (
-      <div className="p-6">
-        <p role="alert" className="text-sm text-danger">Не удалось загрузить данные: {load.message}</p>
-        <Button className="mt-3" onClick={() => { setLoad({ status: 'loading' }); reload().catch((e: unknown) => setLoad({ status: 'error', message: errorText(e) })); }}>Повторить</Button>
-      </div>
+      <main className="grid h-full place-items-center bg-canvas p-4">
+        <div role="alert" className="w-full max-w-md rounded-card bg-surface p-6 shadow-card">
+          <h1 className="flex items-center gap-2 text-base font-semibold"><AlertTriangle aria-hidden className="size-5 text-danger" />Не удалось загрузить данные</h1>
+          <p className="mt-2 text-sm text-muted">Сервер не ответил или ответил ошибкой. Ничего не потеряно: оценки хранятся на сервере. Проверьте, что API запущен, и повторите.</p>
+          <p className="mt-2 break-words text-xs text-muted">Подробности: {load.message}</p>
+          <Button variant="primary" className="mt-4" onClick={() => { setLoad({ status: 'loading' }); reload().catch((e: unknown) => setLoad({ status: 'error', message: errorText(e) })); }}>Повторить</Button>
+        </div>
+      </main>
     );
   }
 
@@ -219,8 +231,8 @@ export function App() {
   if (evaluation?.status === 'completed') {
     for (const r of evaluation.finalResults) {
       const crit = checklist?.criteria.find((c) => c.id === r.criterionId);
-      const o = outcome(crit, r);
-      const tone: Tone = o.tone;
+      const o = grade(crit, r);
+      const tone = o.tone;
       for (const e of r.evidence) {
         if (!conversation?.transcript[e.messageIndex]) continue;
         const list = tags.get(e.messageIndex) ?? [];
@@ -297,7 +309,7 @@ export function App() {
             })}
           </Select>
           <Button variant="outline" size="sm" aria-label="Следующий диалог (J)" disabled={position < 0 || position >= queue.length - 1} onClick={() => step(1)}><ChevronRight aria-hidden className="size-4" /></Button>
-          <p className="min-w-16 text-sm text-muted" aria-live="polite">{position >= 0 ? `${position + 1} из ${queue.length}` : 'вне фильтра'}</p>
+          <p className="hidden min-w-16 text-sm text-muted sm:block" aria-live="polite">{position >= 0 ? `${position + 1} из ${queue.length}` : 'вне фильтра'}</p>
           <Button variant="outline" size="sm" disabled={!nextAttention} onClick={() => nextAttention && go({ name: 'dialog', id: nextAttention })} title="Следующий диалог с нарушением, ошибкой оценки или низкой уверенностью (N)" aria-label="К диалогу, требующему проверки (N)">
             <AlertTriangle aria-hidden className="size-4" />
           </Button>
@@ -321,7 +333,7 @@ export function App() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {route.name === 'checklist' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
-            <ChecklistEditor checklists={data.checklists} conversationCount={data.conversations.length} onSave={saveChecklist} onEvaluate={evaluateWith} hasCurrentConversation={!!lastDialogId} />
+            <ChecklistEditor checklists={data.checklists} conversationCount={data.conversations.length} onSave={saveChecklist} onEvaluate={evaluateWith} currentConversationId={lastDialogId} />
           </main>
         ) : route.name === 'appeals' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
@@ -329,7 +341,7 @@ export function App() {
           </main>
         ) : route.name === 'list' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
-            <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} demo={mode === 'mock'} focusSignal={searchFocus} />
+            <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} focusSignal={searchFocus} />
           </main>
         ) : !conversation ? (
           <main id="content" tabIndex={-1} className="p-6 text-sm outline-none">
@@ -338,13 +350,18 @@ export function App() {
           </main>
         ) : (
           <>
-            <nav aria-label="Разделы экрана" className="flex gap-1 border-b border-line bg-surface p-2 xl:hidden">
-              {([['evaluation', 'Оценка'], ['transcript', 'Транскрипт']] as const).map(([id, label]) => (
-                <button key={id} type="button" aria-pressed={pane === id} onClick={() => setPane(id)} className={cn('h-10 flex-1 rounded-full text-sm font-medium', pane === id ? 'bg-ink text-canvas' : 'text-muted')}>
-                  {label}
-                </button>
-              ))}
-            </nav>
+            {!twoPane && (
+              <header aria-label="Диалог" className="border-b border-line bg-surface px-4 pt-3">
+                {toolbar}
+                <nav aria-label="Разделы экрана" className="mt-2 flex gap-1 pb-2">
+                  {([['evaluation', 'Оценка'], ['transcript', 'Транскрипт']] as const).map(([id, label]) => (
+                    <button key={id} type="button" aria-pressed={pane === id} onClick={() => setPane(id)} className={cn('h-10 flex-1 rounded-full text-sm font-medium transition-colors', pane === id ? 'bg-brand-soft text-accent' : 'text-muted hover:bg-fill hover:text-ink')}>
+                      {label}
+                    </button>
+                  ))}
+                </nav>
+              </header>
+            )}
 
             <main id="content" tabIndex={-1} className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[17.5rem_minmax(0,1fr)_30rem]' : 'xl:grid-cols-[minmax(0,1fr)_30rem]')}>
               {wide && (
@@ -353,10 +370,11 @@ export function App() {
                 </div>
               )}
               <div className={cn('min-h-0 flex-col bg-surface xl:rounded-card xl:shadow-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>
-                <Transcript conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} tags={tags} activeId={criterionId} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} toolbar={toolbar} />
+                <Transcript key={conversation.id} conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} tags={tags} activeId={criterionId} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} toolbar={twoPane ? toolbar : null} />
               </div>
               <div className={cn('min-h-0 flex-col overflow-hidden bg-surface xl:rounded-card xl:shadow-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
                 <EvaluationPanel
+                  key={conversation.id}
                   conversation={conversation}
                   evaluation={evaluation}
                   checklist={checklist}
@@ -376,6 +394,14 @@ export function App() {
                     await api.decideAppeal(input);
                     await reload(); // an override changes finalResults, the total and the violation flag; appeals are reloaded with it
                   }}
+                  onCorrect={async (cid, c: Correction) => {
+                    if (!evaluation) return;
+                    await api.overrideCriterion({ evaluationId: evaluation.id, criterionId: cid, ...c });
+                    await reload();
+                  }}
+                  onlyFlagged={onlyFlagged}
+                  onOnlyFlagged={setOnlyFlagged}
+                  demoMode={mode === 'mock'}
                   versions={list.map((ev, i) => ({ id: ev.id, label: `Версия ${versionOf(ev) ?? '?'}${i === list.length - 1 ? ' (последняя)' : ''}` }))}
                   onPickEvaluation={(id) => {
                     setPickedEvaluationId(id);
@@ -389,7 +415,7 @@ export function App() {
         )}
       </div>
     </div>
-    {route.name === 'dialog' && conversation && evaluation?.status === 'completed' && <PrintReport conversation={conversation} evaluation={evaluation} checklist={checklist} />}
+    {route.name === 'dialog' && conversation && evaluation?.status === 'completed' && <PrintReport conversation={conversation} evaluation={evaluation} checklist={checklist} appeals={data.appeals.filter((x) => x.evaluationId === evaluation.id)} />}
     </>
   );
 }

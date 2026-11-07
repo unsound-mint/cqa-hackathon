@@ -9,6 +9,7 @@ import type {
   ListAppealsQuery,
   ListConversationsQuery,
   ListEvaluationsQuery,
+  OverrideCriterionInput,
   SaveChecklistInput,
   StartEvaluationInput,
 } from '@cqa/contracts';
@@ -30,6 +31,8 @@ export interface CqaApi {
   listAppeals(query?: ListAppealsQuery): Promise<Appeal[]>;
   createAppeal(input: CreateAppealInput): Promise<Appeal>;
   decideAppeal(input: DecideAppealInput): Promise<Appeal>;
+  /** A reviewer corrects one criterion directly; recorded as an already-decided appeal of kind 'correction'. */
+  overrideCriterion(input: OverrideCriterionInput): Promise<Appeal>;
 }
 
 export type CqaApiErrorCode = 'not_found' | 'invalid' | 'conflict';

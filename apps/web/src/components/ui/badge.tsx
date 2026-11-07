@@ -9,7 +9,6 @@ const badge = cva('inline-flex h-6 items-center gap-1 rounded-full px-2 text-xs 
       success: 'bg-brand-soft text-accent',
       danger: 'bg-danger-soft text-danger',
       warn: 'bg-warn-soft text-warn',
-      dark: 'bg-brand-dark text-white',
     },
   },
   defaultVariants: { tone: 'neutral' },

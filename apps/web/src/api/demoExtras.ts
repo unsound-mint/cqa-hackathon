@@ -114,7 +114,7 @@ export function richDemo(base: unknown = demoJson): DemoBundle {
  */
 export function richDemoAppeals(): Appeal[] {
   return [
-    { id: 'appeal-demo-1', evaluationId: 'eval-demo-en-007-v1', criterionId: '04', comment: 'The operator did check the parcel and pointed to the tracking page; a general hint is not "no help at all".', status: 'pending', createdAt: '2026-11-06T09:12:00.000Z' },
-    { id: 'appeal-demo-2', evaluationId: 'eval-demo-ru-023-v1', criterionId: '07', comment: 'Оператор попрощался, подводить итог в конце звонка не требовалось.', status: 'upheld', createdAt: '2026-11-06T10:05:00.000Z', decidedAt: '2026-11-06T11:20:00.000Z', reviewerReason: 'По чек-листу нужны итог или предложение помощи и прощание: предложения помощи в записи нет.' },
+    { id: 'appeal-demo-1', evaluationId: 'eval-demo-en-007-v1', criterionId: '04', kind: 'appeal', comment: 'The operator did check the parcel and pointed to the tracking page; a general hint is not "no help at all".', status: 'pending', createdAt: '2026-11-06T09:12:00.000Z' },
+    { id: 'appeal-demo-2', evaluationId: 'eval-demo-ru-023-v1', criterionId: '07', kind: 'appeal', comment: 'Оператор попрощался, подводить итог в конце звонка не требовалось.', status: 'upheld', createdAt: '2026-11-06T10:05:00.000Z', decidedAt: '2026-11-06T11:20:00.000Z', reviewerReason: 'По чек-листу нужны итог или предложение помощи и прощание: предложения помощи в записи нет.' },
   ];
 }

@@ -21,6 +21,8 @@
   --c-danger-soft: #fdecea;
   --c-warn: #7a5200;
   --c-warn-soft: #fff3d1;
+  /* Focus ring: dark green on light surfaces, light green on dark ones (and on the always-dark verdict banner). */
+  --c-focus: #164734;
   --shadow-card: 0 1px 2px rgb(25 25 25 / 0.05), 0 16px 40px -18px rgb(25 25 25 / 0.18);
 }
 .dark {
@@ -37,6 +39,7 @@
   --c-danger-soft: #3a1f1b;
   --c-warn: #e8be6a;
   --c-warn-soft: #3a2f14;
+  --c-focus: #5fd28d;
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px -18px rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
@@ -64,6 +67,16 @@
   /* Type scale on the 4px grid (size / line-height): xs 12/16, sm 14/20, base 16/24, xl 20/28, 2xl 24/32, score 56/64. */
   --text-score: 3.5rem;
   --text-score--line-height: 4rem;
+  /* The total on phones (40/48): the banner must leave room for the criteria below it. */
+  --text-score-sm: 2.5rem;
+  --text-score-sm--line-height: 3rem;
+
+  /* Text and fills on the always-dark verdict banner (same in both themes). */
+  --color-verdict-muted: #9fb5a9;
+  --color-verdict-alert: #ffd3cb;
+  --color-verdict-alert-bg: #3a1a16;
+  --color-verdict-warn: #e8be6a;
+  --color-verdict-warn-bg: #3a2f14;
 
   --radius-card: 16px;
   --shadow-card: var(--shadow-card);
@@ -71,8 +84,13 @@
 
 /* The verdict panel is the same dark green in both themes (the banner look of the Freedom sites). */
 .verdict {
+  --c-focus: #5fd28d;
   background: radial-gradient(120% 70% at 0% 0%, #0f3a28 0%, #0b1f17 55%, #08130e 100%);
   color: #f2f6f3;
+}
+/* On the dark theme the banner is close to the page color: a hairline keeps its edge. */
+.dark .verdict {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
 }
 
 @layer base {
@@ -103,7 +121,8 @@
     @apply bg-canvas font-sans text-ink antialiased;
       }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-brand-dark;
+    outline: 2px solid var(--c-focus);
+    outline-offset: 2px;
   }
   ::selection {
     background: var(--color-brand-soft);

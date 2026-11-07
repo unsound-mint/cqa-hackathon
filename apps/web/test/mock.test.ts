@@ -61,4 +61,17 @@ describe('MockCqaApi', () => {
     await expect(api.decideAppeal({ appealId: a.id, action: 'override', reason: 'r', value: 7 })).rejects.toBeInstanceOf(CqaApiError);
     expect((await api.listAppeals({ evaluationId: ev.id }))[0]!.status).toBe('pending');
   });
+
+  it('a direct correction keeps the AI explanation in the originals and records a decided correction', async () => {
+    const api = new MockCqaApi();
+    const before = (await api.listEvaluations())[0]!;
+    const c = await api.overrideCriterion({ evaluationId: before.id, criterionId: '04', reason: 'Вопросы закрыты', value: 20 });
+    expect(c).toMatchObject({ kind: 'correction', status: 'overridden', reviewerReason: 'Вопросы закрыты' });
+    const after = await api.getEvaluation(before.id);
+    expect(after.originalResults).toEqual(before.originalResults);
+    expect(after.finalResults.find((r) => r.criterionId === '04')).toMatchObject({ value: 20, explanation: 'Вопросы закрыты', source: 'reviewer' });
+    const appeal = await api.createAppeal({ evaluationId: before.id, criterionId: '05', comment: 'c' });
+    await expect(api.overrideCriterion({ evaluationId: before.id, criterionId: '05', reason: 'r', value: true })).rejects.toMatchObject({ code: 'conflict' });
+    expect((await api.listAppeals({ evaluationId: before.id })).find((a) => a.id === appeal.id)!.status).toBe('pending');
+  });
 });

@@ -1,7 +1,7 @@
-import { CreateAppealInputSchema, DecideAppealInputSchema, ListAppealsQuerySchema, ListEvaluationsQuerySchema, StartEvaluationInputSchema } from '@cqa/contracts';
+import { CreateAppealInputSchema, DecideAppealInputSchema, ListAppealsQuerySchema, ListEvaluationsQuerySchema, OverrideCriterionInputSchema, StartEvaluationInputSchema } from '@cqa/contracts';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { Db } from '../db/index.js';
-import { AppealError, createAppeal, decideAppeal, listAllAppeals, listAppeals } from '../services/appeals.js';
+import { AppealError, createAppeal, decideAppeal, listAllAppeals, listAppeals, overrideCriterion } from '../services/appeals.js';
 import { getEvaluation, listEvaluations } from '../services/evaluations.js';
 import { JobError, type JobRunner } from '../services/evaluation/jobs.js';
 
@@ -41,6 +41,17 @@ export function evaluationRoutes(app: FastifyInstance, db: Db, runner: JobRunner
     if (!body.success) return reply.code(400).send({ error: 'body must be { criterionId, comment }' });
     try {
       return reply.code(201).send(createAppeal(db, { ...body.data, evaluationId: req.params.id }));
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  /** A reviewer changes one criterion directly; answers the recorded correction. */
+  app.post<{ Params: { id: string } }>('/api/evaluations/:id/overrides', async (req, reply) => {
+    const body = OverrideCriterionInputSchema.safeParse({ ...(req.body as object | null), evaluationId: req.params.id });
+    if (!body.success) return reply.code(400).send({ error: 'invalid override', issues: body.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) });
+    try {
+      return reply.code(201).send(overrideCriterion(db, body.data));
     } catch (e) {
       return fail(reply, e);
     }

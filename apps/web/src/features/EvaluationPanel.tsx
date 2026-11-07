@@ -1,14 +1,14 @@
 import type { Appeal, ChecklistVersion, Conversation, Criterion, CriterionResult, DecideAppealInput, EvidenceReference, Evaluation } from '@cqa/contracts';
 import { AlertTriangle, ChevronDown, Download, FlaskConical, Link2Off, Loader2, Printer, Quote, ShieldAlert } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
-import { CONFIDENCE_LABEL, SOURCE_LABEL, earnedPoints, formatScore, needsReview, outcome, sameResult } from '@/lib/present';
+import { CONFIDENCE_LABEL, SOURCE_LABEL, criterionGroups, earnedPoints, formatScore, grade, isFlagged, needsReview, sameResult } from '@/lib/present';
 import { downloadText, evaluationCsv } from '@/lib/export';
 import { violationReasons } from '@/lib/queue';
-import { AppealBox } from './Appeals';
+import { ReviewBox, type Correction } from './Appeals';
 
 type Props = {
   conversation: Conversation;
@@ -24,6 +24,13 @@ type Props = {
   appeals: Appeal[];
   onCreateAppeal: (criterionId: string, comment: string) => Promise<void>;
   onDecideAppeal: (input: DecideAppealInput) => Promise<void>;
+  /** A reviewer's direct correction of one criterion. */
+  onCorrect: (criterionId: string, c: Correction) => Promise<void>;
+  /** "Только требующие внимания": owned by the app because the digit shortcuts follow the rows shown. */
+  onlyFlagged: boolean;
+  onOnlyFlagged: (v: boolean) => void;
+  /** The whole app runs on fictional data and says so in the sidebar; the panel then does not repeat it. */
+  demoMode: boolean;
   /** All evaluations of this conversation (oldest first) so a checklist change can be compared with the old result. */
   versions: { id: string; label: string }[];
   onPickEvaluation: (id: string) => void;
@@ -68,20 +75,53 @@ function EvidenceChip({ e, conversation, onJump }: { e: EvidenceReference; conve
 const CHIP = { neutral: 'bg-fill text-ink', success: 'bg-brand-soft text-accent', danger: 'bg-danger-soft text-danger', warn: 'bg-warn-soft text-warn' } as const;
 const BAR = { neutral: 'bg-line-strong', success: 'bg-brand', danger: 'bg-danger', warn: 'bg-warn' } as const;
 
-type RowProps = { criterion: Criterion | undefined; result: CriterionResult; original: CriterionResult | undefined; conversation: Conversation; open: boolean; onToggle: () => void; onJump: (i: number) => void; evaluationId: string; appeals: Appeal[]; onCreateAppeal: Props['onCreateAppeal']; onDecideAppeal: Props['onDecideAppeal'] };
+/** Data written before the reviewer's reason became the explanation carried an English prefix. */
+const reviewerText = (r: CriterionResult) => r.explanation.replace(/^Reviewer override: /, '');
 
-function CriterionRow({ criterion, result, original, conversation, open, onToggle, onJump, evaluationId, appeals, onCreateAppeal, onDecideAppeal }: RowProps) {
-  const o = outcome(criterion, result);
+/** Explanation, evidence and how it was decided, for one result (the AI's, or the current one). */
+function Reasoning({ result, conversation, onJump, title }: { result: CriterionResult; conversation: Conversation; onJump: (i: number) => void; title?: ReactNode }) {
+  return (
+    <div className="space-y-3">
+      {title}
+      {result.isNA && result.naReason && result.source !== 'reviewer' && <p className="text-sm"><span className="font-medium">Причина N/A:</span> {result.naReason}</p>}
+      <p className="max-w-[65ch] text-base leading-6">{result.explanation}</p>
+      {result.evidence.length > 0 && (
+        <div className="flex flex-wrap gap-2" aria-label="Доказательства">
+          {result.evidence.map((e, i) => (
+            <EvidenceChip key={`${e.messageIndex}-${i}`} e={e} conversation={conversation} onJump={onJump} />
+          ))}
+        </div>
+      )}
+      {result.checkedRange && (
+        <p className="text-xs text-muted">
+          Проверены сообщения #{result.checkedRange.from}–#{result.checkedRange.to}
+          {result.evidence.length === 0 ? ': подтверждающих реплик не найдено.' : '.'}
+        </p>
+      )}
+      {(result.source || result.confidence) && (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          {result.source && <span>Решение: {SOURCE_LABEL[result.source].toLowerCase()}</span>}
+          {result.confidence && <span className={cn(result.confidence === 'low' && 'font-medium text-warn')}>Уверенность: {CONFIDENCE_LABEL[result.confidence]}{result.confidence === 'low' ? ' · нужна проверка человеком' : ''}</span>}
+        </p>
+      )}
+    </div>
+  );
+}
+
+type RowProps = { criterion: Criterion | undefined; result: CriterionResult; original: CriterionResult | undefined; conversation: Conversation; open: boolean; onToggle: () => void; onJump: (i: number) => void; evaluation: Evaluation; checklist: ChecklistVersion | undefined; appeals: Appeal[]; onCreateAppeal: Props['onCreateAppeal']; onDecideAppeal: Props['onDecideAppeal']; onCorrect: Props['onCorrect'] };
+
+function CriterionRow({ criterion, result, original, conversation, open, onToggle, onJump, evaluation, checklist, appeals, onCreateAppeal, onDecideAppeal, onCorrect }: RowProps) {
+  const g = grade(criterion, result);
   const changed = !!original && !sameResult(original, result);
   const pts = earnedPoints(criterion, result);
   const weight = criterion?.weight ?? 0;
-  const mine = appeals.filter((a) => a.criterionId === result.criterionId);
-  const pending = mine.some((a) => a.status === 'pending');
-  const panelId = `crit-${evaluationId}-${result.criterionId}`;
+  const pending = appeals.some((a) => a.criterionId === result.criterionId && a.status === 'pending');
+  const panelId = `crit-${evaluation.id}-${result.criterionId}`;
+  const ai = changed && original ? original : null;
 
   return (
-    <li id={`row-${evaluationId}-${result.criterionId}`} className={cn('rounded-2xl transition-colors', open ? 'bg-fill ring-1 ring-brand/60' : 'hover:bg-fill/60')}>
-      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="w-full rounded-2xl px-4 py-3 text-left">
+    <li id={`row-${evaluation.id}-${result.criterionId}`} className={cn('scroll-mt-2 rounded-xl transition-colors', open ? 'bg-fill ring-1 ring-brand/60' : 'hover:bg-fill/60')}>
+      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="w-full rounded-xl px-4 py-3 text-left">
         <span className="flex items-start justify-between gap-4">
           <span className="min-w-0">
             <span className="block text-base font-medium leading-6">
@@ -89,22 +129,22 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
               {criterion?.title ?? 'Критерий не найден в чек-листе'}
             </span>
             <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-              {criterion?.criticalFlag ? 'флаг, без баллов' : result.isNA ? `вес ${weight}: не считается` : `вес ${weight}`}
+              {criterion?.criticalFlag ? 'флаг, без баллов' : result.isNA ? `вес ${weight}: не считается` : pts === null ? `вес ${weight}` : null}
               {pts !== null && weight > 0 && pts < weight && (
                 <span className="inline-flex items-center gap-2">
-                  <span className="h-1 w-16 rounded-full bg-line"><span className={cn('block h-1 rounded-full', BAR[o.tone])} style={{ width: `${Math.round((pts / weight) * 100)}%` }} /></span>
-                  <span className="tabular-nums">{formatScore(pts)} / {weight} <span className="text-warn">(−{formatScore(weight - pts)})</span></span>
+                  <span className="h-1 w-16 rounded-full bg-line"><span className={cn('block h-1 rounded-full', BAR[g.tone])} style={{ width: `${Math.round((pts / weight) * 100)}%` }} /></span>
+                  <span className="tabular-nums">−{formatScore(weight - pts)}</span>
                 </span>
               )}
               {needsReview(result) && <Badge tone="warn">Проверить</Badge>}
-              {changed && <Badge tone="warn">Изменено проверяющим</Badge>}
               {pending && <Badge tone="warn">Апелляция</Badge>}
+              {changed && <Badge>Изменено проверяющим</Badge>}
               {result.reusedFrom && <Badge>Из прошлой оценки</Badge>}
             </span>
           </span>
           <span className="flex shrink-0 items-center gap-2">
-            {changed && original && <span className="text-xs text-muted line-through" aria-label={`Ответ ИИ был: ${outcome(criterion, original).label}`}>ИИ: {outcome(criterion, original).label}</span>}
-            <span className={cn('inline-flex h-8 items-center rounded-full px-3 text-sm font-semibold whitespace-nowrap', CHIP[o.tone])}>{o.label}</span>
+            {ai && <span className="text-xs tabular-nums text-muted line-through" aria-label={`Ответ ИИ был: ${grade(criterion, ai).label}`}>ИИ: {grade(criterion, ai).label}</span>}
+            <span className={cn('inline-flex h-8 items-center rounded-full px-3 text-sm font-semibold tabular-nums whitespace-nowrap', CHIP[g.tone])}>{g.label}</span>
             <ChevronDown aria-hidden className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} />
           </span>
         </span>
@@ -112,44 +152,41 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
 
       {open && (
         <div id={panelId} className="space-y-4 px-4 pb-4">
-          {result.isNA && result.naReason && <p className="text-sm"><span className="font-medium">Причина N/A:</span> {result.naReason}</p>}
-          <p className="max-w-[65ch] text-base leading-6">{result.explanation}</p>
-
-          {result.evidence.length > 0 && (
-            <div className="flex flex-wrap gap-2" aria-label="Доказательства">
-              {result.evidence.map((e, i) => (
-                <EvidenceChip key={`${e.messageIndex}-${i}`} e={e} conversation={conversation} onJump={onJump} />
-              ))}
-            </div>
+          {ai ? (
+            <>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted">Проверяющий: {g.label}</p>
+                <p className="max-w-[65ch] text-base leading-6">{reviewerText(result)}</p>
+              </div>
+              <div className="border-t border-line pt-3">
+                <Reasoning result={ai} conversation={conversation} onJump={onJump} title={<p className="text-xs font-medium text-muted">Исходный ответ ИИ: {grade(criterion, ai).label}</p>} />
+              </div>
+            </>
+          ) : (
+            <Reasoning result={result.source === 'reviewer' ? { ...result, explanation: reviewerText(result) } : result} conversation={conversation} onJump={onJump} />
           )}
-          {result.checkedRange && (
-            <p className="text-xs text-muted">
-              Проверены сообщения #{result.checkedRange.from}–#{result.checkedRange.to}
-              {result.evidence.length === 0 ? ': подтверждающих реплик не найдено.' : '.'}
-            </p>
-          )}
-
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-            {result.source && <span>Решение: {SOURCE_LABEL[result.source].toLowerCase()}</span>}
-            {result.confidence && <span className={cn(result.confidence === 'low' && 'font-medium text-warn')}>Уверенность: {CONFIDENCE_LABEL[result.confidence]}{result.confidence === 'low' ? ' · нужна проверка человеком' : ''}</span>}
-          </p>
-
-          <AppealBox evaluationId={evaluationId} criterionId={result.criterionId} criterion={criterion} appeals={appeals} onCreate={onCreateAppeal} onDecide={onDecideAppeal} />
 
           {criterion && (
             <details className="text-xs text-muted">
               <summary className="cursor-pointer select-none hover:text-ink">Как оценивается критерий</summary>
-              <p className="mt-1 leading-relaxed">{criterion.instructions}</p>
+              <p className="mt-1 max-w-[65ch] leading-5">{criterion.instructions}</p>
             </details>
           )}
+
+          <ReviewBox evaluation={evaluation} checklist={checklist} criterionId={result.criterionId} criterion={criterion} appeals={appeals} onCreate={onCreateAppeal} onDecide={onDecideAppeal} onCorrect={onCorrect} />
         </div>
       )}
     </li>
   );
 }
 
-export function EvaluationPanel({ conversation, evaluation, checklist, selectedCriterionId, onSelectCriterion, onJump, onStart, starting, startError, appeals, onCreateAppeal, onDecideAppeal, versions, onPickEvaluation, newerChecklistVersion }: Props) {
-  const [onlyFlagged, setOnlyFlagged] = useState(false);
+export function EvaluationPanel({ conversation, evaluation, checklist, selectedCriterionId, onSelectCriterion, onJump, onStart, starting, startError, appeals, onCreateAppeal, onDecideAppeal, onCorrect, onlyFlagged, onOnlyFlagged, demoMode, versions, onPickEvaluation, newerChecklistVersion }: Props) {
+  /** An opened criterion (digit key, tag on a message, link) is brought into view with its form. */
+  useEffect(() => {
+    if (!selectedCriterionId || !evaluation) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(`row-${evaluation.id}-${selectedCriterionId}`)?.scrollIntoView?.({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+  }, [selectedCriterionId, evaluation?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const lookup = (id: string) => checklist?.criteria.find((c) => c.id === id);
 
   if (!evaluation) {
@@ -194,23 +231,17 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
   const possible = scored.reduce((sum, x) => sum + (x.c?.weight ?? 0), 0);
   const naIds = evaluation.finalResults.filter((r) => r.isNA && (lookup(r.criterionId)?.weight ?? 0) > 0).map((r) => r.criterionId);
   const pendingIds = new Set(appeals.filter((a) => a.status === 'pending').map((a) => a.criterionId));
-  const flagged = (r: CriterionResult) => needsReview(r) || pendingIds.has(r.criterionId) || !sameResult(originalById.get(r.criterionId), r);
-  const flaggedCount = evaluation.finalResults.filter(flagged).length;
-  const shown = onlyFlagged ? evaluation.finalResults.filter(flagged) : evaluation.finalResults;
+  const flaggedCount = evaluation.finalResults.filter((r) => isFlagged(r, originalById.get(r.criterionId), pendingIds)).length;
   const changedCount = evaluation.finalResults.filter((r) => !sameResult(originalById.get(r.criterionId), r)).length;
-
-  const sections = checklist?.sections ?? [];
-  const groups = sections.length
-    ? [...sections.map((s) => ({ id: s.id, title: s.title, rows: shown.filter((r) => lookup(r.criterionId)?.sectionId === s.id) })), { id: '_', title: 'Прочее', rows: shown.filter((r) => !sections.some((s) => s.id === lookup(r.criterionId)?.sectionId)) }].filter((g) => g.rows.length)
-    : [{ id: '_', title: '', rows: shown }];
+  const groups = criterionGroups(evaluation, checklist, appeals, onlyFlagged);
 
   return (
-    <section aria-label="Оценка" className="flex h-full min-h-0 flex-col">
-      <header className="verdict px-6 py-4">
+    <section aria-label="Оценка" className="flex h-full min-h-0 flex-col overflow-y-auto md:overflow-hidden">
+      <header className="verdict shrink-0 px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <h2 className="flex flex-wrap items-center gap-2 text-sm font-medium text-[#9fb5a9]">
+          <h2 className="flex flex-wrap items-center gap-2 text-sm font-medium text-verdict-muted">
             Оценка{versions.length <= 1 && checklist ? ` · версия ${checklist.version}` : ''}
-            {isMock && <span title="Вымышленный пример, а не оценка модели" aria-label="Демо-данные: вымышленный пример, а не оценка модели" className="inline-flex h-6 items-center gap-1 rounded-full bg-[#3a2f14] px-2 text-xs text-[#e8be6a]"><FlaskConical aria-hidden className="size-4" />Демо-данные</span>}
+            {isMock && !demoMode && <span title="Вымышленный пример, а не оценка модели" aria-label="Демо-данные: вымышленный пример, а не оценка модели" className="inline-flex h-6 items-center gap-1 rounded-full bg-verdict-warn-bg px-2 text-xs text-verdict-warn"><FlaskConical aria-hidden className="size-4" />Демо-данные</span>}
           </h2>
           <div className="flex flex-wrap gap-2">
             {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Апелляция: {pendingIds.size}</span>}
@@ -218,30 +249,30 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
           </div>
         </div>
         <p className="mt-1 flex items-baseline gap-2">
-          <span className="text-score font-semibold tracking-tight tabular-nums">{formatScore(evaluation.finalTotal)}</span>
-          <span className="text-base text-[#9fb5a9]">из 100</span>
+          <span className="text-score-sm font-semibold tracking-tight tabular-nums md:text-score">{formatScore(evaluation.finalTotal)}</span>
+          <span className="text-base text-verdict-muted">из 100</span>
         </p>
-        {evaluation.originalTotal !== evaluation.finalTotal && <p className="mt-1 text-xs text-[#9fb5a9]">Исходная оценка ИИ: {formatScore(evaluation.originalTotal)}</p>}
-        <p className="mt-2 text-sm text-[#9fb5a9]">
+        {evaluation.originalTotal !== evaluation.finalTotal && <p className="mt-1 text-xs text-verdict-muted">Исходная оценка ИИ: {formatScore(evaluation.originalTotal)}</p>}
+        <p className="mt-2 text-sm text-verdict-muted">
           {evaluation.finalTotal === null ? 'Нет применимых критериев: балл не считается.' : `Набрано ${formatScore(earned)} из ${formatScore(possible)} возможных баллов`}
           {naIds.length > 0 && evaluation.finalTotal !== null && <span className="block text-xs">Не применимы и не учитываются: {naIds.join(', ')}</span>}
         </p>
 
         {evaluation.seriousViolation ? (
-          <div className="mt-3 rounded-xl bg-[#3a1a16] p-4 text-[#ffd3cb]" role="alert">
+          <div className="mt-3 rounded-xl bg-verdict-alert-bg p-4 text-verdict-alert" role="alert">
             <p className="flex items-center gap-2 text-base font-semibold"><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</p>
             {reasons.length === 0 && <p className="mt-1 text-sm">Флаг поднят.</p>}
             {reasons.map((r) => (
-              <p key={r.criterionId} className="mt-1 text-base leading-6">{reasons.length > 1 && <span className="font-medium">{r.title}: </span>}{r.explanation}</p>
+              <p key={r.criterionId} className="mt-1 text-sm leading-5 md:text-base md:leading-6">{reasons.length > 1 && <span className="font-medium">{r.title}: </span>}{r.explanation}</p>
             ))}
           </div>
         ) : (
-          <p className="mt-3 flex items-center gap-2 text-sm text-[#9fb5a9]"><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</p>
+          <p className="mt-3 flex items-center gap-2 text-sm text-verdict-muted"><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</p>
         )}
       </header>
 
       {(versions.length > 1 || newerChecklistVersion !== null || startError) && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-6 py-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-3 sm:px-6">
           {versions.length > 1 && (
             <label className="flex items-center gap-2 text-xs">
               <span className="text-muted">Оценка по версии:</span>
@@ -257,10 +288,10 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         </div>
       )}
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-surface p-2 pb-4">
+      <div className="flex-1 space-y-4 bg-surface p-2 pb-4 md:min-h-0 md:overflow-y-auto">
         {flaggedCount > 0 && (
-          <label className="flex items-center gap-2 px-4 pt-2 text-xs">
-            <input type="checkbox" checked={onlyFlagged} onChange={(e) => setOnlyFlagged(e.target.checked)} className="size-4 accent-brand" />
+          <label className="flex min-h-8 items-center gap-2 px-4 pt-2 text-xs">
+            <input type="checkbox" checked={onlyFlagged} onChange={(e) => onOnlyFlagged(e.target.checked)} className="size-4 accent-brand" />
             Только требующие внимания ({flaggedCount})
           </label>
         )}
@@ -278,19 +309,21 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
                   open={selectedCriterionId === r.criterionId}
                   onToggle={() => onSelectCriterion(r.criterionId)}
                   onJump={onJump}
-                  evaluationId={evaluation.id}
+                  evaluation={evaluation}
+                  checklist={checklist}
                   appeals={appeals}
                   onCreateAppeal={onCreateAppeal}
                   onDecideAppeal={onDecideAppeal}
+                  onCorrect={onCorrect}
                 />
               ))}
             </ul>
           </div>
         ))}
-        {shown.length === 0 && <p className="p-4 text-sm text-muted">Ничего не требует внимания.</p>}
+        {groups.length === 0 && <p className="p-4 text-sm text-muted">Ничего не требует внимания.</p>}
       </div>
 
-      <footer className="flex items-center justify-end gap-2 border-t border-line bg-surface px-6 py-2 text-sm text-muted">
+      <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-surface px-4 py-2 text-sm text-muted sm:px-6">
         Экспорт
         <button type="button" onClick={() => downloadText(`${conversation.id}-evaluation.csv`, evaluationCsv(conversation, evaluation, checklist), 'text/csv;charset=utf-8')} aria-label="Скачать оценку в CSV" title="Таблица для Excel" className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-ink hover:bg-fill"><Download aria-hidden className="size-4" />CSV</button>
         <button type="button" onClick={() => window.print()} aria-label="Печать или сохранить в PDF" title="Отчёт для печати или сохранения в PDF" className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-ink hover:bg-fill"><Printer aria-hidden className="size-4" />PDF</button>

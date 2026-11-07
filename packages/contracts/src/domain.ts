@@ -154,8 +154,11 @@ export const CriterionResultSchema = z
     explanation: z.string(),
     /** Model's own certainty. 'low' (e.g. noisy speech recognition) routes the result to human review. */
     confidence: z.enum(['high', 'medium', 'low']).optional(),
-    /** Who decided: a deterministic rule, a rule fed narrow facts by the model ('hybrid'), or the model. Absent on older data. */
-    source: z.enum(['rule', 'hybrid', 'model']).optional(),
+    /**
+     * Who decided: a deterministic rule, a rule fed narrow facts by the model ('hybrid'), the model, or a human
+     * reviewer ('reviewer', only ever in finalResults; then `explanation` is the reviewer's reason). Absent on older data.
+     */
+    source: z.enum(['rule', 'hybrid', 'model', 'reviewer']).optional(),
     /** Set when copied unchanged from an earlier evaluation of the same conversation (no new decision was made). */
     reusedFrom: z.string().optional(),
     evidence: z.array(EvidenceReferenceSchema),
@@ -205,10 +208,20 @@ export type Evaluation = z.infer<typeof EvaluationSchema>;
 export const AppealStatusSchema = z.enum(['pending', 'upheld', 'overridden']);
 export type AppealStatus = z.infer<typeof AppealStatusSchema>;
 
+/**
+ * 'appeal': someone disputed the grade and a reviewer decides it later. 'correction': a reviewer changed the grade
+ * directly; it is recorded already decided (status 'overridden') so the audit history stays in one place.
+ */
+export const AppealKindSchema = z.enum(['appeal', 'correction']);
+export type AppealKind = z.infer<typeof AppealKindSchema>;
+
 export const AppealSchema = z.object({
   id: z.string().min(1),
   evaluationId: z.string().min(1),
   criterionId: z.string().min(1),
+  /** Absent on data written before corrections existed: that is an 'appeal'. */
+  kind: AppealKindSchema.default('appeal'),
+  /** The objection; empty for a correction. */
   comment: z.string(),
   status: AppealStatusSchema,
   createdAt: z.string(),
