@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { openDb, type Db } from './db/index.js';
 import { checklistRoutes } from './routes/checklists.js';
@@ -10,7 +13,10 @@ import type { LlmProvider } from './services/evaluation/provider.js';
 import { seedOriginalChecklist } from './services/checklists.js';
 import type { ImportDeps } from './services/import/importer.js';
 
-export type AppOptions = { db?: Db; importDeps?: ImportDeps; provider?: LlmProvider | null };
+export type AppOptions = { db?: Db; importDeps?: ImportDeps; provider?: LlmProvider | null; /** Built web app to serve at `/`. Defaults to apps/web/dist when it exists. */ webDist?: string | null };
+
+// Resolves to apps/web/dist from both src/ (dev) and dist/ (built): each is two levels below apps/web's sibling.
+const DEFAULT_WEB_DIST = fileURLToPath(new URL('../../web/dist', import.meta.url));
 
 /** Provider from the environment; null when no key is configured (evaluation endpoints answer 503). */
 function providerFromEnv(): LlmProvider | null {
@@ -34,6 +40,16 @@ export function buildApp(opts: AppOptions = {}) {
   checklistRoutes(app, db);
   evaluationRoutes(app, db, runner);
   runner.resume();
+
+  // One process, one URL for the demo: serve the built web app, with SPA fallback for non-API paths.
+  const webDist = opts.webDist === undefined ? (process.env.WEB_DIST ?? DEFAULT_WEB_DIST) : opts.webDist;
+  if (webDist && existsSync(webDist)) {
+    void app.register(fastifyStatic, { root: webDist });
+    app.setNotFoundHandler((req, reply) => {
+      if (req.method === 'GET' && !req.url.startsWith('/api/') && req.url !== '/health') return reply.sendFile('index.html');
+      return reply.code(404).send({ error: 'not found' });
+    });
+  }
   datasetRoutes(app, db, importDeps);
   return Object.assign(app, { runner });
 }
