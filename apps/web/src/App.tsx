@@ -434,12 +434,12 @@ export function App() {
               className={cn('grid min-h-0 flex-1 bg-transparent p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[var(--rail)_1rem_minmax(28rem,1fr)_1rem_var(--panel)]' : 'xl:grid-cols-[minmax(28rem,1fr)_1rem_var(--panel)]')}
             >
               {wide && (
-                <div ref={railRef} className="queue-pane min-h-0 overflow-hidden rounded-card glass-panel">
+                <div ref={railRef} className="min-h-0 overflow-hidden rounded-card glass-panel">
                   <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filters={filters} counts={quickCounts} onFilters={(patch) => setFilters((f) => ({ ...f, ...patch }))} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} onSelect={(id) => go({ name: 'dialog', id })} onHide={() => hideRail(true)} />
                 </div>
               )}
               {wide && <Splitter label="Ширина очереди" className="hidden xl:flex" measure={() => railRef.current?.offsetWidth ?? 0} min={rem(14)} max={sideMax('rail')} onChange={(px) => setWidth('rail', px)} onReset={() => setWidth('rail', null)} />}
-              <div className={cn('transcript-pane min-h-0 flex-col overflow-hidden glass-panel rounded-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>
+              <div className={cn('min-h-0 flex-col glass-panel rounded-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>
                 <Transcript key={conversation.id} conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} tags={tags} activeId={criterionId} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} toolbar={twoPane ? toolbar : null} />
               </div>
               <Splitter label="Ширина панели оценки" className="hidden xl:flex" invert measure={() => panelRef.current?.offsetWidth ?? 0} min={rem(24)} max={sideMax('panel')} onChange={(px) => setWidth('panel', px)} onReset={() => setWidth('panel', null)} />
