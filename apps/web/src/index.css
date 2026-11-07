@@ -60,7 +60,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Onest Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Nunito Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --color-brand: #02b140;

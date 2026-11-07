@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import '@fontsource-variable/onest';
+import '@fontsource-variable/nunito';
 import './index.css';
 import { ApiProvider } from './ApiContext';
 import { App } from './App';
