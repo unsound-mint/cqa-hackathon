@@ -55,3 +55,25 @@ POST /api/appeals/:id/decision
 - Keep system prompts versioned; include original user content as inert data, never obey it as instructions.
 
 The initial service contract and required DTO shapes are in `docs/INTERFACES.md`. It is the source-of-truth design until actual published Zod schemas replace it.
+
+
+## Contract v0.1 additions (bootstrap)
+Implemented in `packages/contracts` (Zod). v0 in `docs/INTERFACES.md` is unchanged; these are additive, needed because v0 gives the UI no way from a job or conversation to an evaluation, or to existing appeals.
+
+| Addition | HTTP route | Why |
+|---|---|---|
+| `Job.id`, `Job.evaluationIds` | `GET /api/jobs/:id` | find the evaluations a job created |
+| `listEvaluations({conversationId?})` | `GET /api/evaluations?conversationId=` | open a conversation's existing evaluation(s) |
+| `listAppeals({evaluationId})` | `GET /api/evaluations/:id/appeals` | show appeals and decisions |
+| `Appeal.createdAt/decidedAt` | | audit trail |
+| `Evaluation.provenance {provider, model, promptVersion}` | | per-evaluation provenance; `provider: 'mock'` marks fictional output, the UI must label it |
+
+Rules fixed in the schemas: `CriterionResult` has exactly one of `isNA` / a value; `boolean` allows `[true,false]`; `discrete-scale` needs >=2 non-negative numeric tiers (top tier = full weight); `enum` criteria must have weight 0 (no numeric meaning defined); `criticalFlag` criteria are boolean with weight 0; criterion ids unique per checklist; `Conversation.transcript[i].index === i`.
+
+`Evaluation.seriousViolation` reflects `finalResults`; the original flag is `deriveSeriousViolation(criteria, originalResults)`.
+
+**Single total calculation:** `packages/contracts/src/scoring.ts` (`computeTotal`, `deriveSeriousViolation`), driven by kind/allowedValues/weight/allowNA, never by criterion id; throws `ScoringError` on invalid state. MockCqaApi and the future API scorer (issue D3) both use it. Two-decimal rounding is provisional (half away from zero on the decimal value) pending an organizer/human decision. `findEvidenceProblems` (`evidence.ts`) is the one grounding check for indices, verbatim quotes and `checkedRange`.
+
+**Frontend service:** `apps/web/src/api/CqaApi.ts` is the interface; `MockCqaApi` (in-memory over `fixtures/demo.json`, returns copies, overrides never touch `originalResults`/`originalTotal`, a saved checklist is a new immutable version and mock evaluations use that version's own criteria with placeholder results) is the only implementation so far. `createApi()` in `apps/web/src/api/index.ts` is the one place to switch to `HttpCqaApi`. Mock/real is chosen there, not in components. Mock errors are `CqaApiError('not_found'|'invalid'|'conflict')`; HTTP should map 404/400/409 to the same codes.
+
+**Packaging:** `@cqa/contracts` is consumed as TypeScript source (no build step); the API bundles it with tsup. Server-only secrets are unprefixed env vars; `VITE_*` is public.
