@@ -38,6 +38,7 @@ export const evaluations = sqliteTable('evaluations', {
   seriousViolation: integer('serious_violation', { mode: 'boolean' }).notNull(),
   provenance: text('provenance', { mode: 'json' }),
   error: text('error'),
+  cacheContext: text('cache_context'),
   createdAt: text('created_at').notNull(),
 });
 
@@ -59,6 +60,7 @@ export const appeals = sqliteTable('appeals', {
 export const jobs = sqliteTable('jobs', {
   id: text('id').primaryKey(),
   checklistVersionId: text('checklist_version_id').notNull(),
+  force: integer('force', { mode: 'boolean' }).notNull().default(false),
   conversationIds: text('conversation_ids', { mode: 'json' }).$type<string[]>().notNull(),
   evaluationIds: text('evaluation_ids', { mode: 'json' }).$type<string[]>().notNull(),
   status: text('status').notNull(),

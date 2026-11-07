@@ -89,9 +89,9 @@ describe('closing detector (strict: offer AND goodbye; proves Yes or N/A only)',
     expect(run('closing', chat('RU', [['operator', 'Обращайтесь. До свидания'], ['client', 'стойте, еще вопрос'], ['operator', 'Слушаю вас']]))).toBeNull();
   });
 
-  it('N/A only when the client side ended right after the client spoke last', () => {
+  it('leaves client-disconnect applicability to semantic evaluation', () => {
     const left = chat('RU', [['client', 'q'], ['operator', 'Откройте раздел меню.'], ['client', 'не нашёл'], ['system', 'Клиент покинул чат.']]);
-    expect(run('closing', left)).toMatchObject({ isNA: true, value: null, source: 'rule' });
+    expect(run('closing', left)).toBeNull();
     const operatorSpokeLast = chat('RU', [['client', 'q'], ['operator', 'Откройте раздел меню.'], ['system', 'Клиент покинул чат.']]);
     expect(run('closing', operatorSpokeLast)).toBeNull();
     const operatorClosed = chat('RU', [['client', 'q'], ['operator', 'ответ'], ['client', 'не понял'], ['system', 'Оператор закрыл чат.']]);
