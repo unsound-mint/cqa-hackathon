@@ -1,8 +1,10 @@
-import type { ChecklistVersion, Conversation, Criterion, CriterionResult, EvidenceReference, Evaluation } from '@cqa/contracts';
+import type { Appeal, ChecklistVersion, Conversation, Criterion, CriterionResult, DecideAppealInput, EvidenceReference, Evaluation } from '@cqa/contracts';
 import { AlertTriangle, FlaskConical, Link2Off, Loader2, Quote, ShieldAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
+import { AppealBox } from './Appeals';
 import { CONFIDENCE_LABEL, SOURCE_LABEL, formatScore, outcome, sameResult } from '@/lib/present';
 
 type Props = {
@@ -15,6 +17,15 @@ type Props = {
   onStart: () => void;
   starting: boolean;
   startError: string | null;
+  /** Appeals of this evaluation, and the handlers that file/decide them. */
+  appeals: Appeal[];
+  onCreateAppeal: (criterionId: string, comment: string) => Promise<void>;
+  onDecideAppeal: (input: DecideAppealInput) => Promise<void>;
+  /** All evaluations of this conversation (oldest first) so a checklist change can be compared with the old result. */
+  versions: { id: string; label: string }[];
+  onPickEvaluation: (id: string) => void;
+  /** Set when a newer checklist version exists than the one this evaluation used. */
+  newerChecklistVersion: number | null;
 };
 
 /** Evidence the transcript cannot back up is shown as unavailable instead of scrolling to a wrong message. */
@@ -51,7 +62,7 @@ function EvidenceChip({ e, conversation, onJump }: { e: EvidenceReference; conve
   );
 }
 
-function CriterionCard({ criterion, result, original, conversation, selected, onSelect, onJump }: { criterion: Criterion | undefined; result: CriterionResult; original: CriterionResult | undefined; conversation: Conversation; selected: boolean; onSelect: () => void; onJump: (i: number) => void }) {
+function CriterionCard({ criterion, result, original, conversation, selected, onSelect, onJump, evaluationId, appeals, onCreateAppeal, onDecideAppeal }: { criterion: Criterion | undefined; result: CriterionResult; original: CriterionResult | undefined; conversation: Conversation; selected: boolean; onSelect: () => void; onJump: (i: number) => void; evaluationId: string; appeals: Appeal[]; onCreateAppeal: Props['onCreateAppeal']; onDecideAppeal: Props['onDecideAppeal'] }) {
   const o = outcome(criterion, result);
   const changed = original && !sameResult(original, result);
   const tone = { neutral: 'bg-canvas text-ink ring-line-strong', success: 'bg-brand-soft text-brand-dark ring-brand/40', danger: 'bg-danger-soft text-danger ring-danger/30', warn: 'bg-warn-soft text-warn ring-warn/30' }[o.tone];
@@ -99,6 +110,8 @@ function CriterionCard({ criterion, result, original, conversation, selected, on
             {result.confidence === 'low' && <span className="text-xs text-warn">Нужна проверка человеком</span>}
           </div>
 
+          <AppealBox evaluationId={evaluationId} criterionId={result.criterionId} criterion={criterion} appeals={appeals} onCreate={onCreateAppeal} onDecide={onDecideAppeal} />
+
           {criterion && (
             <details className="text-xs text-muted">
               <summary className="cursor-pointer select-none hover:text-ink">Как оценивается критерий</summary>
@@ -111,7 +124,7 @@ function CriterionCard({ criterion, result, original, conversation, selected, on
   );
 }
 
-export function EvaluationPanel({ conversation, evaluation, checklist, selectedCriterionId, onSelectCriterion, onJump, onStart, starting, startError }: Props) {
+export function EvaluationPanel({ conversation, evaluation, checklist, selectedCriterionId, onSelectCriterion, onJump, onStart, starting, startError, appeals, onCreateAppeal, onDecideAppeal, versions, onPickEvaluation, newerChecklistVersion }: Props) {
   const lookup = (id: string) => checklist?.criteria.find((c) => c.id === id);
 
   if (!evaluation) {
@@ -186,6 +199,23 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         </p>
       </header>
 
+      {(versions.length > 1 || newerChecklistVersion !== null) && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2 text-xs">
+          {versions.length > 1 && (
+            <label className="flex items-center gap-2">
+              <span className="text-muted">Оценка по версии:</span>
+              <Select aria-label="Оценка по версии чек-листа" value={evaluation.id} onChange={(e) => onPickEvaluation(e.target.value)} className="h-7 w-auto text-xs">
+                {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+              </Select>
+            </label>
+          )}
+          {newerChecklistVersion !== null && (
+            <Button size="sm" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : `Пересчитать по версии ${newerChecklistVersion}`}</Button>
+          )}
+          {startError && <span role="alert" className="text-danger">{startError}</span>}
+        </div>
+      )}
+
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         {groups.map((g) => (
           <div key={g.id}>
@@ -201,6 +231,10 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
                   selected={selectedCriterionId === r.criterionId}
                   onSelect={() => onSelectCriterion(r.criterionId)}
                   onJump={onJump}
+                  evaluationId={evaluation.id}
+                  appeals={appeals}
+                  onCreateAppeal={onCreateAppeal}
+                  onDecideAppeal={onDecideAppeal}
                 />
               ))}
             </ul>

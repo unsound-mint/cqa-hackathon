@@ -42,13 +42,15 @@ export function ConversationList({ conversations, evaluations, selectedId, onSel
   const [query, setQuery] = useState('');
   const [lang, setLang] = useState<Language | 'all'>('all');
   const [channel, setChannel] = useState<Channel | 'all'>('all');
+  const [violationsOnly, setViolationsOnly] = useState(false);
+  const violations = useMemo(() => conversations.filter((c) => evaluations.get(c.id)?.seriousViolation).length, [conversations, evaluations]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return conversations.filter(
-      (c) => (lang === 'all' || c.language === lang) && (channel === 'all' || c.channel === channel) && (!q || c.id.toLowerCase().includes(q) || c.transcript.some((m) => m.text.toLowerCase().includes(q))),
+      (c) => (lang === 'all' || c.language === lang) && (channel === 'all' || c.channel === channel) && (!violationsOnly || evaluations.get(c.id)?.seriousViolation) && (!q || c.id.toLowerCase().includes(q) || c.transcript.some((m) => m.text.toLowerCase().includes(q))),
     );
-  }, [conversations, query, lang, channel]);
+  }, [conversations, evaluations, query, lang, channel, violationsOnly]);
 
   return (
     <section aria-label="Диалоги" className="flex h-full min-h-0 flex-col">
@@ -66,6 +68,10 @@ export function ConversationList({ conversations, evaluations, selectedId, onSel
         </label>
         <Segment label="Язык" value={lang} onChange={setLang} options={LANGS.map((l) => ({ value: l, label: l === 'all' ? 'Все' : l }))} />
         <Segment label="Канал" value={channel} onChange={setChannel} options={CHANNELS} />
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={violationsOnly} onChange={(e) => setViolationsOnly(e.target.checked)} className="size-4 accent-brand-dark" />
+          Только с грубыми нарушениями ({violations})
+        </label>
         <p className="text-xs text-muted" aria-live="polite">
           {shown.length} из {conversations.length}
         </p>

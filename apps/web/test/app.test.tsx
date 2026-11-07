@@ -9,7 +9,10 @@ import { MockCqaApi } from '../src/api';
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.location.hash = '';
+});
 
 const bundle = (patch: (b: any) => void = () => {}) => {
   const b = structuredClone(demo) as any;
@@ -89,4 +92,62 @@ it('marks a reviewer-changed criterion and shows the original AI answer next to 
   }));
   expect(await screen.findByText(/Изменено ревьюером/)).toBeTruthy();
   expect(screen.getByText(/Исходная оценка ИИ: 94,12/)).toBeTruthy();
+});
+
+it('files an appeal, then a reviewer overrides it: final total changes, original AI answer stays visible', async () => {
+  renderApp();
+  await transcriptReady();
+  const panel = within(screen.getByRole('region', { name: 'Оценка' }));
+  fireEvent.click(panel.getAllByRole('button', { name: 'Оспорить оценку' })[3]!); // criterion 04
+  fireEvent.change(panel.getByLabelText('Почему вы не согласны с оценкой?'), { target: { value: 'Клиенту всё объяснили' } });
+  fireEvent.click(panel.getByRole('button', { name: 'Отправить апелляцию' }));
+  expect(await panel.findByText('На рассмотрении')).toBeTruthy();
+
+  fireEvent.click(panel.getByLabelText('Изменить оценку'));
+  fireEvent.change(panel.getByLabelText('Новое значение'), { target: { value: 'v4' } }); // tier 20
+  fireEvent.change(panel.getByLabelText('Обоснование решения'), { target: { value: 'Второстепенная деталь не требовалась' } });
+  fireEvent.click(panel.getByRole('button', { name: 'Принять решение' }));
+
+  expect(await panel.findByText('Оценка изменена ревьюером')).toBeTruthy();
+  expect(await panel.findByText('100')).toBeTruthy();
+  expect(panel.getByText(/Исходная оценка ИИ: 94,12/)).toBeTruthy();
+  expect(panel.getByText(/Исходный ответ ИИ:/).textContent).toMatch(/15 из 20/);
+});
+
+it('adds a criterion in the editor, saves a new version, and evaluates a dialog with it without code changes', async () => {
+  renderApp();
+  await transcriptReady();
+  fireEvent.click(screen.getByRole('button', { name: 'Чек-лист' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Добавить критерий' }));
+  fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Назвал срок решения' } });
+  fireEvent.change(screen.getByLabelText(/Как оценивать/), { target: { value: 'Да, если оператор назвал срок.' } });
+  fireEvent.change(screen.getByLabelText('Вес'), { target: { value: '5' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить как новую версию' }));
+  expect(await screen.findByText(/Сохранена версия 2/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Оценить выбранный диалог' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Диалоги' }));
+  expect(await screen.findByText('Назвал срок решения', {}, { timeout: 4000 })).toBeTruthy();
+  const select = screen.getByLabelText('Оценка по версии чек-листа') as HTMLSelectElement;
+  expect(select.options.length).toBe(2);
+});
+
+it('blocks saving an invalid criterion and says why', async () => {
+  renderApp();
+  fireEvent.click(await screen.findByRole('button', { name: 'Чек-лист' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Добавить критерий' }));
+  fireEvent.change(screen.getByLabelText('Тип ответа'), { target: { value: 'discrete-scale' } });
+  fireEvent.change(screen.getByLabelText(/Ступени баллов/), { target: { value: '5' } });
+  expect((screen.getByRole('button', { name: 'Сохранить как новую версию' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0);
+});
+
+it('filters the list to dialogs with a serious violation', async () => {
+  renderApp(bundle((b) => { const e = b.evaluations[0]; e.seriousViolation = true; for (const r of [...e.originalResults, ...e.finalResults]) if (r.criterionId === '08') r.value = true; }));
+  await transcriptReady();
+  const list = within(screen.getByRole('region', { name: 'Диалоги' }));
+  expect(list.getByText(/Только с грубыми нарушениями \(1\)/)).toBeTruthy();
+  fireEvent.click(list.getByLabelText(/Только с грубыми нарушениями/));
+  expect(list.getByText('demo-ru-001')).toBeTruthy();
+  fireEvent.click(list.getByLabelText(/Только с грубыми нарушениями/));
+  expect(list.getByText('1 из 1')).toBeTruthy();
 });
