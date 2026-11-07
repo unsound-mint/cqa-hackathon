@@ -1,7 +1,7 @@
 import { mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { openDb } from '../src/db/index.js';
 import { conversations } from '../src/db/schema.js';
@@ -23,11 +23,11 @@ const net = (routes: Record<string, Reply>): FetchLike => async (url) => {
 };
 const organizer = net({ [PAGE]: { type: 'text/html; charset=utf-8', body: html }, [MP3]: { type: 'audio/mpeg', body: BYTES } });
 
-function setup(fetchFn: FetchLike, audioUrl: string | null = PAGE) {
+function setup(fetchFn: FetchLike, audioUrl: string | null = PAGE, prefetchOnStart = false) {
   const db = openDb(':memory:');
   db.insert(conversations).values({ id: 'call-1', datasetGroupId: 'g', language: 'RU', channel: 'voice call', audioUrl, transcript: [{ index: 0, timestamp: '00:00', speaker: 'client', text: 'a' }], importedAt: '2026-11-07T00:00:00Z' }).run();
   const audioDir = mkdtempSync(join(tmpdir(), 'cqa-audio-'));
-  return { app: buildApp({ db, audioFetch: fetchFn, audioDir, webDist: null }), audioDir };
+  return { app: buildApp({ db, audioFetch: fetchFn, audioDir, webDist: null, prefetchOnStart }), audioDir };
 }
 
 describe('call recordings', () => {
@@ -70,6 +70,16 @@ describe('call recordings', () => {
     expect(n).toBe(1);
     expect(readdirSync(dir).sort()).toEqual(['call-1.audio', 'call-1.type']);
     expect(log).toEqual([expect.stringContaining('call-2')]);
+  });
+
+  it('on start, copies recordings missing from disk (a database imported before copies were kept, or a failed copy)', async () => {
+    const { app, audioDir } = setup(organizer, PAGE, true);
+    expect(readdirSync(audioDir)).toEqual([]);
+    await app.ready();
+    await vi.waitFor(() => expect(readdirSync(audioDir).sort()).toEqual(['call-1.audio', 'call-1.type']));
+    const res = await app.inject({ url: '/api/conversations/call-1/audio' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe(BYTES);
   });
 
   it('ignores non-http sources', () => {
