@@ -80,10 +80,41 @@ export function gapLabel(prev: string | undefined, cur: string): { text: string 
   return { text: `пауза ${m ? `${m} мин${s % 60 ? ` ${s % 60} с` : ''}` : `${s} с`}` };
 }
 
-/** Position in a call recording for a message: only "MM:SS" timestamps (offset from the start of the call) are trusted. */
+/** Seconds of an "MM:SS" offset; null for anything else. */
 export function offsetSeconds(ts: string | undefined): number | null {
   const m = ts ? /^(\d+):(\d{2})$/.exec(ts) : null;
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/**
+ * Seconds since the start of the conversation for a message. "MM:SS" timestamps are offsets already; absolute (ISO)
+ * timestamps, as real exports carry, are measured from the first message's time. Null when the time cannot be read.
+ * `derived` says the position comes from clock times, so a recording may be off by its start delay.
+ */
+export function sinceStart(conversation: { transcript: { timestamp: string }[] }, index: number): { sec: number; derived: boolean } | null {
+  const ts = conversation.transcript[index]?.timestamp;
+  if (ts === undefined) return null;
+  const off = offsetSeconds(ts);
+  if (off !== null) return { sec: off, derived: false };
+  const at = Date.parse(ts);
+  const first = conversation.transcript.map((m) => Date.parse(m.timestamp)).find((x) => !Number.isNaN(x));
+  if (Number.isNaN(at) || first === undefined) return null;
+  return { sec: Math.max(0, (at - first) / 1000), derived: true };
+}
+
+/** "01:05" (or "1:02:03" past an hour) for a position in the conversation. */
+export function clock(sec: number): string {
+  const s = Math.floor(sec);
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+/** How a message's time is shown: its position from the start (the recording's timeline); the original stays in a tooltip. */
+export function displayTime(conversation: { transcript: { timestamp: string }[] }, index: number): string {
+  const p = sinceStart(conversation, index);
+  return p ? clock(p.sec) : conversation.transcript[index]?.timestamp ?? '';
 }
 
 /** A result that needs the reviewer: low confidence, a pending appeal, or a grade a person changed. */

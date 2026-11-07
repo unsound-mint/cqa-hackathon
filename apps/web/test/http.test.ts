@@ -121,6 +121,13 @@ describe('HttpCqaApi', () => {
     await expect(setup(200, { nope: true }).api.getEvaluation('e')).rejects.toMatchObject({ code: 'invalid' });
   });
 
+  it('plays calls through the API audio route (it resolves the organizer player page); nothing for chats', async () => {
+    const conv = await mock.getConversation('demo-ru-001');
+    const api = new HttpCqaApi({ baseUrl: 'http://h' });
+    expect(api.audioSrc({ ...conv, id: 'a b', audioUrl: 'https://example.invalid/page' })).toBe('http://h/api/conversations/a%20b/audio');
+    expect(api.audioSrc({ ...conv, audioUrl: null })).toBeNull();
+  });
+
   it('lists appeals across dialogs for the approver, with an optional status', async () => {
     const { api, calls } = setup(200, []);
     await api.listAppeals();

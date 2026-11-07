@@ -33,6 +33,8 @@ export interface CqaApi {
   decideAppeal(input: DecideAppealInput): Promise<Appeal>;
   /** A reviewer corrects one criterion directly; recorded as an already-decided appeal of kind 'correction'. */
   overrideCriterion(input: OverrideCriterionInput): Promise<Appeal>;
+  /** What an <audio> element plays for a call: the API resolves the organizer's player page to the media file. */
+  audioSrc(conversation: Conversation): string | null;
 }
 
 export type CqaApiErrorCode = 'not_found' | 'invalid' | 'conflict';

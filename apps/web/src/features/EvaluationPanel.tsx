@@ -1,5 +1,5 @@
 import type { Appeal, ChecklistVersion, Conversation, Criterion, CriterionResult, DecideAppealInput, EvidenceReference, Evaluation } from '@cqa/contracts';
-import { AlertTriangle, ChevronDown, Download, FlaskConical, Link2Off, Loader2, Printer, Quote, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Download, FlaskConical, Headphones, Link2Off, Loader2, Play, Printer, Quote, ShieldAlert, Square } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { CONFIDENCE_LABEL, SOURCE_LABEL, criterionGroups, earnedPoints, formatScore, grade, isFlagged, needsReview, sameResult } from '@/lib/present';
 import { downloadText, evaluationCsv } from '@/lib/export';
 import { violationReasons } from '@/lib/queue';
+import { fragmentLabel, segmentOf, usePlayer } from '@/lib/player';
 import { ReviewBox, type Correction } from './Appeals';
 
 type Props = {
@@ -57,20 +58,61 @@ function EvidenceChip({ e, conversation, onJump }: { e: EvidenceReference; conve
       </span>
     );
   }
-  return (
+  const player = usePlayer();
+  const seg = player.available ? segmentOf(conversation, e.messageIndex) : null;
+  const playing = player.playing === e.messageIndex;
+  const jump = (
     <button
       type="button"
       onClick={(ev) => {
         ev.stopPropagation();
         onJump(e.messageIndex);
       }}
-      className="inline-flex min-h-10 max-w-full items-center gap-2 rounded-full border border-line-strong bg-surface px-3 text-left text-sm transition-colors hover:border-accent hover:bg-brand-soft"
+      className={cn('inline-flex min-h-10 min-w-0 max-w-full items-center gap-2 px-3 text-left text-sm transition-colors hover:bg-brand-soft', seg ? 'rounded-l-full' : 'rounded-full border border-line-strong bg-surface hover:border-accent')}
       aria-label={`Перейти к сообщению ${e.messageIndex}${e.quote ? `: ${e.quote}` : ''}`}
     >
       <Quote aria-hidden className="size-4 shrink-0 text-accent" />
       <span className="shrink-0 font-semibold tabular-nums">#{e.messageIndex}</span>
       {e.quote && <span className="truncate text-muted">«{e.quote}»</span>}
     </button>
+  );
+  if (!seg) return jump;
+  /** On a call the chip has two halves: go to the message, and hear exactly that moment. */
+  return (
+    <span className="inline-flex max-w-full items-stretch rounded-full border border-line-strong bg-surface">
+      {jump}
+      <button
+        type="button"
+        onClick={(ev) => {
+          ev.stopPropagation();
+          if (playing) player.stop();
+          else player.playFragments([e.messageIndex]);
+        }}
+        aria-label={playing ? 'Остановить фрагмент' : `Прослушать фрагмент ${fragmentLabel(conversation, seg)}`}
+        title={playing ? 'Остановить' : `Прослушать ${fragmentLabel(conversation, seg)}`}
+        className={cn('inline-flex min-h-10 shrink-0 items-center gap-1 rounded-r-full border-l border-line-strong px-3 text-xs tabular-nums transition-colors', playing ? 'bg-brand text-[#0e151c]' : 'text-muted hover:bg-brand-soft hover:text-ink')}
+      >
+        {playing ? <Square aria-hidden className="size-3 fill-current" /> : <Play aria-hidden className="size-4" />}
+        {fragmentLabel(conversation, seg)}
+      </button>
+    </span>
+  );
+}
+
+/** Plays every cited moment of a criterion in order: the way to check "what happened" on a call by ear. */
+function ListenAll({ result, conversation }: { result: CriterionResult; conversation: Conversation }) {
+  const player = usePlayer();
+  if (!player.available) return null;
+  const segs = [...new Set(result.evidence.map((e) => e.messageIndex))].map((i) => segmentOf(conversation, i)).filter((sg) => sg !== null);
+  const distinct = segs.filter((sg, k) => segs.findIndex((o) => o.from === sg.from && o.to === sg.to) === k);
+  const indices = segs.map((sg) => sg.index);
+  if (distinct.length < 2) return null;
+  const active = player.playing !== null && indices.includes(player.playing);
+  return (
+    <Button size="sm" variant={active ? 'primary' : 'outline'} onClick={() => (active ? player.stop() : player.playFragments(indices))}>
+      {active ? <Square aria-hidden className="size-3 fill-current" /> : <Headphones aria-hidden className="size-4" />}
+      {active ? 'Остановить' : `Прослушать фрагменты (${distinct.length})`}
+    </Button>
   );
 }
 
@@ -88,10 +130,11 @@ function Reasoning({ result, conversation, onJump, title }: { result: CriterionR
       {result.isNA && result.naReason && result.source !== 'reviewer' && <p className="text-sm"><span className="font-medium">Причина N/A:</span> {result.naReason}</p>}
       <p className="max-w-[65ch] text-base leading-6">{result.explanation}</p>
       {result.evidence.length > 0 && (
-        <div className="flex flex-wrap gap-2" aria-label="Доказательства">
+        <div className="flex flex-wrap items-center gap-2" aria-label="Доказательства">
           {result.evidence.map((e, i) => (
             <EvidenceChip key={`${e.messageIndex}-${i}`} e={e} conversation={conversation} onJump={onJump} />
           ))}
+          <ListenAll result={result} conversation={conversation} />
         </div>
       )}
       {result.checkedRange && (

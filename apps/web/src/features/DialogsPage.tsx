@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/field';
+import { Segment } from '@/components/ui/segment';
 import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/present';
 import { DEFAULT_FILTERS, counts, hasViolation, matches, reviewCount, violationReasons, type Filters, type Quick } from '@/lib/queue';
@@ -27,21 +28,6 @@ const CHANNELS: { value: Channel | 'all'; label: string }[] = [
   { value: 'agent chat', label: 'Чат' },
   { value: 'voice call', label: 'Звонок' },
 ];
-
-/** One option of the review-state switch: a quiet segment; a colored dot (not colored text) marks violations and review. */
-function Segment({ pressed, onClick, children, tone }: { pressed: boolean; onClick: () => void; children: React.ReactNode; tone?: 'danger' | 'warn' }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn('inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm whitespace-nowrap transition-colors', pressed ? 'bg-surface font-medium text-ink shadow-card' : 'text-muted hover:text-ink')}
-    >
-      {tone && <span aria-hidden className={cn('size-2 rounded-full', tone === 'danger' ? 'bg-danger' : 'bg-warn')} />}
-      {children}
-    </button>
-  );
-}
 
 /** Only states that ask for something; an evaluated dialog is the normal case and carries no chip. */
 function Status({ e }: { e: Evaluation | undefined }) {

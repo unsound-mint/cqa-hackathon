@@ -3,9 +3,10 @@ import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, PanelLeftOpen } fr
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApi } from './ApiContext';
 import { cn } from '@/lib/utils';
-import { DEFAULT_FILTERS, hasViolation, matches, needsAttention, reviewCount, type Filters } from '@/lib/queue';
+import { DEFAULT_FILTERS, counts, matches, needsAttention, type Filters } from '@/lib/queue';
 import { criterionGroups, formatScore, grade } from '@/lib/present';
 import { useTwoPane, useWide } from '@/lib/media';
+import { PlayerProvider } from '@/lib/player';
 import { useTheme } from '@/lib/theme';
 import { AppealsPage } from './features/AppealsPage';
 import { ChecklistEditor } from './features/ChecklistEditor';
@@ -128,6 +129,7 @@ export function App() {
 
   /** The dialogs the list currently shows: previous/next and J/K walk this queue, not all dialogs. */
   const queue = useMemo(() => (load.status === 'ready' ? load.data.conversations.filter((c) => matches(c, latest.get(c.id), filters)).map((c) => c.id) : []), [load, latest, filters]);
+  const quickCounts = useMemo(() => (load.status === 'ready' ? counts(load.data.conversations, latest) : { all: 0, violations: 0, review: 0, unevaluated: 0 }), [load, latest]);
   const position = selectedId ? queue.indexOf(selectedId) : -1;
   const step = useCallback(
     (by: 1 | -1) => {
@@ -302,7 +304,6 @@ export function App() {
   };
 
   const mode = import.meta.env.VITE_API_MODE ?? 'mock';
-  const filterLabel = filters.quick === 'violations' ? 'Грубые нарушения' : filters.quick === 'review' ? 'Нужна проверка' : filters.quick === 'unevaluated' ? 'Не оценены' : null;
   const e = evaluation;
 
   /**
@@ -383,10 +384,11 @@ export function App() {
               </header>
             )}
 
+            <PlayerProvider conversation={conversation}>
             <main id="content" tabIndex={-1} className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[17.5rem_minmax(0,1fr)_clamp(30rem,30vw,40rem)]' : 'xl:grid-cols-[minmax(0,1fr)_clamp(30rem,30vw,40rem)]')}>
               {wide && (
                 <div className="min-h-0 overflow-hidden rounded-card bg-surface shadow-card">
-                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filterLabel={filterLabel} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} nextAttentionId={nextAttention} onSelect={(id) => go({ name: 'dialog', id })} onHide={() => hideRail(true)} />
+                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} quick={filters.quick} counts={quickCounts} onQuick={(q) => setFilters((f) => ({ ...f, quick: q }))} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} onSelect={(id) => go({ name: 'dialog', id })} onHide={() => hideRail(true)} />
                 </div>
               )}
               <div className={cn('min-h-0 flex-col bg-surface xl:rounded-card xl:shadow-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>
@@ -431,6 +433,7 @@ export function App() {
                 />
               </div>
             </main>
+            </PlayerProvider>
           </>
         )}
       </div>

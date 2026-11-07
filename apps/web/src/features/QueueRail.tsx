@@ -1,9 +1,10 @@
 import type { Conversation, Evaluation } from '@cqa/contracts';
-import { AlertTriangle, Headphones, MessagesSquare, PanelLeftClose, Search, X } from 'lucide-react';
+import { Headphones, MessagesSquare, PanelLeftClose, Search, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/present';
-import { hasViolation, reviewCount } from '@/lib/queue';
+import { hasViolation, reviewCount, type Quick } from '@/lib/queue';
+import { Segment } from '@/components/ui/segment';
 
 type Props = {
   conversations: Conversation[];
@@ -11,13 +12,14 @@ type Props = {
   /** Dialogs of the current queue (already filtered, including by the search text). */
   ids: string[];
   selectedId: string;
-  filterLabel: string | null;
+  /** The review-state filter, shared with the dialogs page, and the counts it shows. */
+  quick: Quick;
+  counts: Record<Quick, number>;
+  onQuick: (q: Quick) => void;
   query: string;
   onQuery: (q: string) => void;
   /** Bumped to move focus into the search field (sidebar button, Ctrl K). */
   focusSignal: number;
-  /** Next dialog needing a human look (N), if any. */
-  nextAttentionId: string | null;
   onSelect: (id: string) => void;
   /** Collapses the rail; the transcript header then carries previous/next and the dialog picker. */
   onHide: () => void;
@@ -42,7 +44,7 @@ function Snippet({ c, q }: { c: Conversation; q: string }) {
 }
 
 /** The queue beside the review, with search on top: results stay in the queue, expanded with the matching phrase. */
-export function QueueRail({ conversations, latest, ids, selectedId, filterLabel, query, onQuery, focusSignal, nextAttentionId, onSelect, onHide }: Props) {
+export function QueueRail({ conversations, latest, ids, selectedId, quick, counts, onQuick, query, onQuery, focusSignal, onSelect, onHide }: Props) {
   const byId = new Map(conversations.map((c) => [c.id, c]));
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -79,25 +81,24 @@ export function QueueRail({ conversations, latest, ids, selectedId, filterLabel,
               </button>
             )}
           </label>
-          <button
-            type="button"
-            disabled={!nextAttentionId}
-            onClick={() => nextAttentionId && onSelect(nextAttentionId)}
-            title="Следующий диалог с нарушением, ошибкой оценки или низкой уверенностью (N)"
-            aria-label="К диалогу, требующему проверки (N)"
-            className="grid size-10 shrink-0 place-items-center rounded-full border border-line text-ink transition-colors hover:bg-fill disabled:opacity-50"
-          >
-            <AlertTriangle aria-hidden className="size-4" />
-          </button>
           <button type="button" onClick={onHide} title="Скрыть очередь" aria-label="Скрыть очередь диалогов" className="grid size-10 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-fill hover:text-ink">
             <PanelLeftClose aria-hidden className="size-4" />
           </button>
         </div>
-        {(filterLabel || query.trim()) && (
-          <p className="text-xs text-muted" aria-live="polite">
-            {filterLabel ? `${filterLabel}: ` : 'Найдено: '}
-            {ids.length}
-          </p>
+        {/* The same review states as the dialogs page (one shared filter); N still jumps to the next dialog needing attention. */}
+        <div role="group" aria-label="Что показать" className="grid grid-cols-2 gap-1 rounded-2xl bg-fill p-1">
+          {([['all', 'Все', null], ['violations', 'Нарушения', 'danger'], ['review', 'Проверка', 'warn'], ['unevaluated', 'Не оценены', null]] as const).map(([q, label, tone]) => (
+            <Segment key={q} pressed={quick === q} onClick={() => onQuick(q)} className="min-w-0 justify-between gap-1 px-2 text-xs">
+              <span className="flex min-w-0 items-center gap-1 truncate">
+                {tone && <span aria-hidden className={cn('size-2 shrink-0 rounded-full', tone === 'danger' ? 'bg-danger' : 'bg-warn')} />}
+                {label}
+              </span>
+              <span className="tabular-nums text-muted">{counts[q]}</span>
+            </Segment>
+          ))}
+        </div>
+        {query.trim() && (
+          <p className="text-xs text-muted" aria-live="polite">Найдено: {ids.length}</p>
         )}
       </div>
       <ul className="min-h-0 flex-1 overflow-y-auto p-2">

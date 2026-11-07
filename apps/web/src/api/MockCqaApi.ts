@@ -201,6 +201,11 @@ export class MockCqaApi implements CqaApi {
     return later(appeal);
   }
 
+  /** Fictional data: whatever the fixture links is played as it is. */
+  audioSrc(conversation: Conversation) {
+    return conversation.audioUrl;
+  }
+
   async overrideCriterion(input: unknown) {
     const parsed = OverrideCriterionInputSchema.safeParse(input);
     if (!parsed.success) throw new CqaApiError('invalid', parsed.error.message);

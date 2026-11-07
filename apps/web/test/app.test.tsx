@@ -440,6 +440,21 @@ it('the queue rail can be hidden and brought back; the choice is remembered and 
   expect(screen.getByRole('navigation', { name: 'Очередь диалогов' })).toBeTruthy();
 });
 
+it('the queue rail has the same review-state filters as the dialogs page, shared, with counts', async () => {
+  window.innerWidth = 1600;
+  renderApp(bundle(withSecond));
+  await transcriptReady();
+  const rail = within(screen.getByRole('navigation', { name: 'Очередь диалогов' }));
+  expect(rail.queryByRole('button', { name: /требующему проверки/ })).toBeNull(); // the separate warning button is gone
+  const states = within(rail.getByRole('group', { name: 'Что показать' }));
+  expect(states.getByRole('button', { name: /Все\s*2/ }).getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(states.getByRole('button', { name: /Не оценены/ }));
+  expect(rail.queryAllByRole('button', { name: /demo-ru-/ }).length).toBe(0); // both demo dialogs are evaluated
+  fireEvent.click(screen.getByRole('link', { name: 'Диалоги' }));
+  const list = within(await screen.findByRole('region', { name: 'Диалоги' }));
+  expect(within(list.getByRole('group', { name: 'Что показать' })).getByRole('button', { name: /Не оценены/ }).getAttribute('aria-pressed')).toBe('true'); // one filter, both places
+});
+
 it('exports the evaluation: CSV download and print for PDF', async () => {
   renderApp();
   await transcriptReady();
@@ -454,27 +469,77 @@ it('exports the evaluation: CSV download and print for PDF', async () => {
   expect(document.querySelector('article')!.textContent).toContain('Оценка диалога demo-ru-001');
 });
 
-it('on a call with a recording, opening evidence moves the player to that message and each message can be played from', async () => {
-  const set = vi.fn();
+it('on a call with a recording: evidence moves the player without playing; a message or an evidence chip plays exactly its fragment and stops', async () => {
+  let now = 0;
+  const set = vi.fn((v: number) => { now = v; });
   const play = vi.fn(() => Promise.resolve());
+  const pause = vi.fn();
   vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'set').mockImplementation(set);
+  vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockImplementation(() => now);
+  vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(1);
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(play);
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(pause);
   renderApp(bundle((b) => { b.conversations[0].channel = 'voice call'; b.conversations[0].audioUrl = 'https://example.invalid/fictional.mp3'; }));
   await transcriptReady();
+  const audio = document.querySelector('audio')!;
+
   fireEvent.click(row(/Идентификация/));
   fireEvent.click(screen.getAllByRole('button', { name: /^Перейти к сообщению 6/ })[0]!);
   expect(set).toHaveBeenLastCalledWith(64); // message 6 is at 01:04
   expect(play).not.toHaveBeenCalled(); // moving to the fragment does not start playback
-  fireEvent.click(within(document.getElementById('msg-8')!).getByRole('button', { name: 'Слушать с 01:25' }));
-  expect(set).toHaveBeenLastCalledWith(85);
-  expect(play).toHaveBeenCalled();
-  expect(within(document.getElementById('msg-6')!).queryByRole('button', { name: /Слушать/ })).toBeNull(); // system events have no speech to play
+
+  // Message 8 (01:25) runs until the next later message (#10, 01:48): 1 s lead-in, 0.5 s tail, then it stops.
+  fireEvent.click(within(document.getElementById('msg-8')!).getByRole('button', { name: 'Прослушать фрагмент 01:25–01:48' }));
+  expect(set).toHaveBeenLastCalledWith(84);
+  expect(play).toHaveBeenCalledTimes(1);
+  expect(within(document.getElementById('msg-8')!).getByRole('button', { name: 'Остановить фрагмент' })).toBeTruthy();
+  now = 108.6;
+  fireEvent(audio, new Event('timeupdate'));
+  expect(pause).toHaveBeenCalled();
+  expect(within(document.getElementById('msg-8')!).queryByRole('button', { name: 'Остановить фрагмент' })).toBeNull();
+  expect(within(document.getElementById('msg-6')!).queryByRole('button', { name: /Прослушать/ })).toBeNull(); // system events have no speech
+
+  // The evidence chip of a criterion plays its own moment too.
+  fireEvent.click(panel().getAllByRole('button', { name: 'Прослушать фрагмент 01:25–01:48' })[0]!);
+  expect(set).toHaveBeenLastCalledWith(84);
+  expect(play).toHaveBeenCalledTimes(2);
+});
+
+it('"Прослушать фрагменты" plays every cited moment of a criterion in order, once each', async () => {
+  let now = 0;
+  const set = vi.fn((v: number) => { now = v; });
+  vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'set').mockImplementation(set);
+  vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'get').mockImplementation(() => now);
+  vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(1);
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(() => Promise.resolve());
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  renderApp(bundle((b) => { b.conversations[0].channel = 'voice call'; b.conversations[0].audioUrl = 'https://example.invalid/fictional.mp3'; }));
+  await transcriptReady();
+  const audio = document.querySelector('audio')!;
+  fireEvent.click(row(/Эмпатия/)); // cites #7 (01:10) and #8 (01:25)
+  fireEvent.click(panel().getByRole('button', { name: 'Прослушать фрагменты (2)' }));
+  expect(set).toHaveBeenLastCalledWith(69);
+  now = 85.6; // past #7's end (#8 starts at 01:25)
+  fireEvent(audio, new Event('timeupdate'));
+  expect(set).toHaveBeenLastCalledWith(84);
+  fireEvent.click(row(/Корректная и полная консультация/)); // #8 and #9 share 01:25: one fragment, no "listen all"
+  expect(panel().queryByRole('button', { name: /Прослушать фрагменты/ })).toBeNull();
+});
+
+it('a recording that fails to load says so, links the original, and hides fragment controls instead of hanging', async () => {
+  renderApp(bundle((b) => { b.conversations[0].channel = 'voice call'; b.conversations[0].audioUrl = 'https://example.invalid/fictional.mp3'; }));
+  await transcriptReady();
+  expect(screen.getAllByRole('button', { name: /Прослушать фрагмент/ }).length).toBeGreaterThan(0);
+  fireEvent(document.querySelector('audio')!, new Event('error'));
+  expect(await screen.findByText(/Запись не загрузилась/)).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Открыть запись у организатора' }).getAttribute('href')).toBe('https://example.invalid/fictional.mp3');
+  expect(screen.queryByRole('button', { name: /Прослушать фрагмент/ })).toBeNull();
 });
 
 it('offers no player controls for a chat or for a call without a recording', async () => {
   renderApp();
   await transcriptReady();
-  expect(screen.queryByRole('button', { name: /Слушать/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Прослушать/ })).toBeNull();
 });
 
 const renderApprover = (hash = '#/appeals') => {

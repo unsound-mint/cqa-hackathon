@@ -2,8 +2,10 @@ import type { Conversation, Speaker } from '@cqa/contracts';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Bot, Headset, Play, User } from 'lucide-react';
-import { SPEAKER_LABEL, gapLabel, offsetSeconds, type Tone } from '@/lib/present';
+import { Bot, Headset, Play, Square, User } from 'lucide-react';
+import { SPEAKER_LABEL, displayTime, gapLabel, type Tone } from '@/lib/present';
+import { fragmentLabel, segmentOf, usePlayer } from '@/lib/player';
+import { useApi } from '@/ApiContext';
 
 export type Focus = { index: number; nonce: number } | null;
 export type Tag = { id: string; tone: Tone; title: string; label: string; explanation: string };
@@ -42,20 +44,10 @@ const ICON = { operator: Headset, client: User, bot: Bot } as const;
 
 export function Transcript({ conversation, cited, checkedRange, focus, tags, onTag, activeId, toolbar }: Props) {
   const refs = useRef(new Map<number, HTMLLIElement>());
-  const audio = useRef<HTMLAudioElement>(null);
-  const canPlay = !!conversation.audioUrl;
-  /** Moves the recording to a message (and plays it when asked). A bad position never breaks the transcript. */
-  const seek = (ts: string, play: boolean) => {
-    const sec = offsetSeconds(ts);
-    const el = audio.current;
-    if (!el || sec === null) return;
-    try {
-      el.currentTime = sec;
-      if (play) void el.play()?.catch(() => {});
-    } catch {
-      /* media not ready: the player stays where it is */
-    }
-  };
+  const player = usePlayer();
+  const api = useApi();
+  const src = api.audioSrc(conversation);
+  const canPlay = !!src && player.available;
 
   useEffect(() => {
     if (!focus) return;
@@ -66,8 +58,7 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
     el.classList.remove('flash');
     void el.offsetWidth; // restart the animation on repeated clicks
     el.classList.add('flash');
-    const m = conversation.transcript[focus.index];
-    if (m) seek(m.timestamp, false); // evidence on a call: the player moves to that fragment
+    player.seekTo(focus.index); // evidence on a call: the player moves to that fragment without playing
   }, [focus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -75,7 +66,13 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
       <header className="space-y-3 border-b border-line px-6 py-4">
         {toolbar}
         {conversation.channel === 'voice call' && <Badge tone="warn">Распознанная речь: возможны ошибки в словах</Badge>}
-        {conversation.audioUrl && <audio ref={audio} controls preload="none" src={conversation.audioUrl} aria-label="Запись звонка" className="h-10 w-full" />}
+        {src && <audio ref={player.register} controls preload="none" src={src} aria-label="Запись звонка" className={cn('h-10 w-full', player.failed && 'hidden')} />}
+        {player.failed && conversation.audioUrl && (
+          <p role="status" className="text-sm text-muted">
+            Запись не загрузилась: ссылка могла устареть или сервер записи недоступен.{' '}
+            <a href={conversation.audioUrl} target="_blank" rel="noreferrer noopener" className="text-accent underline underline-offset-2">Открыть запись у организатора</a>
+          </p>
+        )}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
       <ol start={0} className="mx-auto w-full max-w-[44rem] space-y-4">
@@ -86,6 +83,8 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
           const system = m.speaker === 'system';
           const right = m.speaker === 'operator';
           const gap = gapLabel(conversation.transcript[k - 1]?.timestamp, m.timestamp);
+          const seg = canPlay ? segmentOf(conversation, m.index) : null;
+          const isPlaying = player.playing === m.index;
           return (
             <li
               key={m.index}
@@ -108,17 +107,23 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
                     {SPEAKER_LABEL[m.speaker]}
                   </span>
                 )}
-                <span>
-                  {m.timestamp} · #{m.index}
+                <span title={m.timestamp}>
+                  {displayTime(conversation, m.index)} · #{m.index}
                   {gap && <span className="ml-2">· {gap.text}</span>}
                 </span>
-                {canPlay && !system && offsetSeconds(m.timestamp) !== null && (
-                  <button type="button" onClick={() => seek(m.timestamp, true)} aria-label={`Слушать с ${m.timestamp}`} title={`Слушать с ${m.timestamp}`} className="-my-1 grid size-6 place-items-center rounded-full hover:bg-fill hover:text-ink">
-                    <Play aria-hidden className="size-4" />
+                {seg && (
+                  <button
+                    type="button"
+                    onClick={() => (isPlaying ? player.stop() : player.playFragments([m.index]))}
+                    aria-label={isPlaying ? 'Остановить фрагмент' : `Прослушать фрагмент ${fragmentLabel(conversation, seg)}`}
+                    title={isPlaying ? 'Остановить' : `Прослушать ${fragmentLabel(conversation, seg)}`}
+                    className={cn('-my-1 grid size-6 place-items-center rounded-full', isPlaying ? 'bg-brand text-[#0e151c]' : 'hover:bg-fill hover:text-ink')}
+                  >
+                    {isPlaying ? <Square aria-hidden className="size-3 fill-current" /> : <Play aria-hidden className="size-4" />}
                   </button>
                 )}
               </span>
-              <span className={cn('block max-w-[85%] whitespace-pre-wrap break-words px-4 py-3 text-base sm:max-w-[80%]', BUBBLE[m.speaker], isCited && 'ring-2 ring-brand', inChecked && !isCited && 'ring-1 ring-line-strong')}>{m.text}</span>
+              <span className={cn('block max-w-[85%] whitespace-pre-wrap break-words px-4 py-3 text-base sm:max-w-[80%]', BUBBLE[m.speaker], isCited && 'ring-2 ring-brand', inChecked && !isCited && 'ring-1 ring-line-strong', isPlaying && 'ring-2 ring-brand motion-safe:animate-pulse')}>{m.text}</span>
               {mine.length > 0 && (
                 <span className={cn('mt-2 flex flex-wrap gap-1', right && 'justify-end', system && 'justify-center')}>
                   {mine.map((t) => (

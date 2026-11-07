@@ -100,6 +100,10 @@ export class HttpCqaApi implements CqaApi {
     return this.request('POST', `/api/appeals/${enc(appealId)}/decision`, body, AppealSchema);
   }
 
+  audioSrc(conversation: Conversation): string | null {
+    return conversation.audioUrl ? `${this.baseUrl}/api/conversations/${enc(conversation.id)}/audio` : null;
+  }
+
   overrideCriterion(input: OverrideCriterionInput): Promise<Appeal> {
     const { evaluationId, ...body } = input;
     return this.request('POST', `/api/evaluations/${enc(evaluationId)}/overrides`, body, AppealSchema);
