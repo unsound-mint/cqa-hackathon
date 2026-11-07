@@ -6,7 +6,8 @@ import { openDb, type Db } from './db/index.js';
 import { checklistRoutes } from './routes/checklists.js';
 import { evaluationRoutes } from './routes/evaluations.js';
 import { conversationRoutes } from './routes/conversations.js';
-import type { AudioStore, FetchLike } from './services/audio.js';
+import { prefetchAudio, type AudioStore, type FetchLike } from './services/audio.js';
+import { conversations } from './db/schema.js';
 import { dirname, join } from 'node:path';
 import { datasetRoutes } from './routes/datasets.js';
 import { AnthropicProvider, EFFORTS, type Effort } from './services/evaluation/anthropic.js';
@@ -15,7 +16,7 @@ import type { LlmProvider } from './services/evaluation/provider.js';
 import { seedOriginalChecklist } from './services/checklists.js';
 import type { ImportDeps } from './services/import/importer.js';
 
-export type AppOptions = { db?: Db; importDeps?: ImportDeps; provider?: LlmProvider | null; /** Built web app to serve at `/`. Defaults to apps/web/dist when it exists. */ webDist?: string | null; /** Fetch used to resolve call recordings (tests). */ audioFetch?: FetchLike; /** Where stored recordings go; default data/private/audio next to the database (AUDIO_DIR overrides). */ audioDir?: string };
+export type AppOptions = { db?: Db; importDeps?: ImportDeps; provider?: LlmProvider | null; /** Built web app to serve at `/`. Defaults to apps/web/dist when it exists. */ webDist?: string | null; /** Fetch used to resolve call recordings (tests). */ audioFetch?: FetchLike; /** Where stored recordings go; default data/private/audio next to the database (AUDIO_DIR overrides). */ audioDir?: string; /** Copy missing recordings when the server is ready; default on outside tests. */ prefetchOnStart?: boolean };
 
 // Resolves to apps/web/dist from both src/ (dev) and dist/ (built): each is two levels below apps/web's sibling.
 const DEFAULT_WEB_DIST = fileURLToPath(new URL('../../web/dist', import.meta.url));
@@ -58,6 +59,15 @@ export function buildApp(opts: AppOptions = {}) {
     });
   }
   // Tests never reach the network or write recordings unless they pass their own audioDir.
-  datasetRoutes(app, db, importDeps, opts.audioDir !== undefined || process.env.NODE_ENV !== 'test' ? audio : undefined);
+  const store = opts.audioDir !== undefined || process.env.NODE_ENV !== 'test' ? audio : undefined;
+  datasetRoutes(app, db, importDeps, store);
+  // Copies any recording missing from disk once the server is up: a database imported before recordings were stored,
+  // a copy that failed (expired link, host down) or a fresh machine heals on the next start instead of on a failed play.
+  if (store && (opts.prefetchOnStart ?? process.env.NODE_ENV !== 'test')) {
+    app.addHook('onReady', async () => {
+      const calls = db.select({ id: conversations.id, audioUrl: conversations.audioUrl }).from(conversations).all();
+      void prefetchAudio(store, calls, (m) => app.log.warn(m)).then((n) => n && app.log.info({ stored: n }, 'recordings stored'));
+    });
+  }
   return Object.assign(app, { runner });
 }
