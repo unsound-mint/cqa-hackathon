@@ -150,6 +150,8 @@ export const CriterionResultSchema = z
     isNA: z.boolean(),
     naReason: z.string().optional(),
     explanation: z.string(),
+    /** Model's own certainty. 'low' (e.g. noisy speech recognition) routes the result to human review. */
+    confidence: z.enum(['high', 'medium', 'low']).optional(),
     evidence: z.array(EvidenceReferenceSchema),
     /** Inclusive range of ORIGINAL indices inspected; required context for absence claims. */
     checkedRange: z.object({ from: z.number().int().nonnegative(), to: z.number().int().nonnegative() }).optional(),
