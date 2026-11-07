@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { displayTime, sinceStart } from '../src/lib/present';
-import { fragmentLabel, recordingPosition, segmentOf } from '../src/lib/player';
+import { callMap, fragmentLabel, recordingPosition, segmentOf } from '../src/lib/player';
 
 /** Fictional call in the shape of the real exports: absolute ISO times with sub-second precision. */
 const call = {
@@ -52,5 +52,26 @@ describe('recording positions', () => {
     expect(seg.from).toBe(8); // 2 s lead-in
     expect(seg.to).toBeCloseTo(26.5, 1); // the next event (pause at 56 s) ends it where the recording paused (+0.5)
     expect(fragmentLabel(c, seg)).toBe('00:40–00:56'); // ends at the pause event; labels stay on the clock the transcript shows
+  });
+
+  it('lays the call onto the recording: speaker bands, a marked cut where recording paused, and the way back to the chat clock', () => {
+    const at = (sec: number) => new Date(Date.UTC(2026, 10, 3, 13, 0, 0) + sec * 1000).toISOString();
+    const c = {
+      ...call,
+      transcript: [
+        { index: 0, timestamp: at(0), speaker: 'system' as const, text: 'Запись и транскрибирование запущены.' },
+        { index: 1, timestamp: at(5), speaker: 'operator' as const, text: 'hello' },
+        { index: 2, timestamp: at(12), speaker: 'client' as const, text: 'hi' },
+        { index: 3, timestamp: at(20), speaker: 'system' as const, text: 'Запись и транскрибирование приостановлены.' },
+        { index: 4, timestamp: at(50), speaker: 'system' as const, text: 'Запись и транскрибирование возобновлены.' },
+        { index: 5, timestamp: at(55), speaker: 'operator' as const, text: 'back' },
+      ],
+    };
+    const m = callMap(c);
+    expect(m.bands.map((b) => [b.index, b.speaker, b.from, b.to])).toEqual([[1, 'operator', 5, 12], [2, 'client', 12, 25], [5, 'operator', 25, null]]);
+    expect(m.cuts).toEqual([{ at: expect.closeTo(20, 2), seconds: 30 }]);
+    expect(m.toClock(25)).toBe(55); // 25 s into the recording is 00:55 in the chat (30 s were not recorded)
+    expect(m.messageAt(13)).toBe(2);
+    expect(m.messageAt(2)).toBeNull(); // before anyone spoke
   });
 });

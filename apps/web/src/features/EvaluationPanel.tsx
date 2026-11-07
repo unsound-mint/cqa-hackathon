@@ -10,6 +10,8 @@ import { CONFIDENCE_LABEL, SOURCE_LABEL, criterionGroups, earnedPoints, formatSc
 import { downloadText, evaluationCsv } from '@/lib/export';
 import { violationReasons } from '@/lib/queue';
 import { fragmentLabel, segmentOf, usePlayer } from '@/lib/player';
+import { useCountUp } from '@/lib/motion';
+import { Meter } from '@/components/ui/meter';
 import { ReviewBox, type Correction } from './Appeals';
 
 type Props = {
@@ -116,6 +118,19 @@ function ListenAll({ result, conversation }: { result: CriterionResult; conversa
   );
 }
 
+/** The total as an arc in the banner (decorative: the number beside it is the fact). Uses the banner's focus color, light green or light red. */
+function ScoreRing({ value }: { value: number }) {
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, value)) / 100;
+  return (
+    <svg aria-hidden viewBox="0 0 64 64" className="size-12 shrink-0 -rotate-90 md:size-16">
+      <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" className="stroke-white/15" />
+      <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" strokeLinecap="round" stroke="var(--c-focus)" strokeDasharray={c} strokeDashoffset={c * (1 - pct)} />
+    </svg>
+  );
+}
+
 /** Full marks are quiet (text only); a fill means something to look at: points lost (amber), nothing earned or a violation (red). */
 const CHIP = { neutral: 'text-muted', success: 'text-accent', danger: 'bg-danger-soft text-danger', warn: 'bg-warn-soft text-warn' } as const;
 
@@ -192,14 +207,18 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
           </span>
           <span className="flex shrink-0 items-center gap-2">
             {ai && <span className="text-xs tabular-nums text-muted line-through" aria-label={`Ответ ИИ был: ${grade(criterion, ai).label}`}>ИИ: {grade(criterion, ai).label}</span>}
-            <span className={cn('inline-flex h-6 items-center rounded-full px-2 text-sm font-semibold tabular-nums whitespace-nowrap', CHIP[g.tone])} title={result.isNA ? `Не применим: вес ${weight} не учитывается` : undefined}>{g.label}</span>
+            <span className={cn('relative inline-flex h-6 items-center rounded-full px-2 text-sm font-semibold tabular-nums whitespace-nowrap', CHIP[g.tone])} title={result.isNA ? `Не применим: вес ${weight} не учитывается` : undefined}>
+              {g.label}
+              {/* Lost points drawn as a share of the weight, under the chip so the row stays one line. Full marks stay quiet; N/A, flags and a changed grade (neutral by design) get none. */}
+              {pts !== null && pts < weight && !changed && <Meter value={pts} max={weight} tone={pts === 0 ? 'danger' : 'warn'} className="absolute inset-x-2 -bottom-1" />}
+            </span>
             <ChevronDown aria-hidden className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} />
           </span>
         </span>
       </button>
 
       {open && (
-        <div id={panelId} className="space-y-4 px-4 pb-4 pt-1">
+        <div id={panelId} className="reveal space-y-4 px-4 pb-4 pt-1">
           {(result.isNA || (pts !== null && pts < weight)) && (
             <p className="text-xs text-muted">{result.isNA ? `Не применим: вес ${weight} не входит в итог.` : `Потеряно ${formatScore(weight - (pts ?? 0))} из ${weight} баллов.`}</p>
           )}
@@ -239,6 +258,8 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
     document.getElementById(`row-${evaluation.id}-${selectedCriterionId}`)?.scrollIntoView?.({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
   }, [selectedCriterionId, evaluation?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const lookup = (id: string) => checklist?.criteria.find((c) => c.id === id);
+  // Hooks run before the early returns below; counts once per dialog, not per evaluation version.
+  const shownTotal = useCountUp(evaluation?.status === 'completed' ? evaluation.finalTotal : null, conversation.id);
 
   if (!evaluation) {
     return (
@@ -291,15 +312,20 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
       {/*
         Banner hierarchy: is the dialog OK, the large score and the violation status on one line; then state chips only
         when there are any. Where points went is the list below (colored rows with reasons), so it is not repeated here;
-        how the total is made is the score's tooltip. The checklist version is in the footer: metadata, not verdict.
+        how the total is made is the score's tooltip. The checklist version is the bar under the banner.
       */}
       <header className={cn('verdict shrink-0 px-4 py-4 sm:px-6', evaluation.seriousViolation && 'verdict-danger')}>
         <h2 className="sr-only">Оценка диалога</h2>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           {/* How the total is made lives in a tooltip: the rows below already show every lost point and every N/A. */}
-          <p className="flex items-baseline gap-2" title={evaluation.finalTotal === null ? undefined : `Набрано ${formatScore(earned)} из ${formatScore(possible)} применимых баллов${naIds.length ? `; не применимы: ${naIds.join(', ')}` : ''}. Итог пересчитан на 100.`}>
-            <span className="text-score-sm font-semibold tracking-tight tabular-nums md:text-score">{formatScore(evaluation.finalTotal)}</span>
-            <span className="text-base text-verdict-muted">из 100</span>
+          <p className="flex items-center gap-4" title={evaluation.finalTotal === null ? undefined : `Набрано ${formatScore(earned)} из ${formatScore(possible)} применимых баллов${naIds.length ? `; не применимы: ${naIds.join(', ')}` : ''}. Итог пересчитан на 100.`}>
+            {shownTotal !== null && <ScoreRing value={shownTotal} />}
+            <span className="flex items-baseline gap-2">
+              {/* The number counts up once per dialog; while it runs, assistive tech gets the final value and the count is a hidden copy. */}
+              {shownTotal !== evaluation.finalTotal && <span className="sr-only">{formatScore(evaluation.finalTotal)}</span>}
+              <span aria-hidden={shownTotal !== evaluation.finalTotal || undefined} className="text-score-sm font-semibold tracking-tight tabular-nums md:text-score">{formatScore(shownTotal === null ? null : Math.round(shownTotal * 100) / 100)}</span>
+              <span className="text-base text-verdict-muted">из 100</span>
+            </span>
           </p>
           <p className="flex items-center gap-2 text-base font-medium">
             {evaluation.seriousViolation ? <><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</> : <><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</>}
@@ -326,22 +352,23 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         )}
       </header>
 
-      {(versions.length > 1 || newerChecklistVersion !== null || !!startError) && (
-        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-3 sm:px-6">
-          {versions.length > 1 && (
-            <label className="flex items-center gap-2 text-xs">
-              <span className="text-muted">Оценка по версии:</span>
-              <Select aria-label="Оценка по версии чек-листа" value={evaluation.id} onChange={(e) => onPickEvaluation(e.target.value)} className="h-8 w-auto rounded-full text-xs">
-                {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
-              </Select>
-            </label>
-          )}
-          {newerChecklistVersion !== null && (
-            <Button size="sm" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : `Есть версия ${newerChecklistVersion}: пересчитать`}</Button>
-          )}
-          <ErrorNote error={startError} className="text-xs" />
-        </div>
-      )}
+      {/*
+        One fixed place for "which checklist graded this": always this slim bar, never the footer. Text for a single
+        evaluation, a picker when the dialog was evaluated under several versions; recalculation on the right.
+      */}
+      <div className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-line bg-surface px-4 py-2 text-xs">
+        {versions.length > 1 ? (
+          <Select aria-label="Оценка по версии чек-листа" value={evaluation.id} onChange={(e) => onPickEvaluation(e.target.value)} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-xs">
+            {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+          </Select>
+        ) : (
+          <span className="text-muted">{checklist ? `Чек-лист, версия ${checklist.version}` : 'Чек-лист не найден'}</span>
+        )}
+        {newerChecklistVersion !== null && (
+          <Button size="sm" variant="ghost" className="px-2 text-xs" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : `Пересчитать по версии ${newerChecklistVersion}`}</Button>
+        )}
+        {!!startError && <ErrorNote error={startError} className="w-full text-xs" />}
+      </div>
 
       <div className="flex-1 space-y-2 bg-surface p-2 md:min-h-0 md:overflow-y-auto">
         {groups.map((g) => (
@@ -372,14 +399,14 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         {groups.length === 0 && <p className="p-4 text-sm text-muted">Ничего не требует внимания.</p>}
       </div>
 
-      <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line bg-surface px-4 py-2 text-sm text-muted sm:px-6">
+      <footer className="flex shrink-0 items-center gap-2 whitespace-nowrap border-t border-line bg-surface px-4 py-2 text-sm text-muted sm:px-6">
         {flaggedCount > 0 && (
           <label className="flex min-h-8 items-center gap-2 text-xs text-ink">
             <input type="checkbox" checked={onlyFlagged} onChange={(e) => onOnlyFlagged(e.target.checked)} className="size-4 accent-brand" />
             Требуют внимания ({flaggedCount})
           </label>
         )}
-        <span className="ml-auto text-xs">{versions.length <= 1 && checklist ? `Чек-лист, версия ${checklist.version}` : ''}</span>
+        <span className="ml-auto" />
         <button type="button" onClick={() => downloadText(`${conversation.id}-evaluation.csv`, evaluationCsv(conversation, evaluation, checklist), 'text/csv;charset=utf-8')} aria-label="Скачать оценку в CSV" title="Таблица для Excel" className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-ink hover:bg-fill"><Download aria-hidden className="size-4" />CSV</button>
         <button type="button" onClick={() => window.print()} aria-label="Печать или сохранить в PDF" title="Отчёт для печати или сохранения в PDF" className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-ink hover:bg-fill"><Printer aria-hidden className="size-4" />PDF</button>
       </footer>

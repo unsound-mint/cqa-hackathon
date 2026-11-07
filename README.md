@@ -1,42 +1,100 @@
-# CQA hackathon — collaboration and agent starter
+# Conversation Quality Analytics (CQA)
 
-**This is a repository instruction and team-handoff pack, not a complete application.** Put its contents at the **root** of the new GitHub repository, preserving `.github/` and the directory layout.
+A working prototype that scores customer-support conversations (RU / KZ / EN, chat and voice) against a **changeable, versioned checklist**, shows the evidence for every score, and lets a reviewer correct or appeal any criterion without losing the original AI result. Built for the CQA hackathon.
 
-## Human onboarding
+## What it does
 
-1. **Denis:** read [`handoffs/DENIS.md`](handoffs/DENIS.md), create the repository, copy these files to it, and run the first bootstrap prompt with his coding agent. Publish a runnable contracts + mock-data commit first.
-2. **Sofia:** read [`handoffs/SOFIA.md`](handoffs/SOFIA.md); after Denis publishes the shared contract/mock, begin frontend work without waiting for a real backend. She owns `apps/web/`.
-3. **Eldana:** read [`handoffs/ELDANA.md`](handoffs/ELDANA.md); begin human-labeling and rubric quality-assurance independently. She owns `evaluation/`.
+1. **Imports** conversations from the organizer's dataset API (server-side) and keeps transcript text, order, roles, timestamps and audio link intact, adding a stable zero-based index per message.
+2. **Evaluates** any conversation against the active checklist. Rules and earlier results answer what they can prove; a model answers only the semantic remainder; code validates the answer and computes the total.
+3. **Shows evidence**: every verdict links to exact messages (with quotes) or to the inspected range for an absence; voice calls play with a waveform synced to the transcript.
+4. **Edits the checklist in the UI**: add, replace, re-weight or disable a criterion → saved as a new immutable version → applied to the next evaluation with no code change.
+5. **Reviews**: reviewers correct a criterion or decide an appeal; the final total is recalculated by code, the initial AI result and the audit history are preserved.
+6. **Measures itself**: a CLI compares model output with human labels per criterion and measures run-to-run stability.
 
-Each handoff names the human's decisions, the agent's bounded responsibilities, the initial issue list, an executable prompt to paste into that person's own coding/research agent, acceptance criteria, and how to hand off completed work.
+## Run it (5 minutes)
 
-## Quick start
+Needs Node ≥ 22 (CI uses 24) and pnpm 10. No API key or `.env` is needed to look around.
 
-```
+```bash
 pnpm install
-pnpm dev          # web http://localhost:5173 (MockCqaApi, fictional data) + api http://127.0.0.1:8787/health
-pnpm typecheck && pnpm test && pnpm build
+pnpm dev            # web http://localhost:5173 with fictional mock data, API on :8787
 ```
-Needs Node >=22 (verified on 24; CI runs 24) and pnpm 10. No `.env` or API key is required; copy `.env.example` to `.env` for optional server-side settings.
 
-## Canonical instructions
+Full local build, one process on one URL (what the demo uses):
 
-- [`AGENTS.md`](AGENTS.md): rules for all three agents (Claude Code, Codex or equivalent).
-- [`CLAUDE.md`](CLAUDE.md): imports `AGENTS.md` for Claude Code compatibility.
-- [`docs/WORKFLOW.md`](docs/WORKFLOW.md): issue, branch, PR, review, unblock and freeze protocol.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): module boundaries and deterministic-first evaluation flow.
-- [`docs/INTERFACES.md`](docs/INTERFACES.md): initial shared data types and mock/HTTP API interface; bootstrap must implement it.
-- [`docs/RUBRIC.md`](docs/RUBRIC.md): organizer's eight-criterion checklist summary; the original PDF is authoritative.
-- [`docs/VALIDATION.md`](docs/VALIDATION.md): human-labeling and model-comparison methodology.
+```bash
+cp .env.example .env     # optional: DATASET_IMPORT_URL, ANTHROPIC_API_KEY
+pnpm start               # builds, then serves web + API at http://127.0.0.1:8787
+curl -X POST localhost:8787/api/datasets/import -H 'content-type: application/json' -d '{"groupId":"DEV"}'
+```
 
-## What not to commit
+Checks: `pnpm typecheck && pnpm test && pnpm build` (no test needs a network or a model). Details, backup advice and troubleshooting: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
-Never publish the signed organizer API URL, credentials, provided raw conversations, audio URLs, private human-labeling files containing transcript content, or real client data. `.gitignore` is a safeguard, not a substitute for checking `git diff --cached` before committing.
+## Reading guide for reviewers
 
-## Primary acceptance test
+| If you want to check… | Look at |
+|---|---|
+| The big picture, data flow, decisions | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| That scores are not hardcoded and new input is really analyzed | `apps/api/src/services/evaluation/evaluator.ts` (`planCriteria`, `evaluateConversation`); no code references a conversation id |
+| That the model cannot invent evidence or totals | `validateModelOutput` in `evaluator.ts`; `packages/contracts/src/evidence.ts`; `scoring.ts` |
+| Arbitrary checklist support | `packages/contracts/src/checklist.ts` (schema, criterion signature), `apps/web/src/features/ChecklistEditor.tsx`, `scoring.ts` (id-agnostic) |
+| Original-vs-final, appeals, audit | `apps/api/src/services/appeals.ts`, table `appeals`/`evaluations` in `db/schema.ts` |
+| The organizer rubric and our reading of it | [`docs/RUBRIC.md`](docs/RUBRIC.md), `apps/api/src/checklists/original.json` (organizer PDFs are kept locally in the git-ignored `docs/official/`) |
+| How accuracy is measured | [`docs/VALIDATION.md`](docs/VALIDATION.md), [`evaluation/README.md`](evaluation/README.md) |
+| UI rules | [`docs/DESIGN.md`](docs/DESIGN.md) (a test enforces the 4/8 px grid) |
+| Shared types and API | `packages/contracts/src`, [`docs/INTERFACES.md`](docs/INTERFACES.md) |
 
-A previously unseen conversation must be scored by the active checklist; each result must have valid evidence; N/A and weighted totals must be computed by code; reviewer overrides must preserve the original; and changing a criterion through the UI must affect subsequent evaluations without source edits.
+### Try the main flow
 
-## Documentation sources
+The interface is in Russian; labels below are given as `Russian (English)`.
 
-The shared-agent guidance reflects [Claude Code best practices](https://code.claude.com/docs/en/best-practices), [Claude project instructions](https://code.claude.com/docs/en/memory), and [OpenAI's AGENTS.md guidance](https://developers.openai.com/codex/guides/agents-md), checked 2026-11-07. The official hackathon guide and checklist supplied by the organizers remain the authoritative product/rubric sources.
+1. Open **Диалоги (Dialogs)**, pick a conversation. If it has no stored evaluation, press **Оценить диалог (Evaluate dialog)** (needs a model key; the mock data already has results).
+2. Click a criterion → the transcript jumps to the exact evidence message; for a call, click the waveform to seek.
+3. Open **Чек-лист (Checklist)**, change a criterion's instructions or add one, save, then evaluate again → a new checklist version appears in the version bar; the old evaluation stays.
+4. Override a criterion with a reason, or file and decide an appeal in **Апелляции (Appeals)**: the final total changes while the original total and the AI explanation remain visible.
+5. Download CSV or print/save PDF from the evaluation panel footer.
+
+## Architecture in one picture
+
+```
+  apps/web (React, CqaApi)  ──HTTP──▶  apps/api (Fastify) ──▶ SQLite  (+ data/private/audio)
+        │ mock client for dev/tests            │
+        └───────── packages/contracts ◀────────┘   Zod types · the single scorer · evidence check
+                                               │
+                         planCriteria:  detector rule → reuse → (assisted) model
+                                               │          └ validated, stamped, scored by code
+  evaluation/ (CLI)  reads the API: human labels vs model, stability reruns
+```
+
+Design principles (each is enforced by code or a test, not only by convention):
+
+- **Deterministic first.** Facts (hold windows, recording pauses, verification events, timings), applicability, tiers, N/A, weighting, rounding and totals are code. The model supplies only semantic judgments and cannot compute a total.
+- **Evidence or it did not happen.** A positive verdict needs a verbatim quote from a client-facing operator message; indices and quotes are verified against the stored transcript.
+- **Nothing is overwritten.** Conversations, checklist versions, AI results and appeals are immutable/append-only; reviewer actions only change the *final* result.
+- **Transcripts are untrusted data**, passed to the model as an inert payload; secrets stay on the server.
+
+## Repository map
+
+```
+apps/api/          Fastify API, SQLite (Drizzle), import, evaluation pipeline, appeals, audio
+apps/web/          React + Vite review app (works offline against MockCqaApi)
+packages/contracts Zod schemas, shared types, scoring, evidence validation
+evaluation/        Human-label sheets, model-vs-human comparison, stability CLI
+fixtures/          Fictional demo conversation (only conversation data in git)
+data/              git-ignored contents: SQLite, raw dataset, recordings
+docs/              Architecture, rubric, interfaces, design, validation, runbook, workflow
+handoffs/          Per-owner onboarding notes from the hackathon kickoff
+AGENTS.md          Rules the team's coding agents follow (CLAUDE.md imports it)
+```
+
+## Team and process
+
+Denis: API, contracts, scoring, providers, integration. Sofia: web app. Eldana: validation, labeling protocol, QA. Branch/PR/CI rules: [`docs/WORKFLOW.md`](docs/WORKFLOW.md); CI runs typecheck, tests and build on Ubuntu and Windows.
+
+## Data handling
+
+No signed organizer URL, API key, raw transcript, real audio URL, recording or private label file is committed (`.gitignore` covers `data/`, `.env*`, `evaluation/private/`, `*.sqlite`). Git holds only fabricated fixtures. Real conversations are sent to a hosted model only with confirmed permission.
+
+## Known limits
+
+Agreement figures in our reports are against team-written human labels, not the organizer's hidden reference. Rounding of halfway cases and the semantic relevance of a quoted operator message are judgment calls documented in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#13-known-limits). There is no authentication.
