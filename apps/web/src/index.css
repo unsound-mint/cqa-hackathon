@@ -8,21 +8,21 @@
  * Every theme-dependent color is a variable below; components use the semantic names only.
  */
 :root {
-  --c-bg: #e4efdf;
-  --glass-fill: rgb(246 252 241 / 0.88);
+  --c-bg: #e8f0ed;
+  --glass-fill: rgb(255 255 255 / 0.68);
   --glass-edge: rgb(255 255 255 / 0.8);
   --glass-highlight: rgb(255 255 255 / 0.54);
   --glass-glow: rgb(255 255 255 / 0.2);
-  --ambient-green: rgb(136 190 117 / 0.26);
-  --ambient-teal: rgb(111 170 132 / 0.14);
+  --ambient-green: rgb(74 181 132 / 0.24);
+  --ambient-teal: rgb(65 146 155 / 0.18);
   --glass-shadow: 0 16px 40px -16px rgb(20 63 53 / 0.22);
-  --c-surface: #f6fbf2;
-  --c-fill: #e2eddd;
-  --c-ink: #203b2c;
-  --c-muted: #536852;
-  --c-line: #d2dfc9;
-  --c-line-strong: #a6b99c;
-  --c-soft: #dcefd4;
+  --c-surface: #ffffff;
+  --c-fill: #eceef0;
+  --c-ink: #191919;
+  --c-muted: #5b6166;
+  --c-line: #e4e6e8;
+  --c-line-strong: #c9ced2;
+  --c-soft: #e6f5ec;
   --c-accent: #164734;
   --c-danger: #a8271c;
   --c-danger-soft: #fdecea;
@@ -320,42 +320,42 @@
 /* Separate the navigation, queue and reading surface without changing verdict colors. */
 .workspace-sidebar,
 .queue-pane {
-  --c-fill: #dce9d6;
-  --c-line: #c8d9c0;
-  --c-line-strong: #98af8e;
-  --glass-fill: rgb(235 245 226 / 0.94);
+  --c-fill: #e4ede9;
+  --c-line: #d1ded7;
+  --c-line-strong: #9aafa3;
+  --glass-fill: rgb(239 245 241 / 0.92);
   --glass-edge: rgb(255 255 255 / 0.8);
 }
 .workspace-sidebar {
-  --glass-fill: rgb(215 234 204 / 0.96);
+  --glass-fill: rgb(225 236 229 / 0.94);
 }
 .transcript-pane {
-  --glass-fill: rgb(247 252 242 / 0.96);
-  --c-fill: #e1edda;
-  --c-line: #d0dfc7;
-  --c-line-strong: #95ad89;
-  --c-surface: #f5faef;
+  --glass-fill: rgb(253 254 253 / 0.92);
+  --c-fill: #e9efec;
+  --c-line: #dbe4df;
+  --c-line-strong: #9bafa2;
+  --c-surface: #fcfdfc;
 }
 .queue-selected {
-  background: linear-gradient(120deg, #c5e2b7, #dfefd3);
+  background: linear-gradient(120deg, #cee7d8, #e3f2e9);
 }
 .chat-bubble {
   border: 1px solid transparent;
 }
 .chat-bubble-client {
-  color: #284431;
-  border-color: #cddfc3;
-  background: #f0f8e9;
+  color: #293b36;
+  border-color: #d5dfda;
+  background: #ffffff;
 }
 .chat-bubble-bot {
-  color: #52634f;
-  border-color: #c6d6bd;
-  background: #e4eddf;
+  color: #48596a;
+  border-color: #d3dfe8;
+  background: #edf3f7;
 }
 .chat-bubble-operator {
   color: #113f32;
-  border-color: #9bc68a;
-  background: linear-gradient(135deg, #cce9be, #e2f3d7);
+  border-color: #a2d7bd;
+  background: linear-gradient(135deg, #d4f3df, #e5f8ed);
 }
 .dark .workspace-sidebar,
 .dark .queue-pane {
@@ -398,37 +398,4 @@
   color: #effff7;
   border-color: #4b9b7d;
   background: linear-gradient(135deg, #256b56, #1a4b40);
-}
-
-/* The light theme mirrors the dark workspace with soft leaf-green surfaces. */
-:root:not(.dark) .score-card:not(.verdict-danger) {
-  --v-muted: #476344;
-  --c-focus: #164734;
-  color: #173e27;
-  background:
-    radial-gradient(ellipse at 100% 90%, rgb(194 224 148 / 0.46), transparent 65%),
-    linear-gradient(135deg, #d5ecc9, #e8f4de);
-  box-shadow: inset 0 0 0 1px #b3cea4, inset 0 1px 0 rgb(255 255 255 / 0.72), var(--glass-shadow);
-}
-:root:not(.dark) .score-card:not(.verdict-danger) .score-status {
-  background: #c0dfb0;
-}
-:root:not(.dark) .score-card:not(.verdict-danger) .score-track {
-  background: #d6e5cc;
-  box-shadow: inset 0 0 0 1px #a6be98;
-}
-:root:not(.dark) .score-card:not(.verdict-danger) .score-fill {
-  background: linear-gradient(90deg, #329c6b, #70bc65 60%, #a8d357);
-}
-:root:not(.dark) .score-card:not(.verdict-danger) .text-white {
-  color: #173e27;
-}
-:root:not(.dark) .score-card:not(.verdict-danger) select,
-:root:not(.dark) .score-card:not(.verdict-danger) option {
-  color: #173e27;
-  background-color: #eaf5e2;
-  border-color: #abc49c;
-}
-:root:not(.dark) .score-card:not(.verdict-danger) dl > div {
-  border-color: #b4cda6;
 }
