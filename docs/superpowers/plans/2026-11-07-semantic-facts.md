@@ -11,5 +11,7 @@
 - [x] Integrate helpers after rules/reuse; preserve validated facts and cap pause confidence. Bump prompt and cache versions.
 - [x] Add nullable internal decision_facts storage and an idempotent additive migration. Preserve facts through appeals; test persistence.
 - [x] Run focused tests, typecheck, full tests and build; inspect diff.
-- [ ] Run authorized synthetic live variants, full batch and repeat checks; compare facts/grades and report reference-label limitations.
-- [ ] Update architecture/rubric/validation docs, open a focused PR for issue #45, self-review and merge after green CI.
+- [x] Run authorized synthetic live variants, full batch and repeat checks; compare facts/grades and report reference-label limitations.
+- [x] Update architecture/rubric/validation docs, open PR #46 for issue #45 and self-review.
+
+Merge gate: completed local/live checks and green Ubuntu/Windows CI.
