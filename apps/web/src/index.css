@@ -8,7 +8,14 @@
  * Every theme-dependent color is a variable below; components use the semantic names only.
  */
 :root {
-  --c-bg: #eff1f3;
+  --c-bg: #e8f0ed;
+  --glass-fill: rgb(255 255 255 / 0.68);
+  --glass-edge: rgb(255 255 255 / 0.8);
+  --glass-highlight: rgb(255 255 255 / 0.54);
+  --glass-glow: rgb(255 255 255 / 0.2);
+  --ambient-green: rgb(74 181 132 / 0.24);
+  --ambient-teal: rgb(65 146 155 / 0.18);
+  --glass-shadow: 0 16px 40px -16px rgb(20 63 53 / 0.22);
   --c-surface: #ffffff;
   --c-fill: #eceef0;
   --c-ink: #191919;
@@ -26,17 +33,21 @@
   --shadow-card: 0 1px 2px rgb(25 25 25 / 0.05), 0 16px 40px -18px rgb(25 25 25 / 0.18);
 }
 .dark {
-  /*
-   * Three levels of depth: a darker canvas (#111314), raised cards (#202325, with a faint top highlight in the shadow)
-   * and fills/bubbles above them. Text ratios on the card color are unchanged; on the canvas they only grow.
-   */
-  --c-bg: #111314;
-  --c-surface: #202325;
-  --c-fill: #2a2e31;
+  /* A deep teal canvas under translucent panels; muted text stays light on every surface. */
+  --c-bg: #102b2e;
+  --glass-fill: rgb(26 57 61 / 0.72);
+  --glass-edge: rgb(182 234 218 / 0.2);
+  --glass-highlight: rgb(223 255 247 / 0.14);
+  --glass-glow: rgb(206 255 242 / 0.06);
+  --ambient-green: rgb(32 183 119 / 0.32);
+  --ambient-teal: rgb(54 153 171 / 0.24);
+  --glass-shadow: 0 16px 40px -16px rgb(0 12 16 / 0.56);
+  --c-surface: #19383b;
+  --c-fill: #26474a;
   --c-ink: #f2f3f4;
-  --c-muted: #a3aaae;
-  --c-line: #2e3235;
-  --c-line-strong: #454b4f;
+  --c-muted: #b7c9c9;
+  --c-line: #3b585a;
+  --c-line-strong: #608083;
   --c-soft: #16382a;
   --c-accent: #5fd28d;
   --c-danger: #f2a99c;
@@ -49,7 +60,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Golos Text Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Nunito Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --color-brand: #02b140;
@@ -130,6 +141,8 @@
   h1,
   h2,
   h3 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
     text-wrap: balance;
   }
   html,
@@ -139,7 +152,19 @@
   }
   body {
     @apply bg-canvas font-sans text-ink antialiased;
-      }
+    background-image:
+      radial-gradient(ellipse at 82% 4%, var(--ambient-green), transparent 52%),
+      radial-gradient(ellipse at 8% 88%, var(--ambient-teal), transparent 56%);
+    background-attachment: fixed;
+  }
+  /* Native dropdown arrows sit a few px from the edge; draw our own 12 px in from it. Controls reserve room via pr-8/pr-10. */
+  select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a9a93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+  }
   :focus-visible {
     outline: 2px solid var(--c-focus);
     outline-offset: 2px;
@@ -210,4 +235,175 @@
 
 @page {
   margin: 16mm;
+}
+
+/* Glass is limited to structural panels; opaque popovers keep small text legible. */
+@utility glass-panel {
+  background-color: var(--glass-fill);
+  background-image: linear-gradient(145deg, var(--glass-glow), transparent 60%);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-edge),
+    inset 0 1px 0 var(--glass-highlight),
+    var(--glass-shadow);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+}
+
+@utility glass-inset {
+  background-image: linear-gradient(145deg, var(--glass-glow), transparent 80%);
+  box-shadow: inset 0 0 0 1px var(--glass-edge), inset 0 1px 0 var(--glass-highlight);
+}
+
+@supports not (backdrop-filter: blur(24px)) {
+  .glass-panel {
+    background-color: var(--c-surface);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-panel {
+    background: var(--c-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .glass-inset {
+    background: var(--c-surface);
+  }
+}
+
+@media print {
+  body {
+    background: white;
+  }
+  .glass-panel,
+  .glass-inset {
+    background: white;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Standalone score card: translucent depth and a horizontal score scale. */
+.score-card {
+  --v-muted: #d1e4df;
+  background:
+    radial-gradient(ellipse at 100% 90%, rgb(165 229 102 / 0.18), transparent 65%),
+    linear-gradient(135deg, rgb(35 108 94 / 0.9), rgb(20 62 57 / 0.94));
+  box-shadow: inset 0 0 0 1px rgb(223 255 245 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.16), var(--glass-shadow);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+}
+.dark .score-card {
+  box-shadow: inset 0 0 0 1px rgb(223 255 245 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.16), var(--glass-shadow);
+}
+.score-status {
+  background: rgb(150 238 170 / 0.16);
+  box-shadow: inset 0 1px 0 rgb(215 255 225 / 0.12);
+}
+.score-track {
+  background: rgb(210 249 232 / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(215 255 237 / 0.28);
+}
+.score-fill {
+  background: linear-gradient(90deg, #00c8b3, #35eea3 55%, #c6ff45);
+}
+.verdict-danger .score-status {
+  background: rgb(255 180 168 / 0.16);
+}
+.verdict-danger .score-fill {
+  background: linear-gradient(90deg, #ed7665, #ffb4a8);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .score-card {
+    background: #164a40;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .score-card.verdict-danger {
+    background: #5a1b15;
+  }
+}
+
+/* Separate the navigation, queue and reading surface without changing verdict colors. */
+.workspace-sidebar,
+.queue-pane {
+  --c-fill: #e4ede9;
+  --c-line: #d1ded7;
+  --c-line-strong: #9aafa3;
+  --glass-fill: rgb(239 245 241 / 0.92);
+  --glass-edge: rgb(255 255 255 / 0.8);
+}
+.workspace-sidebar {
+  --glass-fill: rgb(225 236 229 / 0.94);
+}
+.transcript-pane {
+  --glass-fill: rgb(253 254 253 / 0.92);
+  --c-fill: #e9efec;
+  --c-line: #dbe4df;
+  --c-line-strong: #9bafa2;
+  --c-surface: #fcfdfc;
+}
+.queue-selected {
+  background: linear-gradient(120deg, #cee7d8, #e3f2e9);
+}
+.chat-bubble {
+  border: 1px solid transparent;
+}
+.chat-bubble-client {
+  color: #293b36;
+  border-color: #d5dfda;
+  background: #ffffff;
+}
+.chat-bubble-bot {
+  color: #48596a;
+  border-color: #d3dfe8;
+  background: #edf3f7;
+}
+.chat-bubble-operator {
+  color: #113f32;
+  border-color: #a2d7bd;
+  background: linear-gradient(135deg, #d4f3df, #e5f8ed);
+}
+.dark .workspace-sidebar,
+.dark .queue-pane {
+  --c-bg: #151a2c;
+  --c-surface: #252b43;
+  --c-fill: #303851;
+  --c-muted: #bbc6df;
+  --c-line: #3b4662;
+  --c-line-strong: #6b7b9c;
+  --glass-fill: rgb(30 35 58 / 0.92);
+  --glass-edge: rgb(178 187 239 / 0.24);
+}
+.dark .workspace-sidebar {
+  --glass-fill: rgb(19 24 43 / 0.94);
+}
+.dark .transcript-pane {
+  --glass-fill: rgb(15 28 46 / 0.94);
+  --glass-edge: rgb(156 196 224 / 0.24);
+  --c-bg: #101c2e;
+  --c-surface: #1c2c43;
+  --c-fill: #273a52;
+  --c-muted: #b5c6dc;
+  --c-line: #334b64;
+  --c-line-strong: #6687a2;
+}
+.dark .queue-selected {
+  background: linear-gradient(120deg, #41476e, #303b5b);
+}
+.dark .chat-bubble-client {
+  color: #eef5ff;
+  border-color: #415d7a;
+  background: #253b54;
+}
+.dark .chat-bubble-bot {
+  color: #c2c7e2;
+  border-color: #424663;
+  background: #292d47;
+}
+.dark .chat-bubble-operator {
+  color: #effff7;
+  border-color: #4b9b7d;
+  background: linear-gradient(135deg, #256b56, #1a4b40);
 }
