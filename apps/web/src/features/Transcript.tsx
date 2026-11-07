@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { SPEAKER_LABEL, gapLabel, type Tone } from '@/lib/present';
 
 export type Focus = { index: number; nonce: number } | null;
-export type Tag = { id: string; tone: Tone };
+export type Tag = { id: string; tone: Tone; title: string; label: string; explanation: string };
 
 type Props = {
   conversation: Conversation;
@@ -149,16 +149,26 @@ export function Transcript({ conversation, cited, checkedRange, focus, markers, 
           const tagRow = mine.length > 0 && (
             <span className={cn('mt-2 flex flex-wrap gap-1', view === 'chat' && m.speaker === 'operator' && 'justify-end', view === 'chat' && system && 'justify-center')}>
               {mine.map((t) => (
-                <button key={t.id} type="button" onClick={() => onTag(t.id)} aria-label={`Открыть критерий ${t.id}`} className={cn('h-6 min-w-8 rounded-full px-2 text-xs font-semibold tabular-nums', TAG[t.tone])}>
-                  {t.id}
-                </button>
+                <span key={t.id} className="group relative">
+                  <button type="button" onClick={() => onTag(t.id)} aria-label={`Открыть критерий ${t.id}: ${t.title}, ${t.label}`} className={cn('h-6 min-w-8 rounded-full px-2 text-xs font-semibold tabular-nums', TAG[t.tone])}>
+                    {t.id}
+                  </button>
+                  {/* Preview on hover or keyboard focus: which criterion, its verdict and the reason. Decorative: the button already has the full name. */}
+                  <span aria-hidden className={cn('pointer-events-none absolute z-20 hidden w-72 rounded-xl border border-line bg-surface p-3 text-left shadow-card group-focus-within:block group-hover:block', m.index < 3 ? 'top-full mt-2' : 'bottom-full mb-2', view === 'chat' && m.speaker === 'operator' ? 'right-0' : 'left-0')}>
+                    <span className="flex items-center justify-between gap-2 text-sm font-medium text-ink">
+                      <span>{t.id} {t.title}</span>
+                      <span className="shrink-0 rounded-full bg-fill px-2 text-xs">{t.label}</span>
+                    </span>
+                    <span className="mt-1 line-clamp-4 block text-xs leading-4 text-muted">{t.explanation}</span>
+                  </span>
+                </span>
               ))}
             </span>
           );
           const meta = (
             <>
               {m.timestamp} · #{m.index}
-              {gap && <span className={cn('ml-2', gap.long && 'font-medium text-warn')}>· {gap.text}</span>}
+              {gap && <span className="ml-2">· {gap.text}</span>}
             </>
           );
 

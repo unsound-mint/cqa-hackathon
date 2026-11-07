@@ -105,6 +105,9 @@ export function QueueRail({ conversations, latest, ids, selectedId, filterLabel,
           );
         })}
       </ul>
+      <p className="border-t border-line px-4 py-3 text-xs leading-4 text-muted">
+        <kbd className="rounded bg-fill px-1">J</kbd> <kbd className="rounded bg-fill px-1">K</kbd> диалоги · <kbd className="rounded bg-fill px-1">N</kbd> на проверку · <kbd className="rounded bg-fill px-1">1–9</kbd> критерии · <kbd className="rounded bg-fill px-1">Ctrl K</kbd> поиск
+      </p>
     </nav>
   );
 }

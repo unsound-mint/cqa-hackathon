@@ -1,11 +1,12 @@
 import type { Appeal, ChecklistVersion, Conversation, Criterion, CriterionResult, DecideAppealInput, EvidenceReference, Evaluation } from '@cqa/contracts';
-import { AlertTriangle, ChevronDown, FlaskConical, Link2Off, Loader2, Quote, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Download, FlaskConical, Link2Off, Loader2, Printer, Quote, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
 import { CONFIDENCE_LABEL, SOURCE_LABEL, earnedPoints, formatScore, needsReview, outcome, sameResult, shortOutcome } from '@/lib/present';
+import { downloadText, evaluationCsv } from '@/lib/export';
 import { violationReasons } from '@/lib/queue';
 import { AppealBox } from './Appeals';
 
@@ -157,7 +158,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         <h2 className="text-base font-semibold">Диалог ещё не оценён</h2>
         <p className="max-w-prose text-sm text-muted">Оценки нет, и мы не показываем выдуманных. Запустите оценку по текущему чек-листу.</p>
         <Button variant="accent" size="lg" onClick={onStart} disabled={starting || !checklist}>
-          {starting && <Loader2 aria-hidden className="size-4 animate-spin" />}
+          {starting && <Loader2 aria-hidden className="size-4 motion-safe:animate-spin" />}
           {starting ? 'Идёт оценка…' : 'Оценить диалог'}
         </Button>
         {startError && <p role="alert" className="text-sm text-danger">{startError}</p>}
@@ -179,7 +180,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
   if (evaluation.status !== 'completed') {
     return (
       <section aria-label="Оценка" className="flex h-full items-center gap-2 p-5 text-sm text-muted" role="status">
-        <Loader2 aria-hidden className="size-4 animate-spin" />Оценка выполняется…
+        <Loader2 aria-hidden className="size-4 motion-safe:animate-spin" />Оценка выполняется…
       </section>
     );
   }
@@ -212,6 +213,8 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
           <div className="flex flex-wrap gap-2">
             {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Апелляция: {pendingIds.size}</span>}
             {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Изменено ревьюером: {changedCount}</span>}
+            <button type="button" onClick={() => downloadText(`${conversation.id}-evaluation.csv`, evaluationCsv(conversation, evaluation, checklist), 'text/csv;charset=utf-8')} aria-label="Скачать оценку в CSV" title="Скачать оценку в CSV (Excel)" className="inline-flex h-6 items-center gap-1 rounded-full bg-white/10 px-2 text-xs hover:bg-white/20"><Download aria-hidden className="size-4" />CSV</button>
+            <button type="button" onClick={() => window.print()} aria-label="Печать или сохранить в PDF" title="Печать или сохранить в PDF" className="inline-flex h-6 items-center gap-1 rounded-full bg-white/10 px-2 text-xs hover:bg-white/20"><Printer aria-hidden className="size-4" />PDF</button>
           </div>
         </div>
         {isMock && (
@@ -264,18 +267,15 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         </div>
       )}
 
-      <div className="border-b border-line bg-surface px-6 py-3">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-medium text-muted">Критерии: нажмите, чтобы открыть</p>
-          {flaggedCount > 0 && (
-            <label className="flex items-center gap-2 text-xs">
-              <input type="checkbox" checked={onlyFlagged} onChange={(e) => setOnlyFlagged(e.target.checked)} className="size-4 accent-brand" />
-              Только требующие внимания ({flaggedCount})
-            </label>
-          )}
-        </div>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(56px,1fr))] gap-2">
-          {scorecardRows.map(({ r, c }) => {
+      <div className="space-y-2 border-b border-line bg-surface px-6 py-3">
+        {flaggedCount > 0 && (
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={onlyFlagged} onChange={(e) => setOnlyFlagged(e.target.checked)} className="size-4 accent-brand" />
+            Только требующие внимания ({flaggedCount})
+          </label>
+        )}
+        <div role="group" aria-label="Критерии: нажмите, чтобы открыть" className="flex gap-2 overflow-x-auto pb-1">
+          {scorecardRows.map(({ r, c }, k) => {
             const o = outcome(c, r);
             return (
               <button
@@ -286,8 +286,9 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
                   document.getElementById(`row-${evaluation.id}-${r.criterionId}`)?.scrollIntoView?.({ block: 'nearest' });
                 }}
                 aria-label={`Критерий ${r.criterionId}: ${o.label}`}
+                title={k < 9 ? `Клавиша ${k + 1}` : undefined}
                 aria-pressed={selectedCriterionId === r.criterionId}
-                className={cn('flex h-12 flex-col items-center justify-center rounded-xl text-center transition-colors', CHIP[o.tone], selectedCriterionId === r.criterionId && 'ring-2 ring-ink')}
+                className={cn('flex h-12 min-w-10 max-w-14 flex-1 flex-col items-center justify-center rounded-xl text-center transition-colors', CHIP[o.tone], selectedCriterionId === r.criterionId && 'ring-2 ring-ink')}
               >
                 <span className="text-sm font-semibold leading-5 tabular-nums">{r.criterionId}</span>
                 <span className="text-xs leading-4">{shortOutcome(c, r)}</span>

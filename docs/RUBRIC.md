@@ -38,3 +38,6 @@ Every result requires the applied answer or tier, rationale and source messages 
 
 ## Versioning and hidden round
 A saved checklist has immutable version and schema: ID, section, description, answer type, allowed values or scale, weight, N/A eligibility/rule, critical-flag role, prompt instructions. The organizer will replace one criterion during testing. UI must save and evaluate its instructions without editing source code. Old evaluations retain old version and original results.
+
+## Organizer clarifications (team chat)
+- 2026-11-07, first-reaction threshold: asked what the "3-minute first-reaction threshold" means, an organizer answered "this is SLA". It is a service-level figure, not a graded rule (consistent with criterion 06 above). The UI shows pauses between messages neutrally and never colors one as a breach.

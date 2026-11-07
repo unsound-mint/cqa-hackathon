@@ -8,6 +8,8 @@ export const DEFAULT_FILTERS: Filters = { query: '', lang: 'all', channel: 'all'
 const done = (e: Evaluation | undefined): e is Evaluation => e?.status === 'completed';
 
 export const hasViolation = (e: Evaluation | undefined) => done(e) && e.seriousViolation;
+/** Needs a human look: a raised violation, low-confidence results or a failed evaluation. ("Already reviewed" is not tracked: the contract has no such state.) */
+export const needsAttention = (e: Evaluation | undefined) => !!e && (e.status === 'failed' || hasViolation(e) || reviewCount(e) > 0);
 export const reviewCount = (e: Evaluation | undefined) => (done(e) ? e.finalResults.filter(needsReview).length : 0);
 
 /** Why a violation was raised: the explanation of each raised flag criterion of the checklist the evaluation used. */

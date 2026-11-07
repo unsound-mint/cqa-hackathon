@@ -177,7 +177,7 @@ it('adds a criterion in the editor, saves a new version, and evaluates a dialog 
   fireEvent.click(screen.getByRole('button', { name: 'Оценить выбранный диалог' }));
   fireEvent.click(screen.getByRole('link', { name: 'Диалоги' }));
   fireEvent.click(await screen.findByRole('link', { name: 'demo-ru-001' }));
-  expect(await screen.findByText(/Назвал срок решения/, {}, { timeout: 4000 })).toBeTruthy();
+  expect(await within(await screen.findByRole('region', { name: 'Оценка' })).findByText(/Назвал срок решения/, {}, { timeout: 4000 })).toBeTruthy();
   expect((screen.getByLabelText('Оценка по версии чек-листа') as HTMLSelectElement).options.length).toBe(2);
 });
 
@@ -273,7 +273,9 @@ it('shows numbered criterion tags on the messages that back a grade, and a tag o
   const msg8 = within(document.getElementById('msg-8')!);
   const tags = msg8.getAllByRole('button', { name: /Открыть критерий/ }).map((b) => b.textContent);
   expect(tags).toEqual(expect.arrayContaining(['03', '04', '05']));
-  fireEvent.click(msg8.getByRole('button', { name: 'Открыть критерий 05' }));
+  expect(msg8.getByRole('button', { name: /^Открыть критерий 05: Эмпатия.*Да$/ })).toBeTruthy();
+  expect(msg8.getAllByText(/Клиент пожаловался на неудобство/).length).toBeGreaterThan(0); // preview text is in the DOM, shown on hover/focus
+  fireEvent.click(msg8.getByRole('button', { name: /^Открыть критерий 05/ }));
   expect(row(/Эмпатия/).getAttribute('aria-expanded')).toBe('true');
 });
 
@@ -305,12 +307,34 @@ it('search sits at the top of the queue: it filters the queue with the matching 
   expect(rail.getAllByRole('button', { name: /demo-ru-/ }).length).toBe(2);
 });
 
-it('the sidebar search button opens the list page search when no queue is beside the dialog', async () => {
+it('Ctrl K away from the dialogs opens the list page and focuses its search; the sidebar has no search button', async () => {
   window.innerWidth = 900;
   renderApp(demo, '#/checklist');
-  fireEvent.click(await screen.findByRole('button', { name: /Найти диалог/ }));
+  await screen.findByRole('button', { name: 'Добавить критерий' });
+  expect(screen.queryByRole('button', { name: /Найти диалог/ })).toBeNull();
+  fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
   const list = within(await screen.findByRole('region', { name: 'Диалоги' }));
   expect(document.activeElement).toBe(list.getByRole('searchbox'));
+});
+
+it('keys 1-9 open criteria and Escape closes; N jumps to the next dialog needing attention', async () => {
+  renderApp(
+    bundle((b) => {
+      withSecond(b);
+      for (const r of b.evaluations[1].finalResults) if (r.criterionId === '02') r.confidence = 'low';
+    }),
+  );
+  await transcriptReady();
+  fireEvent.keyDown(window, { key: '3' });
+  expect(row(/Идентификация/).getAttribute('aria-expanded')).toBe('true');
+  fireEvent.keyDown(window, { key: 'Escape' });
+  expect(row(/Идентификация/).getAttribute('aria-expanded')).toBe('false');
+  const next = screen.getByRole('button', { name: /К диалогу, требующему проверки/ });
+  expect((next as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.keyDown(window, { key: 'n' });
+  expect(window.location.hash).toBe('#/dialog/demo-ru-002');
+  await screen.findByText('2 из 2');
+  expect((screen.getByRole('button', { name: /К диалогу, требующему проверки/ }) as HTMLButtonElement).disabled).toBe(true); // the only other dialog does not need attention
 });
 
 it('shows the transcript as a chat by default, can switch to the dense list, and remembers it', async () => {
@@ -340,4 +364,18 @@ it('the queue rail lists the filtered dialogs and switches between them', async 
   expect(rail.getByRole('button', { name: /demo-ru-001/ }).getAttribute('aria-current')).toBe('true');
   fireEvent.click(rail.getByRole('button', { name: /demo-ru-002/ }));
   expect(window.location.hash).toBe('#/dialog/demo-ru-002');
+});
+
+it('exports the evaluation: CSV download and print for PDF', async () => {
+  renderApp();
+  await transcriptReady();
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  (URL as any).createObjectURL = vi.fn(() => 'blob:x');
+  (URL as any).revokeObjectURL = vi.fn();
+  const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+  fireEvent.click(panel().getByRole('button', { name: 'Скачать оценку в CSV' }));
+  expect(click).toHaveBeenCalled();
+  fireEvent.click(panel().getByRole('button', { name: 'Печать или сохранить в PDF' }));
+  expect(print).toHaveBeenCalled();
+  expect(document.querySelector('article')!.textContent).toContain('Оценка диалога demo-ru-001');
 });

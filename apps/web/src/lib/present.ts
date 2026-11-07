@@ -58,13 +58,16 @@ export function toSeconds(ts: string): number | null {
   return Number.isNaN(ms) ? null : ms / 1000;
 }
 
-/** "пауза 45 с" for a silence of 30 seconds or more between two messages (waits matter for the speed criterion). */
-export function gapLabel(prev: string | undefined, cur: string): { text: string; long: boolean } | null {
+/**
+ * "пауза 45 с" for a silence of 30 seconds or more between two messages. Information only: the rubric states no
+ * waiting threshold (the 3-minute first-reaction figure is an SLA and is not graded), so nothing here is colored as a breach.
+ */
+export function gapLabel(prev: string | undefined, cur: string): { text: string } | null {
   if (prev === undefined) return null;
   const a = toSeconds(prev);
   const b = toSeconds(cur);
   if (a === null || b === null || b - a < 30) return null;
   const s = Math.round(b - a);
   const m = Math.floor(s / 60);
-  return { text: `пауза ${m ? `${m} мин${s % 60 ? ` ${s % 60} с` : ''}` : `${s} с`}`, long: s >= 120 };
+  return { text: `пауза ${m ? `${m} мин${s % 60 ? ` ${s % 60} с` : ''}` : `${s} с`}` };
 }

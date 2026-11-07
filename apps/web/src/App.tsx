@@ -1,13 +1,15 @@
 import type { Appeal, ChecklistVersion, Conversation, DecideAppealInput, Evaluation, SaveChecklistInput } from '@cqa/contracts';
-import { ArrowLeft, ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApi } from './ApiContext';
 import { cn } from '@/lib/utils';
-import { DEFAULT_FILTERS, hasViolation, matches, reviewCount, type Filters } from '@/lib/queue';
+import { DEFAULT_FILTERS, hasViolation, matches, needsAttention, reviewCount, type Filters } from '@/lib/queue';
 import { formatScore, outcome, type Tone } from '@/lib/present';
 import { useTheme } from '@/lib/theme';
 import { ChecklistEditor } from './features/ChecklistEditor';
 import { DialogsPage } from './features/DialogsPage';
+import { LoadingShell } from './features/LoadingShell';
+import { PrintReport } from './features/PrintReport';
 import { QueueRail } from './features/QueueRail';
 import { Sidebar } from './features/Sidebar';
 import { EvaluationPanel } from './features/EvaluationPanel';
@@ -113,23 +115,14 @@ export function App() {
     [position, queue, go],
   );
 
-  useEffect(() => {
-    if (route.name !== 'dialog') return;
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (e.ctrlKey || e.metaKey || e.altKey || (t instanceof Element && t.closest('input, textarea, select, [contenteditable]'))) return;
-      if (e.key === 'j' || e.key === 'о') step(1);
-      else if (e.key === 'k' || e.key === 'л') step(-1);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [route.name, step]);
-
   /** Search lives at the top of the queue beside a dialog, and on the list page otherwise. */
   const focusSearch = useCallback(() => {
     const wide = window.matchMedia?.('(min-width: 1280px)').matches ?? window.innerWidth >= 1280;
     if (route.name === 'dialog' && wide) setRailOpen(true);
-    else if (route.name !== 'list') go({ name: 'list' });
+    else if (route.name !== 'list') {
+      keepFocus.current = true;
+      go({ name: 'list' });
+    }
     setSearchFocus((n) => n + 1);
   }, [route.name, go]);
 
@@ -144,10 +137,59 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [focusSearch]);
 
+  /** Page title per screen (tab, screen readers) and focus moved to the content after navigation, not on first load. */
+  const routeKey = route.name === 'dialog' ? `dialog:${route.id}` : route.name;
+  const firstRoute = useRef(true);
+  const keepFocus = useRef(false); // set when navigation was started by the search shortcut, which focuses the search field itself
+  useEffect(() => {
+    document.title = route.name === 'dialog' ? `${route.id} · CQA` : route.name === 'checklist' ? 'Чек-лист · CQA' : 'Диалоги · CQA';
+    if (firstRoute.current) {
+      firstRoute.current = false;
+      return;
+    }
+    if (keepFocus.current) keepFocus.current = false;
+    else document.getElementById('content')?.focus({ preventScroll: true });
+  }, [routeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** The next dialog after this one in the queue that needs a human look; wraps around. */
+  const nextAttention = useMemo(() => {
+    if (!selectedId || queue.length === 0) return null;
+    const from = Math.max(queue.indexOf(selectedId), 0);
+    for (let k = 1; k <= queue.length; k++) {
+      const id = queue[(from + k) % queue.length]!;
+      if (id !== selectedId && needsAttention(latest.get(id))) return id;
+    }
+    return null;
+  }, [queue, selectedId, latest]);
+
   const evaluationId = (() => {
     const list = selectedId ? byConversation.get(selectedId) : undefined;
     return (list?.find((e) => e.id === pickedEvaluationId) ?? list?.[list.length - 1])?.id ?? null;
   })();
+
+  /** Results the digit keys 1-9 open, in the order the panel lists them. */
+  const shortcutResults = useMemo(() => {
+    const list = selectedId ? byConversation.get(selectedId) : undefined;
+    const ev = list?.find((e) => e.id === evaluationId);
+    return ev?.status === 'completed' ? ev.finalResults : [];
+  }, [byConversation, selectedId, evaluationId]);
+
+  useEffect(() => {
+    if (route.name !== 'dialog') return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.ctrlKey || e.metaKey || e.altKey || (t instanceof Element && t.closest('input, textarea, select, [contenteditable]'))) return;
+      if (e.key === 'j' || e.key === 'о') step(1);
+      else if (e.key === 'k' || e.key === 'л') step(-1);
+      else if ((e.key === 'n' || e.key === 'т') && nextAttention) go({ name: 'dialog', id: nextAttention });
+      else if (/^[1-9]$/.test(e.key)) {
+        const r = shortcutResults[Number(e.key) - 1];
+        if (r) setCriterionId((cur) => (cur === r.criterionId ? null : r.criterionId));
+      } else if (e.key === 'Escape') setCriterionId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [route.name, step, nextAttention, go, shortcutResults]);
 
   useEffect(() => {
     if (!evaluationId) return setAppeals([]);
@@ -158,7 +200,7 @@ export function App() {
     };
   }, [api, evaluationId]);
 
-  if (load.status === 'loading') return <p role="status" className="p-6 text-sm text-muted">Загрузка…</p>;
+  if (load.status === 'loading') return <LoadingShell />;
   if (load.status === 'error') {
     return (
       <div className="p-6">
@@ -200,11 +242,13 @@ export function App() {
   const tags = new Map<number, Tag[]>();
   if (evaluation?.status === 'completed') {
     for (const r of evaluation.finalResults) {
-      const tone: Tone = outcome(checklist?.criteria.find((c) => c.id === r.criterionId), r).tone;
+      const crit = checklist?.criteria.find((c) => c.id === r.criterionId);
+      const o = outcome(crit, r);
+      const tone: Tone = o.tone;
       for (const e of r.evidence) {
         if (!conversation?.transcript[e.messageIndex]) continue;
         const list = tags.get(e.messageIndex) ?? [];
-        if (!list.some((t) => t.id === r.criterionId)) list.push({ id: r.criterionId, tone });
+        if (!list.some((t) => t.id === r.criterionId)) list.push({ id: r.criterionId, tone, title: crit?.title ?? r.criterionId, label: o.label, explanation: r.explanation });
         tags.set(e.messageIndex, list);
       }
     }
@@ -277,31 +321,36 @@ export function App() {
         </Select>
         <Button variant="outline" size="sm" aria-label="Следующий диалог (J)" disabled={position < 0 || position >= queue.length - 1} onClick={() => step(1)}><ChevronRight aria-hidden className="size-4" /></Button>
         <p className="min-w-16 text-sm text-muted" aria-live="polite">{position >= 0 ? `${position + 1} из ${queue.length}` : 'вне фильтра'}</p>
+        <Button variant="outline" size="sm" disabled={!nextAttention} onClick={() => nextAttention && go({ name: 'dialog', id: nextAttention })} title="Следующий диалог с нарушением, ошибкой оценки или низкой уверенностью (N)" aria-label="К диалогу, требующему проверки (N)">
+          <AlertTriangle aria-hidden className="size-4" />
+          <span className="hidden 2xl:inline">На проверку</span>
+        </Button>
       </div>
     </div>
   );
 
   return (
-    <div className="flex h-full flex-col md:flex-row">
+    <>
+    <div className="flex h-full flex-col md:flex-row print:hidden">
+      <a href="#content" onClick={(e) => { e.preventDefault(); document.getElementById('content')?.focus(); }} className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-4 focus:py-2 focus:text-sm focus:text-canvas">Перейти к содержимому</a>
       <Sidebar
         active={route.name === 'checklist' ? 'checklist' : 'dialogs'}
         onNavigate={(to) => go(to === 'checklist' ? { name: 'checklist' } : { name: 'list' })}
-        onSearch={focusSearch}
         theme={theme}
         onToggleTheme={toggleTheme}
         demo={mode === 'mock'}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {route.name === 'checklist' ? (
-          <main className="min-h-0 flex-1 bg-canvas">
+          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
             <ChecklistEditor checklists={data.checklists} conversationCount={data.conversations.length} onSave={saveChecklist} onEvaluate={evaluateWith} hasCurrentConversation={!!lastDialogId} />
           </main>
         ) : route.name === 'list' ? (
-          <main className="min-h-0 flex-1 bg-canvas">
+          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
             <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} demo={mode === 'mock'} focusSignal={searchFocus} />
           </main>
         ) : !conversation ? (
-          <main className="p-6 text-sm">
+          <main id="content" tabIndex={-1} className="p-6 text-sm outline-none">
             <p className="text-muted">Диалог «{selectedId}» не найден.</p>
             <Button className="mt-4" onClick={() => go({ name: 'list' })}>К списку диалогов</Button>
           </main>
@@ -315,7 +364,7 @@ export function App() {
               ))}
             </nav>
 
-            <main className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 xl:p-4', railOpen ? 'xl:grid-cols-[280px_minmax(0,1fr)_480px]' : 'xl:grid-cols-[minmax(0,1fr)_480px]')}>
+            <main id="content" tabIndex={-1} className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 outline-none xl:p-4', railOpen ? 'xl:grid-cols-[280px_minmax(0,1fr)_480px]' : 'xl:grid-cols-[minmax(0,1fr)_480px]')}>
               {railOpen && (
                 <div className="hidden min-h-0 overflow-hidden rounded-card bg-surface shadow-card xl:block">
                   <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filterLabel={filterLabel} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} onSelect={(id) => go({ name: 'dialog', id })} />
@@ -359,5 +408,7 @@ export function App() {
         )}
       </div>
     </div>
+    {route.name === 'dialog' && conversation && evaluation?.status === 'completed' && <PrintReport conversation={conversation} evaluation={evaluation} checklist={checklist} />}
+    </>
   );
 }

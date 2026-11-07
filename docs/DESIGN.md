@@ -8,7 +8,7 @@ Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid
 - Control heights: 32 compact (`h-8`), 40 default (`h-10`), 48 primary or touch (`h-12`). Badges 24 (`h-6`).
 - Radii: 8 inputs, 12 rows and messages, 16 cards, full for pills and chips.
 - Layout widths: nav sidebar 72, queue rail 280, verdict panel 480, page gutter 16/24, gap between panes 16.
-- Vertical space belongs to the two working columns (transcript, verdict). No full-width bars above them: navigation and global tools (search, theme, demo label) live in the slim left sidebar; the dialog title and queue controls sit inside the transcript card.
+- Vertical space belongs to the two working columns (transcript, verdict). No full-width bars above them: navigation and global tools (theme, demo label) live in the slim left sidebar; the dialog title and queue controls sit inside the transcript card.
 
 ## Type (size / line-height, all multiples of 4)
 | Role | Class | Use |

@@ -1,17 +1,16 @@
-import { ListChecks, MessagesSquare, Moon, Search, Sun } from 'lucide-react';
+import { ListChecks, MessagesSquare, Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Props = {
   active: 'dialogs' | 'checklist';
   onNavigate: (to: 'dialogs' | 'checklist') => void;
-  onSearch: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   demo: boolean;
 };
 
-/** Slim navigation rail: tabs on top, global tools (search, theme, demo label) at the bottom. A top bar on narrow screens. */
-export function Sidebar({ active, onNavigate, onSearch, theme, onToggleTheme, demo }: Props) {
+/** Slim navigation rail: tabs on top, global tools (theme, demo label) at the bottom. A top bar on narrow screens. */
+export function Sidebar({ active, onNavigate, theme, onToggleTheme, demo }: Props) {
   const ThemeIcon = theme === 'dark' ? Sun : Moon;
   const item = (id: 'dialogs' | 'checklist', label: string, Icon: typeof MessagesSquare, href: string) => (
     <a
@@ -40,9 +39,6 @@ export function Sidebar({ active, onNavigate, onSearch, theme, onToggleTheme, de
       </nav>
       <div className="flex flex-row items-center gap-1 md:mt-auto md:flex-col">
         {demo && <span title="Вымышленные данные: демо без сервера" className="inline-flex h-6 items-center rounded-full bg-warn-soft px-2 text-xs font-medium text-warn md:mb-2">Демо</span>}
-        <button type="button" onClick={onSearch} aria-label="Найти диалог (Ctrl K)" title="Найти диалог (Ctrl K)" className={tool}>
-          <Search aria-hidden className="size-5" />
-        </button>
         <button type="button" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} title="Тема" className={tool}>
           <ThemeIcon aria-hidden className="size-5" />
         </button>
