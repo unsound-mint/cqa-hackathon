@@ -55,32 +55,35 @@ describe('greeting-intro detector (proves Yes only)', () => {
   });
 });
 
-describe('closing detector (strict: offer AND goodbye; proves Yes or N/A only)', () => {
+describe('closing detector (OR: offer, goodbye or courteous acknowledgement; proves Yes or N/A only)', () => {
+  const tail = (lang: 'RU' | 'KZ' | 'EN', text: string) => chat(lang, [['client', 'q'], ['operator', 'ответ'], ['client', 'спасибо'], ['operator', text]]);
+
   it.each([
     ['RU', 'Если вопрос останется, напишите нам. До свидания!'],
-    ['RU', 'Пожалуйста! Если появятся вопросы, пишите нам. Хорошего дня!'],
-    ['RU', 'Обращайтесь, если что-то ещё понадобится. Всего доброго!'],
     ['KZ', 'Сұрағыңыз болса, жазыңыз. Сау болыңыз!'],
-    ['EN', 'If you have any other questions, feel free to write. Have a great day!'],
     ['EN', 'Is there anything else I can help with? Goodbye!'],
+    ['RU', 'Если появятся вопросы, пишите нам.'], // offer alone
+    ['RU', 'Хорошего дня!'], // farewell alone
+    ['EN', 'Take care!'],
+    ['RU', 'Пожалуйста!'], // courteous reply to thanks alone
+    ['RU', 'Рад был помочь.'],
+    ['KZ', 'Оқасы жоқ.'],
+    ['EN', "You're welcome."],
+    ['EN', 'Happy to help.'],
+    ['EN', 'No problem, anytime.'],
   ] as const)('%s: %s', (lang, text) => {
-    const r = run('closing', chat(lang, [['client', 'q'], ['operator', 'ответ'], ['client', 'спасибо'], ['operator', text]]));
+    const r = run('closing', tail(lang, text));
     expect(r).toMatchObject({ value: true, source: 'rule' });
-    expect(r!.evidence).toHaveLength(2);
+    expect(r!.evidence.length).toBeGreaterThan(0);
     for (const e of r!.evidence) expect(text).toContain(e.quote!);
   });
 
-  it.each([
-    ['RU', 'Пожалуйста. Хорошего дня!'], // bare goodbye: "and" means both parts
-    ['RU', 'Хорошо, начните со сверки дат. До свидания!'],
-    ['KZ', 'Рақмет. Сау болыңыз!'],
-    ['EN', 'Glad to help. Goodbye!'],
-    ['RU', 'Если появятся вопросы, пишите нам.'], // offer without goodbye
-  ] as const)('stays undecided when only one half is present: %s %s', (lang, text) => {
-    expect(run('closing', chat(lang, [['client', 'q'], ['operator', 'ответ'], ['client', 'спасибо'], ['operator', text]]))).toBeNull();
+  it('stays undecided when no wrap-up element is present', () => {
+    expect(run('closing', tail('EN', 'Open the settings page.'))).toBeNull();
+    expect(run('closing', tail('RU', 'Хорошо, начните со сверки дат.'))).toBeNull();
   });
 
-  it('accepts the offer and the goodbye in separate messages of the same final turn', () => {
+  it('accepts elements spread over separate messages of the same final turn', () => {
     const r = run('closing', chat('RU', [['client', 'q'], ['operator', 'Если нужна помощь, обращайтесь.'], ['operator', 'До свидания!']]));
     expect(r?.evidence.map((e) => e.messageIndex)).toEqual([1, 2]);
   });
