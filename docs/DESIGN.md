@@ -56,6 +56,7 @@ Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid
 ## Screens
 - Dialogs list: one quiet toolbar. The review-state switch (segments with counts; a colored dot, not colored text, marks violations and review) carries the decision; search, language and channel are small. Rows carry a status chip only when there is something to do (not evaluated, failed, review count); an evaluated dialog has none.
 - Checklist editor: from 1024 px a grouped list beside the selected criterion's form (what is judged: title, instructions, N/A; how it is scored: section, type, steps, weight, flag). Below 1024 the form opens inside the list. Delete lives in the form; up/down moves within a section.
+- Statistics (`#/stats`): computed in the browser from the lists the app already loads (`lib/stats.ts`, no endpoint). Counts the current evaluation of each dialog; the criterion table follows one checklist version (picker when several were used) and works for any criterion, ranked by points, never by id. Bars repeat numbers written beside them and are `aria-hidden`. Filter: language only (dialogs carry no operator id).
 - Targets: every control is at least 24 px in both directions (sort headers 32, row links 24); checkboxes are 16 px inside a label that is at least 32 px tall.
 
 ## Reviewer actions

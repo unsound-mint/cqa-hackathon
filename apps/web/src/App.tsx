@@ -16,6 +16,7 @@ import { LoadingShell } from './features/LoadingShell';
 import { PrintReport } from './features/PrintReport';
 import { QueueRail } from './features/QueueRail';
 import { Sidebar } from './features/Sidebar';
+import { StatsPage } from './features/StatsPage';
 import { EvaluationPanel } from './features/EvaluationPanel';
 import type { Correction } from './features/Appeals';
 import { Transcript, type Focus, type Tag } from './features/Transcript';
@@ -28,13 +29,14 @@ import { humanError } from '@/lib/errors';
 type Data = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: ChecklistVersion[]; appeals: Appeal[] };
 type Load = { status: 'loading' } | { status: 'error'; error: unknown } | { status: 'ready'; data: Data };
 type Pane = 'transcript' | 'evaluation';
-type Route = { name: 'list' } | { name: 'checklist' } | { name: 'appeals' } | { name: 'dialog'; id: string; criterion?: string };
+type Route = { name: 'list' } | { name: 'checklist' } | { name: 'appeals' } | { name: 'stats' } | { name: 'dialog'; id: string; criterion?: string };
 
 
 function parseHash(): Route {
   const h = window.location.hash;
   if (h === '#/checklist') return { name: 'checklist' };
   if (h === '#/appeals') return { name: 'appeals' };
+  if (h === '#/stats') return { name: 'stats' };
   const m = /^#\/dialog\/([^?]+)(?:\?criterion=(.+))?$/.exec(h);
   if (m) {
     try {
@@ -45,7 +47,7 @@ function parseHash(): Route {
   }
   return { name: 'list' };
 }
-const hashFor = (r: Route) => (r.name === 'checklist' ? '#/checklist' : r.name === 'appeals' ? '#/appeals' : r.name === 'dialog' ? `#/dialog/${encodeURIComponent(r.id)}${r.criterion ? `?criterion=${encodeURIComponent(r.criterion)}` : ''}` : '#/');
+const hashFor = (r: Route) => (r.name === 'checklist' ? '#/checklist' : r.name === 'appeals' ? '#/appeals' : r.name === 'stats' ? '#/stats' : r.name === 'dialog' ? `#/dialog/${encodeURIComponent(r.id)}${r.criterion ? `?criterion=${encodeURIComponent(r.criterion)}` : ''}` : '#/');
 
 export function App() {
   const api = useApi();
@@ -194,7 +196,7 @@ export function App() {
   const firstRoute = useRef(true);
   const keepFocus = useRef(false); // set when navigation was started by the search shortcut, which focuses the search field itself
   useEffect(() => {
-    document.title = route.name === 'dialog' ? `${route.id} · CQA` : route.name === 'checklist' ? 'Чек-лист · CQA' : route.name === 'appeals' ? 'Апелляции · CQA' : 'Диалоги · CQA';
+    document.title = route.name === 'dialog' ? `${route.id} · CQA` : route.name === 'checklist' ? 'Чек-лист · CQA' : route.name === 'appeals' ? 'Апелляции · CQA' : route.name === 'stats' ? 'Статистика · CQA' : 'Диалоги · CQA';
     if (firstRoute.current) {
       firstRoute.current = false;
       return;
@@ -379,9 +381,9 @@ export function App() {
     <div className="flex h-full flex-col md:flex-row print:hidden">
       <a href="#content" onClick={(e) => { e.preventDefault(); document.getElementById('content')?.focus(); }} className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-4 focus:py-2 focus:text-sm focus:text-canvas">Перейти к содержимому</a>
       <Sidebar
-        active={route.name === 'checklist' ? 'checklist' : route.name === 'appeals' ? 'appeals' : 'dialogs'}
+        active={route.name === 'checklist' ? 'checklist' : route.name === 'appeals' ? 'appeals' : route.name === 'stats' ? 'stats' : 'dialogs'}
         pendingAppeals={data.appeals.filter((a) => a.status === 'pending').length}
-        onNavigate={(to) => go(to === 'checklist' ? { name: 'checklist' } : to === 'appeals' ? { name: 'appeals' } : { name: 'list' })}
+        onNavigate={(to) => go(to === 'checklist' ? { name: 'checklist' } : to === 'appeals' ? { name: 'appeals' } : to === 'stats' ? { name: 'stats' } : { name: 'list' })}
         theme={theme}
         onToggleTheme={toggleTheme}
         demo={mode === 'mock'}
@@ -390,6 +392,10 @@ export function App() {
         {route.name === 'checklist' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
             <ChecklistEditor checklists={data.checklists} conversationCount={data.conversations.length} onSave={saveChecklist} onEvaluate={evaluateWith} currentConversationId={lastDialogId} />
+          </main>
+        ) : route.name === 'stats' ? (
+          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
+            <StatsPage conversations={data.conversations} evaluations={data.evaluations} checklists={data.checklists} appeals={data.appeals} />
           </main>
         ) : route.name === 'appeals' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
