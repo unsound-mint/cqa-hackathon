@@ -1,3 +1,9 @@
+# Current handoff: no GitHub or agent required
+
+Denis sends a private offline kit prepared with `evaluation/OFFLINE.md`. Eldana extracts the ZIP, opens `Разметка.html` in Chrome/Edge, and follows `НАЧНИ-ЗДЕСЬ.txt`. She returns CSV plus the JSON history backup by private message. The original rubric PDF travels with the kit. No repository invite, terminal, agent or running API is needed on her laptop.
+
+The technical prompts below are reference material for Denis to run on her behalf; they are not prerequisites for labeling.
+
 # Eldana + validation/research agent
 
 ## Ownership contract: what you decide vs what your agent does
@@ -44,11 +50,11 @@
 A safe aggregate evaluation report: `n`, per-criterion confusion, total score MAE, evidence validity, false N/A, critical-error classification, representative generalizable failure patterns, and explicit uncertainty. Send private case IDs and detailed examples only via an authorized channel. Report improvements as hypotheses, not untested claims.
 
 ## Human: your exact steps
-1. Accept the collaborator invite. Read the organizer's 3-page rubric and `docs/RUBRIC.md`, then skim 10 varied DEV conversations through the authorized local dataset. Do not rely on model scores first.
-2. Ask your agent to prepare the annotation template, examples, test-case matrix and a simple comparison script. Use **Validation setup prompt** below. The agent may format and automate but must NOT decide human Ground Truth for you.
+1. Open the offline HTML from the private kit. Read the organizer's 3-page rubric and `docs/RUBRIC.md`, then skim 10 varied DEV conversations through the authorized local dataset. Do not rely on model scores first.
+2. Enter your name in the page. The transcript, rubric criteria, evidence selection and exports are ready. Only you decide the human reference labels.
 3. Personally label the original eight criteria for approximately 10 conversations, referring to transcript message indices. Note uncertainty explicitly. Discuss ambiguous cases with Denis to produce a consistent written rule.
 4. Expand to 20–25 diverse conversations including RU/KZ/EN and voice if permitted. Keep sensitive transcripts and quotes in ignored local `evaluation/private/`; public repo may include safe schemas and aggregate metrics only.
-5. Once Denis produces model predictions, run **Comparison prompt**. Identify high-impact disagreement cases and discuss fixes; do not secretly relabel your work to agree with the model.
+5. Send CSV and JSON backup privately to Denis. Once model predictions are available, Denis runs the comparison tooling. Identify high-impact disagreement cases and discuss fixes; do not secretly relabel your work to agree with the model.
 6. Test the UI as a first-time reviewer, write reproducible bug issues, then own the five-minute demonstration script and rehearsal.
 
 ## Agent prompt 1 — validation setup

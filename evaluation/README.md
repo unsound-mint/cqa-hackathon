@@ -39,3 +39,7 @@ Totals are computed only for fully labeled conversations. Failed model outputs s
 
 ## Safe to commit
 This README, the template, the code and tests (fictional data only), and aggregate reports without transcript text. Never commit `evaluation/private/`.
+
+## Eldana works from another location
+
+Use the [offline labeling kit](OFFLINE.md): send a private ZIP with the standalone HTML, Russian instructions and organizer rubric. She needs only a browser and sends CSV plus a JSON history backup back to Denis. No GitHub, agent, installation or connection to Denis's laptop is needed.
