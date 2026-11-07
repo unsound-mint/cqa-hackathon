@@ -58,6 +58,16 @@ export function openDb(path: string) {
       reviewer_is_na INTEGER
     );
     CREATE INDEX IF NOT EXISTS appeals_evaluation_idx ON appeals (evaluation_id);
+    CREATE TABLE IF NOT EXISTS jobs (
+      id TEXT PRIMARY KEY NOT NULL,
+      checklist_version_id TEXT NOT NULL,
+      conversation_ids TEXT NOT NULL,
+      evaluation_ids TEXT NOT NULL,
+      status TEXT NOT NULL,
+      total INTEGER NOT NULL,
+      completed INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
   return drizzle(sqlite, { schema });
 }

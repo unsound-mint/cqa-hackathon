@@ -1,12 +1,9 @@
-import { ConversationSchema, ListConversationsQuerySchema, type Conversation } from '@cqa/contracts';
+import { ListConversationsQuerySchema } from '@cqa/contracts';
 import { and, asc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { Db } from '../db/index.js';
 import { conversations } from '../db/schema.js';
-
-function toConversation(row: typeof conversations.$inferSelect): Conversation {
-  return ConversationSchema.parse({ ...row, transcript: row.transcript });
-}
+import { getConversation, toConversation } from '../services/conversations.js';
 
 export function conversationRoutes(app: FastifyInstance, db: Db) {
   app.get('/api/conversations', async (req, reply) => {
@@ -17,8 +14,6 @@ export function conversationRoutes(app: FastifyInstance, db: Db) {
   });
 
   app.get<{ Params: { id: string } }>('/api/conversations/:id', async (req, reply) => {
-    const row = db.select().from(conversations).where(eq(conversations.id, req.params.id)).get();
-    if (!row) return reply.code(404).send({ error: 'conversation not found' });
-    return toConversation(row);
+    return getConversation(db, req.params.id) ?? reply.code(404).send({ error: 'conversation not found' });
   });
 }
