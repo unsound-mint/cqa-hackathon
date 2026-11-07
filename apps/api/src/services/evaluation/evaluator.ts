@@ -1,10 +1,10 @@
 import { CriterionResultSchema, criterionSignature, findEvidenceProblems, scoreEvaluation, type ChecklistVersion, type Criterion, type Conversation, type CriterionResult, type Provenance } from '@cqa/contracts';
 import { z } from 'zod';
-import original from '../../checklists/original.json';
 import { ASSISTED_DETECTORS, DETECTORS } from './detectors/index.js';
 import type { AssistedDetector } from './detectors/types.js';
 import { deriveFacts } from './facts.js';
-import { PROMPT_VERSION, SYSTEM_PROMPT } from './prompts.js';
+import { PROMPT_VERSION, systemPromptFor } from './prompts.js';
+import { originalCriterion } from './rubric.js';
 import { buildOutputSchema } from './output-schema.js';
 import type { LlmProvider } from './provider.js';
 
@@ -13,7 +13,16 @@ export class EvaluationFailure extends Error {}
 export { IDENTITY_VERIFIED_PATTERNS, deriveFacts as deriveContext } from './facts.js';
 
 function buildUserPayload(c: Conversation, checklist: Pick<ChecklistVersion, 'id' | 'criteria'>, decided: CriterionResult[], assisted: AssistedItem[], problems: string[]) {
+  const relevant = [...checklist.criteria, ...assisted.map(a => a.criterion)];
+  const facts = deriveFacts(c);
+  // Original criteria exclude first-response SLA. Custom timing criteria retain the complete facts.
+  const { secondsFromOperatorJoinToFirstOperatorMessage: _sla, ...nonSlaFacts } = facts;
+  const derivedFacts = relevant.every(criterion => originalCriterion(criterion)) ? {
+    ...nonSlaFacts,
+    largestGapsBetweenMessages: facts.largestGapsBetweenMessages.filter(g => facts.firstOperatorIndex !== null && g.fromIndex >= facts.firstOperatorIndex),
+  } : facts;
   return JSON.stringify({
+    responseLanguage: c.language,
     checklist: {
       id: checklist.id,
       criteria: checklist.criteria.map(({ id, title, instructions, kind, allowedValues, allowNA, naCondition, weight, criticalFlag }) => ({
@@ -24,7 +33,7 @@ function buildUserPayload(c: Conversation, checklist: Pick<ChecklistVersion, 'id
     assistedQuestions: assisted.map(({ criterion, detector }) => ({ criterionId: criterion.id, title: criterion.title, instructions: criterion.instructions, question: detector.question, answersSchema: detector.answersJsonSchema })),
     /** Criteria already settled by code or reused. Context only: do not re-evaluate or contradict them. */
     alreadyDecided: decided.map((r) => ({ criterionId: r.criterionId, value: r.value, isNA: r.isNA, explanation: r.explanation })),
-    derivedFacts: deriveFacts(c),
+    derivedFacts,
     conversation: { language: c.language, channel: c.channel, transcript: c.transcript },
     ...(problems.length ? { previousAnswerProblems: problems } : {}),
   });
@@ -145,7 +154,7 @@ export function planCriteria(conversation: Conversation, checklist: ChecklistVer
   const assisted: AssistedItem[] = [];
   for (const criterion of checklist.criteria) {
     // A retained detector name must never override edited instructions or N/A semantics.
-    const supported = original.criteria.some((c) => c.detector === criterion.detector && criterionSignature(c as Criterion) === criterionSignature(criterion));
+    const supported = originalCriterion(criterion) !== undefined;
     const detectorName = supported ? criterion.detector : undefined;
     const detected = detectorName ? DETECTORS[detectorName]?.run({ conversation, facts, criterion }) : null;
     if (detected) {
@@ -189,11 +198,12 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
   if (undecided.length > 0 || assisted.length > 0) {
     if (!provider) throw new EvaluationFailure(`a model is required for criteria: ${[...undecided, ...assisted.map((a) => a.criterion)].map((c) => c.id).join(', ')}`);
     const subset = { id: checklist.id, criteria: undecided };
-    const outputSchema = buildOutputSchema(undecided, assisted);
+    const outputSchema = buildOutputSchema(undecided, assisted, conversation.language);
+    const system = systemPromptFor([...undecided, ...assisted.map(a => a.criterion)]);
     let problems: string[] = [];
     let ok = false;
     for (let attempt = 1; attempt <= maxAttempts && !ok; attempt++) {
-      const res = await provider.complete({ system: SYSTEM_PROMPT, user: buildUserPayload(conversation, subset, [...decided.values()], assisted, problems), outputSchema });
+      const res = await provider.complete({ system, user: buildUserPayload(conversation, subset, [...decided.values()], assisted, problems), outputSchema });
       usage.inputTokens += res.usage?.inputTokens ?? 0;
       usage.outputTokens += res.usage?.outputTokens ?? 0;
       usage.cacheReadTokens += res.usage?.cacheReadTokens ?? 0;
