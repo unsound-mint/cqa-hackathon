@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Разметка диалогов</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #d9dee7;
+    --accent: #2457d6; --accent-ink: #ffffff; --ok: #1b7f4b; --ok-bg: #e4f5ec; --warn: #9a5b00; --warn-bg: #fff3dc;
+    --bad: #b3261e; --operator: #e8effd; --client: #f1f3f7; --bot: #f6f6f6; --system: #fbf5e6; --ev: #fff0a8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161d; --panel: #1a2029; --ink: #e8ecf3; --muted: #9aa6b8; --line: #2c3544;
+      --accent: #6c93ff; --accent-ink: #0b1220; --ok: #5bd18f; --ok-bg: #17342a; --warn: #f0b45a; --warn-bg: #3a2c12;
+      --bad: #ff8a80; --operator: #1d2a44; --client: #222a37; --bot: #1f242d; --system: #2c2718; --ev: #5c4d00;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 17px; margin: 0; }
+  header .grow { flex: 1; }
+  button, select, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 12px; }
+  button:hover { border-color: var(--accent); }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+  input[type=text], select, textarea { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 6px 10px; }
+  textarea { width: 100%; resize: vertical; }
+  .warn { color: var(--warn); }
+  main { display: grid; grid-template-columns: 270px minmax(0, 1fr) 440px; gap: 12px; padding: 12px; align-items: start; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+  #listPane, #critPane { position: sticky; top: 62px; max-height: calc(100vh - 74px); overflow: auto; }
+  .pane-head { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filters > * { flex: 1 1 100px; min-width: 0; }
+  #list { list-style: none; margin: 0; padding: 4px; }
+  #list li button { width: 100%; text-align: left; border: 0; border-radius: 8px; padding: 7px 8px; display: flex; gap: 6px; align-items: center; background: transparent; }
+  #list li button[aria-current=true] { background: var(--operator); outline: 2px solid var(--accent); }
+  #list .id { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { font-size: 12px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+  .badge.part { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+  #msgs { padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .msg { display: grid; grid-template-columns: 44px 52px 84px 1fr; gap: 8px; align-items: baseline; padding: 6px 8px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; text-align: left; background: var(--client); width: 100%; }
+  .msg.operator { background: var(--operator); border-left: 4px solid var(--accent); }
+  .msg.bot { background: var(--bot); color: var(--muted); }
+  .msg.system { background: var(--system); color: var(--muted); font-style: italic; }
+  .msg .n { font: 600 13px ui-monospace, Menlo, Consolas, monospace; text-align: right; }
+  .msg .t { font-size: 12px; color: var(--muted); }
+  .msg .who { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  .msg .txt { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.ev { border-color: #d1a800; background-image: linear-gradient(var(--ev), var(--ev)); color: var(--ink); }
+  .msg.flash { animation: flash 1.2s; }
+  @keyframes flash { 0% { box-shadow: 0 0 0 4px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+  .hint { padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--warn-bg); font-size: 13px; }
+  .card { margin: 10px; padding: 10px 12px; border: 1px solid var(--line); border-left: 5px solid var(--line); border-radius: 10px; }
+  .card.done { border-left-color: var(--ok); }
+  .card.active { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .card h3 { margin: 0 0 4px; font-size: 15px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .card h3 small { font-weight: 400; color: var(--muted); }
+  .card details { margin: 2px 0 8px; color: var(--muted); font-size: 13px; }
+  .card details p { white-space: pre-line; margin: 6px 0 0; }
+  .answers { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  .answers button { min-width: 52px; padding: 8px 14px; font-weight: 600; }
+  .answers button[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .answers button.na { font-weight: 500; }
+  .na-hint { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; font-size: 13px; }
+  .chip { display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--line); border-radius: 99px; padding: 1px 4px 1px 10px; background: var(--ev); color: #1c2330; }
+  .chip button { border: 0; background: transparent; padding: 0 6px; color: inherit; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; font-size: 13px; }
+  .row input[type=text] { width: 100px; }
+  .status { font-size: 12px; color: var(--muted); min-height: 16px; }
+  .status.err { color: var(--bad); }
+  .total { margin: 10px; padding: 10px 12px; border-radius: 10px; background: var(--ok-bg); color: var(--ok); font-weight: 600; }
+  dialog { max-width: min(900px, 94vw); width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog pre { white-space: pre-wrap; font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; max-height: 60vh; overflow: auto; }
+  dialog li { margin: 4px 0; }
+  .empty { padding: 30px; color: var(--muted); text-align: center; }
+  @media (max-width: 1100px) {
+    main { grid-template-columns: 1fr; }
+    #listPane, #critPane { position: static; max-height: none; }
+    .msg { grid-template-columns: 36px 46px 1fr; } .msg .who { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Разметка диалогов</h1>
+  <span id="overall" class="badge"></span>
+  <span class="grow"></span>
+  <label>Ваше имя: <input id="reviewer" type="text" autocomplete="name" placeholder="например, Эльдана" size="16"></label>
+  <button id="btnHelp" type="button">Памятка</button>
+  <button id="btnReport" type="button">Сравнение с моделью</button>
+  <button id="btnCsv" type="button">Скачать CSV</button>
+</header>
+
+<main>
+  <section id="listPane" aria-label="Список диалогов">
+    <div class="pane-head">
+      <div class="filters">
+        <select id="fLang" aria-label="Язык"><option value="">Все языки</option><option>RU</option><option>KZ</option><option>EN</option></select>
+        <select id="fChan" aria-label="Канал"><option value="">Все каналы</option><option value="agent chat">Чат</option><option value="voice call">Звонок</option></select>
+        <select id="fState" aria-label="Статус"><option value="">Все</option><option value="new">Не начаты</option><option value="part">В процессе</option><option value="done">Готовы</option></select>
+        <input id="fSearch" type="text" placeholder="Поиск по id" aria-label="Поиск по id">
+      </div>
+    </div>
+    <ul id="list"></ul>
+  </section>
+
+  <section id="convPane" aria-label="Диалог">
+    <div id="convHead" class="pane-head"></div>
+    <div id="hint" class="hint" hidden></div>
+    <div id="msgs"><p class="empty">Выберите диалог слева.</p></div>
+  </section>
+
+  <section id="critPane" aria-label="Критерии">
+    <div id="crit"><p class="empty">Здесь появятся критерии.</p></div>
+  </section>
+</main>
+
+<dialog id="dlgHelp">
+  <h2>Памятка</h2>
+  <ul>
+    <li>Оценивается <b>только оператор</b>. Бот и система — это контекст; приветствие бота не засчитывается оператору.</li>
+    <li>Номер слева у каждого сообщения — его индекс (с нуля). Нажмите на сообщение, чтобы добавить его как доказательство к выбранному критерию.</li>
+    <li>Если оператор чего-то <b>не сделал</b> (не поздоровался, не проверил личность, не попрощался), укажите диапазон, который вы просмотрели, например <code>3-11</code>.</li>
+    <li><b>Н/Д</b> ставится только при точном условии критерия (разрешено для 02, 03, 04, 07). Если проверка личности была нужна, но подтверждения в диалоге нет — это «Нет», а не Н/Д. Справочный вопрос без доступа к данным клиента — Н/Д.</li>
+    <li><b>03:</b> подтверждением считается только системное событие «Личность клиента подтверждена» (или аналог) <b>до</b> раскрытия данных. Слов оператора «я проверил» недостаточно.</li>
+    <li><b>07:</b> «и» значит «и»: нужно <b>итог или предложение помощи</b> И <b>прощание</b>. Одно «Хорошего дня» — это «Нет». Если клиент ушёл раньше, чем оператор мог завершить диалог, — Н/Д.</li>
+    <li><b>08</b> — отдельный флаг («Да» = нарушение есть: оскорбление, платная услуга в обход компании, раскрытие конфиденциальной информации). Он не влияет на баллы.</li>
+    <li><b>04 и 06:</b> консультация (полнота ответа) и ведение диалога (ясность, предупреждение об ожидании) — разные вещи: ясный текст всё равно может дать 10 по критерию 04.</li>
+    <li>Не оценивайте порог первого ответа в 3 минуты, теги и вложения. Тон и дикцию по тексту не оценивайте — у звонков это распознанная речь с ошибками.</li>
+    <li>Сомневаетесь — выберите ответ, отметьте «сомневаюсь» и коротко напишите почему. Свои ответы не подгоняйте под ответы модели: <b>здесь модель намеренно не показана</b>.</li>
+    <li>Всё сохраняется автоматически; каждое изменение остаётся в истории.</li>
+  </ul>
+  <form method="dialog"><button>Закрыть</button></form>
+</dialog>
+
+<dialog id="dlgReport">
+  <h2>Сравнение с моделью</h2>
+  <p>Показывает, где ваши ответы расходятся с оценками модели. Лучше открывать после того, как вы разметили все диалоги выборки.</p>
+  <label><input id="repFinal" type="checkbox"> с правками проверяющих</label>
+  <label style="margin-left:12px"><input id="repText" type="checkbox"> с причинами (приватно)</label>
+  <button id="repGo" type="button">Построить</button>
+  <pre id="repOut">…</pre>
+  <form method="dialog"><button>Закрыть</button></form>
+</dialog>
+
+<script>
+'use strict';
+const SPEAKER = { client: 'Клиент', operator: 'Оператор', bot: 'Бот', system: 'Система' };
+const UNSURE = [['', 'уверена'], ['сомневаюсь', 'сомневаюсь'], ['обсудить', 'нужно обсудить']];
+const st = { checklist: null, convs: [], progress: new Map(), cur: null, labels: new Map(), drafts: new Map(), active: null, timers: new Map() };
+const $ = (id) => document.getElementById(id);
+
+// Tiny DOM helper. All text goes through textContent / text nodes: transcripts are untrusted and must never be parsed as HTML.
+function h(tag, props = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') el.className = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k.startsWith('aria-')) el.setAttribute(k, String(v));
+    else if (v === true) el.setAttribute(k, '');
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return el;
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, opts && { ...opts, headers: { 'content-type': 'application/json' }, body: opts.body && JSON.stringify(opts.body) });
+  if (!res.ok) {
+    let msg = res.status + '';
+    try { msg = (await res.json()).error || msg; } catch {}
+    throw new Error(msg);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+const reviewer = () => $('reviewer').value.trim();
+const state = (cid) => {
+  const saved = st.labels.get(cid);
+  const d = st.drafts.get(st.cur.id + '|' + cid) || {};
+  return {
+    value: saved ? saved.value : null, isNA: saved ? saved.isNA : false, hasAnswer: !!saved,
+    evidence: d.evidence ?? saved?.evidence ?? [], range: d.range ?? (saved?.inspectedRange ? saved.inspectedRange.from + '-' + saved.inspectedRange.to : ''),
+    rationale: d.rationale ?? saved?.rationale ?? '', uncertainty: d.uncertainty ?? saved?.uncertainty ?? '',
+  };
+};
+const setDraft = (cid, patch) => { const k = st.cur.id + '|' + cid; st.drafts.set(k, { ...(st.drafts.get(k) || {}), ...patch }); };
+
+function parseRange(text) {
+  const t = text.trim();
+  if (!t) return { ok: true, value: null };
+  const m = /^(\d+)\s*[-–]\s*(\d+)$/.exec(t);
+  const last = st.cur.transcript.length - 1;
+  if (!m || +m[1] > +m[2] || +m[2] > last) return { ok: false };
+  return { ok: true, value: { from: +m[1], to: +m[2] } };
+}
+
+async function save(cid, answer) {
+  const s = state(cid);
+  const crit = st.checklist.criteria.find((c) => c.id === cid);
+  const a = answer ?? { value: s.value, isNA: s.isNA };
+  if (!s.hasAnswer && answer === undefined) return; // evidence/notes wait until an answer is chosen
+  const range = parseRange(s.range);
+  const status = document.querySelector(`[data-status="${cid}"]`);
+  if (!range.ok) { if (status) { status.textContent = 'Диапазон должен быть вида 3-11 внутри диалога'; status.className = 'status err'; } return; }
+  if (status) { status.textContent = 'Сохраняю…'; status.className = 'status'; }
+  try {
+    const saved = await api(`/api/labels/${encodeURIComponent(st.cur.id)}/${encodeURIComponent(cid)}`, {
+      method: 'PUT',
+      body: { value: a.isNA ? null : a.value, isNA: a.isNA, evidence: s.evidence, inspectedRange: range.value, rationale: s.rationale, uncertainty: s.uncertainty, reviewer: reviewer(), adjudicated: false },
+    });
+    st.labels.set(cid, saved);
+    st.drafts.delete(st.cur.id + '|' + cid);
+    await refreshProgress();
+    renderList();
+    if (answer !== undefined) renderCriteria(); // a typing/select save must not rebuild the panel (it would steal focus)
+    const again = document.querySelector(`[data-status="${cid}"]`);
+    if (again) { again.textContent = 'Сохранено ✓'; again.className = 'status'; }
+  } catch (e) {
+    if (status) { status.textContent = 'Не сохранилось: ' + e.message; status.className = 'status err'; }
+  }
+}
+const saveSoon = (cid) => { clearTimeout(st.timers.get(cid)); st.timers.set(cid, setTimeout(() => save(cid), 600)); };
+
+async function clearAnswer(cid) {
+  await api(`/api/labels/${encodeURIComponent(st.cur.id)}/${encodeURIComponent(cid)}`, { method: 'DELETE' });
+  st.labels.delete(cid);
+  await refreshProgress(); renderCriteria(); renderList();
+}
+
+async function refreshProgress() {
+  st.progress = new Map((await api('/api/labels/progress')).map((p) => [p.conversationId, p]));
+  const total = st.convs.length, done = [...st.progress.values()].filter((p) => p.labeled === p.total).length;
+  const o = $('overall'); o.textContent = `Размечено полностью: ${done} из ${total}`; o.className = 'badge ' + (done ? 'ok' : '');
+}
+
+function convState(id) {
+  const p = st.progress.get(id);
+  return !p || p.labeled === 0 ? 'new' : p.labeled === p.total ? 'done' : 'part';
+}
+
+function renderList() {
+  const q = $('fSearch').value.trim().toLowerCase(), l = $('fLang').value, c = $('fChan').value, s = $('fState').value;
+  const ul = $('list'); ul.replaceChildren();
+  for (const cv of st.convs) {
+    if ((l && cv.language !== l) || (c && cv.channel !== c) || (s && convState(cv.id) !== s) || (q && !cv.id.toLowerCase().includes(q))) continue;
+    const p = st.progress.get(cv.id), n = p ? p.labeled : 0, total = st.checklist.criteria.length, kind = convState(cv.id);
+    ul.append(h('li', {}, h('button', { type: 'button', 'aria-current': st.cur?.id === cv.id, onclick: () => selectConv(cv.id) },
+      h('span', { class: 'id' }, cv.id), h('span', { class: 'badge' }, cv.language + (cv.channel === 'voice call' ? ' ☎' : '')),
+      h('span', { class: 'badge ' + (kind === 'done' ? 'ok' : kind === 'part' ? 'part' : '') }, `${n}/${total}`))));
+  }
+  if (!ul.children.length) ul.append(h('li', { class: 'empty' }, 'Ничего не найдено'));
+  ul.querySelector('[aria-current=true]')?.scrollIntoView({ block: 'nearest' });
+}
+
+function renderTranscript() {
+  const cv = st.cur;
+  $('convHead').replaceChildren(...[
+    h('strong', {}, cv.id), ' ', h('span', { class: 'badge' }, cv.language), ' ', h('span', { class: 'badge' }, cv.channel === 'voice call' ? 'звонок' : 'чат'),
+    ' ', h('span', { class: 'badge' }, cv.transcript.length + ' сообщ.'),
+    cv.audioUrl ? [' ', h('a', { href: cv.audioUrl, target: '_blank', rel: 'noopener noreferrer' }, 'аудио')] : null,
+    cv.channel === 'voice call' ? h('div', { class: 'warn' }, 'Звонок: текст — автоматическое распознавание речи, в нём бывают ошибки. Тон и дикцию по тексту не оценивайте.') : null,
+  ].flat().filter((x) => x != null));
+  const active = st.active ? new Set(state(st.active).evidence) : new Set();
+  $('msgs').replaceChildren(...cv.transcript.map((m) => h('button', { type: 'button', class: `msg ${m.speaker}${active.has(m.index) ? ' ev' : ''}`, id: 'm' + m.index, 'aria-pressed': active.has(m.index), onclick: () => toggleEvidence(m.index) },
+    h('span', { class: 'n' }, m.index), h('span', { class: 't' }, m.timestamp.length > 8 ? m.timestamp.slice(11, 19) : m.timestamp), h('span', { class: 'who' }, SPEAKER[m.speaker]), h('span', { class: 'txt' }, m.text))));
+  const hint = $('hint');
+  hint.hidden = !st.active;
+  if (st.active) {
+    const c = st.checklist.criteria.find((x) => x.id === st.active);
+    hint.textContent = `Доказательства для: ${c.id} ${c.title}. Нажимайте на сообщения, чтобы добавить или убрать их.`;
+  }
+}
+
+function toggleEvidence(index) {
+  if (!st.active) return;
+  const s = state(st.active);
+  const ev = s.evidence.includes(index) ? s.evidence.filter((i) => i !== index) : [...s.evidence, index].sort((a, b) => a - b);
+  setDraft(st.active, { evidence: ev });
+  renderTranscript(); renderCriteria();
+  save(st.active);
+}
+
+function renderCriteria() {
+  const root = $('crit'); root.replaceChildren();
+  const prog = st.progress.get(st.cur.id);
+  for (const c of st.checklist.criteria) {
+    const s = state(c.id), isFlag = c.criticalFlag;
+    const absence = s.hasAnswer && (s.value === false || s.isNA) && !isFlag ? true : false;
+    const needsRange = absence && s.evidence.length === 0 && !s.range;
+    const btn = (label, pressed, onclick, cls) => h('button', { type: 'button', class: cls || '', 'aria-pressed': pressed, onclick }, label);
+    const answers = h('div', { class: 'answers', role: 'group', 'aria-label': 'Ответ' },
+      c.kind === 'boolean'
+        ? [btn(isFlag ? 'Да (нарушение)' : 'Да', s.hasAnswer && !s.isNA && s.value === true, () => save(c.id, { value: true, isNA: false })), btn(isFlag ? 'Нет' : 'Нет', s.hasAnswer && !s.isNA && s.value === false, () => save(c.id, { value: false, isNA: false }))]
+        : c.allowedValues.map((v) => btn(String(v), s.hasAnswer && !s.isNA && s.value === v, () => save(c.id, { value: v, isNA: false }))),
+      c.allowNA ? btn('Н/Д', s.hasAnswer && s.isNA, () => save(c.id, { value: null, isNA: true }), 'na') : null,
+      s.hasAnswer ? btn('Сбросить', false, () => clearAnswer(c.id), 'na') : null);
+    const rangeInput = h('input', { type: 'text', value: s.range, placeholder: '3-11', 'aria-label': 'Проверенный диапазон', oninput: (e) => { setDraft(c.id, { range: e.target.value }); saveSoon(c.id); } });
+    const rationale = h('textarea', { rows: 2, placeholder: 'Почему так (коротко)', 'aria-label': 'Причина', oninput: (e) => { setDraft(c.id, { rationale: e.target.value }); saveSoon(c.id); } }); rationale.value = s.rationale;
+    const unsure = h('select', { 'aria-label': 'Уверенность', onchange: (e) => { setDraft(c.id, { uncertainty: e.target.value }); save(c.id); } },
+      UNSURE.map(([v, label]) => h('option', { value: v, selected: s.uncertainty === v }, label)));
+    root.append(h('div', { class: `card${s.hasAnswer ? ' done' : ''}${st.active === c.id ? ' active' : ''}`, onfocusin: () => setActive(c.id), onclick: () => setActive(c.id) },
+      h('h3', {}, `${c.id} ${c.title}`, h('small', {}, isFlag ? 'флаг, без баллов' : `вес ${c.weight}`)),
+      h('details', {}, h('summary', {}, 'Правило оценки'), h('p', {}, c.instructions.replaceAll('; ', '\n'))),
+      answers,
+      c.allowNA && c.naCondition ? h('p', { class: 'na-hint' }, 'Н/Д, если: ' + c.naCondition) : null,
+      h('div', { class: 'chips' }, s.evidence.length ? [h('span', {}, 'Доказательства:'), s.evidence.map((i) => h('span', { class: 'chip' }, h('button', { type: 'button', 'aria-label': 'Показать сообщение ' + i, onclick: (e) => { e.stopPropagation(); jumpTo(i); } }, '№' + i), h('button', { type: 'button', 'aria-label': 'Убрать сообщение ' + i, onclick: (e) => { e.stopPropagation(); setDraft(c.id, { evidence: s.evidence.filter((x) => x !== i) }); save(c.id); renderTranscript(); renderCriteria(); } }, '×')))] : h('span', { class: 'status' }, 'Доказательства: нажмите на сообщения в диалоге')),
+      h('div', { class: 'row' }, 'Проверенный диапазон:', rangeInput, h('button', { type: 'button', onclick: () => { rangeInput.value = '0-' + (st.cur.transcript.length - 1); rangeInput.dispatchEvent(new Event('input')); } }, 'весь диалог')),
+      needsRange ? h('div', { class: 'warn status' }, 'Для «Нет»/«Н/Д» укажите доказательства или проверенный диапазон.') : null,
+      rationale, h('div', { class: 'row' }, unsure),
+      h('div', { class: 'status', 'data-status': c.id }, s.hasAnswer ? '' : 'Выберите ответ — тогда всё сохранится.')));
+  }
+  if (prog && prog.humanTotal !== null) root.append(h('div', { class: 'total' }, `Размечено полностью. Ваш итог по 100-балльной шкале: ${prog.humanTotal}`));
+  else if (prog && prog.labeled === prog.total) root.append(h('div', { class: 'total' }, 'Размечено полностью (итог не определён: нет применимых критериев).'));
+}
+
+function jumpTo(i) {
+  const el = document.getElementById('m' + i);
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+
+function setActive(cid) { if (st.active !== cid) { st.active = cid; renderTranscript(); document.querySelectorAll('.card').forEach((el, i) => el.classList.toggle('active', st.checklist.criteria[i].id === cid)); } }
+
+async function selectConv(id) {
+  st.cur = st.convs.find((c) => c.id === id);
+  st.active = null; st.labels = new Map((await api('/api/labels?conversationId=' + encodeURIComponent(id))).map((l) => [l.criterionId, l]));
+  renderList(); renderTranscript(); renderCriteria();
+  $('crit').scrollTop = 0; $('critPane').scrollTop = 0; window.scrollTo(0, 0);
+}
+
+async function init() {
+  $('reviewer').value = localStorage.getItem('reviewer') || '';
+  $('reviewer').addEventListener('input', () => localStorage.setItem('reviewer', $('reviewer').value));
+  for (const id of ['fLang', 'fChan', 'fState']) $(id).addEventListener('change', renderList);
+  $('fSearch').addEventListener('input', renderList);
+  $('btnCsv').onclick = () => { location.href = '/api/labels.csv'; };
+  $('btnHelp').onclick = () => $('dlgHelp').showModal();
+  $('btnReport').onclick = () => { $('dlgReport').showModal(); };
+  $('repGo').onclick = async () => {
+    $('repOut').textContent = 'Считаю…';
+    try { $('repOut').textContent = (await api(`/api/validation/report?final=${$('repFinal').checked ? 1 : 0}&text=${$('repText').checked ? 1 : 0}`)).markdown; }
+    catch (e) { $('repOut').textContent = 'Не получилось: ' + e.message; }
+  };
+  try {
+    st.checklist = (await api('/api/checklists'))[0];
+    st.convs = await api('/api/conversations');
+    await refreshProgress();
+    renderList();
+    const first = st.convs.find((c) => convState(c.id) !== 'done') || st.convs[0];
+    if (first) await selectConv(first.id); else $('msgs').replaceChildren(h('p', { class: 'empty' }, 'Диалогов пока нет. Сначала нужно загрузить данные.'));
+  } catch (e) {
+    $('msgs').replaceChildren(h('p', { class: 'empty' }, 'Не удалось загрузить данные: ' + e.message));
+  }
+  if (!reviewer()) $('reviewer').focus();
+}
+init();
+</script>
+</body>
+</html>

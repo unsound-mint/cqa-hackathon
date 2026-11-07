@@ -6,5 +6,5 @@ export default defineConfig({
   format: ['esm'],
   target: 'node22',
   clean: true,
-  noExternal: ['@cqa/contracts'],
+  noExternal: ['@cqa/contracts', '@cqa/evaluation'],
 });

@@ -2,8 +2,10 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
+import { accessGuard } from './access.js';
 import { openDb, type Db } from './db/index.js';
 import { checklistRoutes } from './routes/checklists.js';
+import { labelRoutes } from './routes/labels.js';
 import { evaluationRoutes } from './routes/evaluations.js';
 import { conversationRoutes } from './routes/conversations.js';
 import { datasetRoutes } from './routes/datasets.js';
@@ -13,7 +15,7 @@ import type { LlmProvider } from './services/evaluation/provider.js';
 import { seedOriginalChecklist } from './services/checklists.js';
 import type { ImportDeps } from './services/import/importer.js';
 
-export type AppOptions = { db?: Db; importDeps?: ImportDeps; provider?: LlmProvider | null; /** Built web app to serve at `/`. Defaults to apps/web/dist when it exists. */ webDist?: string | null };
+export type AppOptions = { /** Shared access key; when set, everything except /health needs it (?token=... once, then a cookie). */ accessToken?: string; db?: Db; importDeps?: ImportDeps; provider?: LlmProvider | null; /** Built web app to serve at `/`. Defaults to apps/web/dist when it exists. */ webDist?: string | null };
 
 // Resolves to apps/web/dist from both src/ (dev) and dist/ (built): each is two levels below apps/web's sibling.
 const DEFAULT_WEB_DIST = fileURLToPath(new URL('../../web/dist', import.meta.url));
@@ -35,10 +37,14 @@ export function buildApp(opts: AppOptions = {}) {
   const runner = new JobRunner(db, provider ?? undefined, app.log);
   app.addHook('onClose', async () => runner.idle());
 
+  const accessToken = opts.accessToken ?? process.env.ACCESS_TOKEN;
+  if (accessToken) app.addHook('onRequest', accessGuard(accessToken));
+
   app.get('/health', async () => ({ status: 'ok', service: 'cqa-api' }));
   conversationRoutes(app, db);
   checklistRoutes(app, db);
   evaluationRoutes(app, db, runner);
+  labelRoutes(app, db);
   runner.resume();
 
   // One process, one URL for the demo: serve the built web app, with SPA fallback for non-API paths.

@@ -13,6 +13,9 @@ importers:
       '@cqa/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@cqa/evaluation':
+        specifier: workspace:*
+        version: link:../../evaluation
       '@fastify/static':
         specifier: ^10.1.10
         version: 10.1.10

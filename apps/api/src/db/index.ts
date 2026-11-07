@@ -58,6 +58,29 @@ export function openDb(path: string) {
       reviewer_is_na INTEGER
     );
     CREATE INDEX IF NOT EXISTS appeals_evaluation_idx ON appeals (evaluation_id);
+    CREATE TABLE IF NOT EXISTS human_labels (
+      conversation_id TEXT NOT NULL,
+      criterion_id TEXT NOT NULL,
+      value TEXT,
+      is_na INTEGER NOT NULL,
+      evidence TEXT NOT NULL,
+      inspected_from INTEGER,
+      inspected_to INTEGER,
+      rationale TEXT NOT NULL,
+      uncertainty TEXT NOT NULL,
+      reviewer TEXT NOT NULL,
+      adjudicated INTEGER NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (conversation_id, criterion_id)
+    );
+    CREATE TABLE IF NOT EXISTS human_label_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id TEXT NOT NULL,
+      criterion_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      snapshot TEXT,
+      at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS jobs (
       id TEXT PRIMARY KEY NOT NULL,
       checklist_version_id TEXT NOT NULL,

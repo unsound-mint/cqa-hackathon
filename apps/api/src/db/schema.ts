@@ -1,4 +1,4 @@
-import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 /** One row per conversation. `transcript` is the untouched message array (with added `index`) as JSON. */
 export const conversations = sqliteTable(
@@ -65,4 +65,37 @@ export const jobs = sqliteTable('jobs', {
   total: integer('total').notNull(),
   completed: integer('completed').notNull(),
   createdAt: text('created_at').notNull(),
+});
+
+/**
+ * Human reference labels (docs/VALIDATION.md). PRIVATE: read only by the labeling page, the CSV export and the
+ * comparison report; the evaluator must never read them (guarded by a test).
+ */
+export const humanLabels = sqliteTable(
+  'human_labels',
+  {
+    conversationId: text('conversation_id').notNull(),
+    criterionId: text('criterion_id').notNull(),
+    value: text('value', { mode: 'json' }),
+    isNA: integer('is_na', { mode: 'boolean' }).notNull(),
+    evidence: text('evidence', { mode: 'json' }).$type<number[]>().notNull(),
+    inspectedFrom: integer('inspected_from'),
+    inspectedTo: integer('inspected_to'),
+    rationale: text('rationale').notNull(),
+    uncertainty: text('uncertainty').notNull(),
+    reviewer: text('reviewer').notNull(),
+    adjudicated: integer('adjudicated', { mode: 'boolean' }).notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.conversationId, t.criterionId] })],
+);
+
+/** Append-only: every save or clear is kept, so original answers are never lost to later edits. */
+export const humanLabelHistory = sqliteTable('human_label_history', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  conversationId: text('conversation_id').notNull(),
+  criterionId: text('criterion_id').notNull(),
+  action: text('action').notNull(),
+  snapshot: text('snapshot', { mode: 'json' }),
+  at: text('at').notNull(),
 });
