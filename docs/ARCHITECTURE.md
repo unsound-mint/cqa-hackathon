@@ -69,7 +69,8 @@ Implemented in `packages/contracts` (Zod). v0 in `docs/INTERFACES.md` is unchang
 | `CriterionResult.confidence` (`high`/`medium`/`low`, optional) | | model certainty; `low` (noisy speech recognition, recording gap) should be routed to human review in the UI |
 | `Criterion.detector?` | `GET /api/detectors` | optional deterministic rule per criterion |
 | `CriterionResult.source?` (`rule`/`hybrid`/`model`), `reusedFrom?` | | who decided; set only by code, never by the model |
-| `Evaluation.provenance {provider, model, promptVersion}` | | per-evaluation provenance; `provider: 'mock'` marks fictional output, the UI must label it |
+| `StartEvaluationInput.fresh?` | | alias for force: skips result reuse for variance measurement; persisted as jobs.force |
+| `Evaluation.provenance {provider, model, promptVersion, effort?, usage?, latencyMs?}` | | per-evaluation provenance; `provider: 'mock'` marks fictional output, the UI must label it |
 
 Rules fixed in the schemas: `CriterionResult` has exactly one of `isNA` / a value; `boolean` allows `[true,false]`; `discrete-scale` needs >=2 non-negative numeric tiers (top tier = full weight); `enum` criteria must have weight 0 (no numeric meaning defined); `criticalFlag` criteria are boolean with weight 0; criterion ids unique per checklist; `Conversation.transcript[i].index === i`.
 
@@ -99,7 +100,7 @@ Positive model action verdicts require a non-empty exact quote from a client-fac
 
 Specialized detectors run only when the criterion signature matches a supported canonical rubric configuration. Editing instructions, scale or N/A semantics while retaining the detector name falls back to generic model evaluation; reweighting and presentation edits retain the fast path.
 
-Reuse requires the same SHA-256 input hash, evaluator version and prompt version. With a configured provider it also requires the same provider/model. Without a provider, compatible existing results remain available for offline reweighting. Legacy evaluations without cache context are retained but never reused. Rule/validator changes must bump EVALUATOR_VERSION; prompt changes bump PROMPT_VERSION.
+Reuse requires the same SHA-256 input hash, evaluator version and prompt version. With a configured provider it also requires the same provider/model/effort. Without a provider, compatible existing results remain available for offline reweighting. Legacy evaluations without cache context are retained but never reused. Rule/validator changes must bump EVALUATOR_VERSION; prompt changes bump PROMPT_VERSION.
 
 POST /api/evaluations accepts an optional boolean force (default false) to bypass reuse; deterministic rules still run. The choice is persisted with the job and survives restarts. No existing client needs to change.
 

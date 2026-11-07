@@ -32,6 +32,9 @@ export function formatReport(r: Report, opts: { includeText?: boolean; maxDisagr
   out.push(`\n## Agreement by channel\n` + table(['channel', 'n', 'agreement'], groupRows(r.byChannel)));
   out.push(`\n## Agreement by model confidence\n` + table(['confidence', 'n', 'agreement'], groupRows(r.byConfidence)));
 
+  const u = r.run;
+  out.push(`\n## Run (model, cost, latency)\n- Model(s): ${u.models.join(', ') || 'rules only'}; effort: ${u.efforts.join(', ') || 'n/a'}; prompt: ${u.promptVersions.join(', ') || 'n/a'}; evaluations compared: ${u.evaluations}\n- Model calls recorded: ${u.withUsage}; mean tokens in/out: ${num(u.meanInputTokens)}/${num(u.meanOutputTokens)}; mean latency: ${u.meanLatencyMs === null ? 'n/a' : `${(u.meanLatencyMs / 1000).toFixed(1)} s`}; mean cost per evaluation: ${u.meanCostUsd === null ? 'n/a (pass --price-in/--price-out USD per million tokens)' : `$${u.meanCostUsd}`}`);
+
   const max = opts.maxDisagreements ?? 25;
   const head = ['conversation', 'criterion', 'human', 'model', 'source', 'confidence', 'weight', 'impact'];
   const rows = r.disagreements.slice(0, max).map((d) => [d.conversationId, d.criterionId, d.human, d.model, d.source, d.confidence, String(d.weight), num(d.impact)]);
