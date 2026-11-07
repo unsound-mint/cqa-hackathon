@@ -37,5 +37,13 @@ The report shows: coverage (incomplete labels, conversations without a predictio
 
 Totals are computed only for fully labeled conversations. Failed model outputs show up as "Evaluation failed". The "Run" section shows model, effort, prompt version, mean tokens and latency from each evaluation's provenance. Add `--price-in USD --price-out USD` (per million tokens; Haiku 5.5 is 0.10 and 0.50 for prompts up to 100K tokens) for a mean cost per evaluation.
 
+## 4. Run-to-run stability
+Haiku 5.5 accepts no `temperature`, so model-decided criteria can change between runs. Measure it on the labeled conversations:
+```
+pnpm -s --filter @cqa/evaluation cli rerun --ids id1,id2,... --times 2     # fresh runs (no result reuse); costs model calls
+pnpm -s --filter @cqa/evaluation cli stability --out evaluation/private/stability.md
+```
+The report gives, per criterion, how many conversations changed value between runs (by rule / hybrid / model) and how far the total moved. A rule-decided criterion that flips is a bug; a model-decided one that flips is a candidate for a narrower question or a detector. Results copied from an earlier evaluation are skipped, which is why repeats use `fresh: true`.
+
 ## Safe to commit
 This README, the template, the code and tests (fictional data only), and aggregate reports without transcript text. Never commit `evaluation/private/`.

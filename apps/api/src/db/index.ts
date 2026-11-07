@@ -66,9 +66,12 @@ export function openDb(path: string) {
       status TEXT NOT NULL,
       total INTEGER NOT NULL,
       completed INTEGER NOT NULL,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      fresh INTEGER NOT NULL DEFAULT 0
     );
   `);
+  // Databases created before the column existed (DDL above is create-if-missing only).
+  if (!(sqlite.prepare("PRAGMA table_info(jobs)").all() as { name: string }[]).some((c) => c.name === 'fresh')) sqlite.exec('ALTER TABLE jobs ADD COLUMN fresh INTEGER NOT NULL DEFAULT 0');
   return drizzle(sqlite, { schema });
 }
 

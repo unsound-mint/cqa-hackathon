@@ -6,7 +6,7 @@ import { openDb } from '../src/db/index.js';
 import { conversations, jobs } from '../src/db/schema.js';
 import { ORIGINAL_CHECKLIST } from '../src/services/checklists.js';
 import { AnthropicProvider } from '../src/services/evaluation/anthropic.js';
-import { deriveContext, validateModelOutput } from '../src/services/evaluation/evaluator.js';
+import { capConfidence, deriveContext, validateModelOutput } from '../src/services/evaluation/evaluator.js';
 import { PROMPT_VERSION, SYSTEM_PROMPT } from '../src/services/evaluation/prompts.js';
 import { ProviderError, type LlmProvider, type ProviderRequest } from '../src/services/evaluation/provider.js';
 
@@ -266,5 +266,34 @@ describe('AnthropicProvider', () => {
     const f = vi.fn().mockResolvedValue(new Response('', { status: 503 }));
     await expect(new AnthropicProvider({ apiKey: 'k', model: 'm', retries: 2, retryDelayMs: 1, fetch: f }).complete(req)).rejects.toThrow(ProviderError);
     expect(f).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('deterministic checks on model answers', () => {
+  const payload = () => JSON.stringify({ checklist: { criteria: ORIGINAL_CHECKLIST.criteria }, conversation: { transcript: conv.transcript } });
+  const check = (tweak: (r: Record<string, unknown>[]) => void) => validateModelOutput(genericAnswer({ user: payload() } as ProviderRequest, tweak), conv, ORIGINAL_CHECKLIST).problems;
+  const operatorIdx = conv.transcript.find((m) => m.speaker === 'operator')!.index;
+  const clientIdx = conv.transcript.find((m) => m.speaker === 'client')!.index;
+  const flag = (idx: number, quote?: string) => (r: Record<string, unknown>[]) => { const f = r.find((x) => x.criterionId === '08')!; f.value = true; f.evidence = [{ messageIndex: idx, ...(quote ? { quote } : {}) }]; };
+
+  it('a raised flag must quote an operator message', () => {
+    const op = conv.transcript[operatorIdx]!.text.slice(0, 6);
+    const cl = conv.transcript[clientIdx]!.text.slice(0, 6);
+    expect(check(flag(operatorIdx, op))).toEqual([]);
+    expect(check(flag(clientIdx, cl)).join()).toMatch(/08: a raised flag needs a verbatim quote from an operator message/);
+    expect(check(flag(operatorIdx)).join()).toMatch(/raised flag/); // no quote
+  });
+
+  it('a reversed checkedRange is rejected (by the contract schema)', () => {
+    expect(check((r) => { r[0]!.evidence = []; r[0]!.checkedRange = { from: 5, to: 2 }; }).join()).toMatch(/checkedRange/);
+  });
+
+  it('confidence is capped at medium when the inspected range spans a recording pause', () => {
+    const facts = { recordingPausedRanges: [{ from: 3, to: 6 }] };
+    const r = { criterionId: 'x', value: false, isNA: false, explanation: 'e', evidence: [], confidence: 'high' as const };
+    expect(capConfidence({ ...r, checkedRange: { from: 0, to: 4 } }, facts).confidence).toBe('medium');
+    expect(capConfidence({ ...r, checkedRange: { from: 7, to: 9 } }, facts).confidence).toBe('high');
+    expect(capConfidence({ ...r, confidence: 'low', checkedRange: { from: 0, to: 9 } }, facts).confidence).toBe('low');
+    expect(capConfidence(r, facts).confidence).toBe('high'); // no range: nothing to compare
   });
 });

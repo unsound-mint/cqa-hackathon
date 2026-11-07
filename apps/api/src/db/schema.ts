@@ -65,4 +65,6 @@ export const jobs = sqliteTable('jobs', {
   total: integer('total').notNull(),
   completed: integer('completed').notNull(),
   createdAt: text('created_at').notNull(),
+  /** Skip result reuse for this job (variance measurement). */
+  fresh: integer('fresh', { mode: 'boolean' }).notNull().default(false),
 });

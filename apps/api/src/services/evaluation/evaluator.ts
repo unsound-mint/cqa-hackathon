@@ -63,6 +63,10 @@ export function validateModelOutput(output: unknown, conversation: Conversation,
       problems.push(`${c.id}: value ${JSON.stringify(r.value)} is not one of ${JSON.stringify(c.allowedValues)}`);
     }
     if (r.evidence.length === 0 && !r.checkedRange) problems.push(`${c.id}: needs evidence or checkedRange`);
+    // A raised flag (serious violation) is an accusation about the operator: it must point at something the operator said.
+    if (c.criticalFlag && r.value === true && !r.evidence.some((x) => x.quote && conversation.transcript[x.messageIndex]?.speaker === 'operator')) {
+      problems.push(`${c.id}: a raised flag needs a verbatim quote from an operator message`);
+    }
   }
   problems.push(...findEvidenceProblems(conversation, parsed));
   if (problems.length) return { problems };
@@ -88,6 +92,16 @@ export function validateAssisted(output: unknown, conversation: Conversation, as
   }
   for (const g of given) if (!assisted.some((a) => a.criterion.id === g.criterionId)) problems.push(`assisted: unexpected answer for ${g.criterionId}`);
   return { answers, problems };
+}
+
+/**
+ * Deterministic post-check of a model result against the code's facts. Speech inside a recording pause is missing
+ * from the transcript, so a result whose inspected range spans a pause cannot be "high" confidence.
+ */
+export function capConfidence(result: CriterionResult, facts: Pick<ReturnType<typeof deriveFacts>, 'recordingPausedRanges'>): CriterionResult {
+  const range = result.checkedRange;
+  if (result.confidence !== 'high' || !range) return result;
+  return facts.recordingPausedRanges.some((p) => p.from <= range.to && p.to >= range.from) ? { ...result, confidence: 'medium' } : result;
 }
 
 export type ReuseLookup = (signature: string) => { result: CriterionResult; evaluationId: string } | undefined;
@@ -161,7 +175,7 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
       if (v.results && a.problems.length === 0) {
         for (const r of v.results) {
           const { reusedFrom: _drop, ...clean } = r;
-          modelResults.set(r.criterionId, { ...clean, source: 'model' });
+          modelResults.set(r.criterionId, capConfidence({ ...clean, source: 'model' }, deriveFacts(conversation)));
         }
         const facts = deriveFacts(conversation);
         for (const { criterion, detector } of assisted) decided.set(criterion.id, detector.decide({ conversation, facts, criterion }, a.answers.get(criterion.id)));

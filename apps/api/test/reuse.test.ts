@@ -157,3 +157,21 @@ describe('detector names and seeding', () => {
     expect((await app.inject({ url: '/api/checklists' })).json()[0].criteria[0].detector).toBe('greeting-intro');
   });
 });
+
+describe('fresh jobs', () => {
+  it('ask the model again for criteria that would otherwise be reused, and are persisted across resume', async () => {
+    const p = provider();
+    const { app, db } = await setup(p);
+    await evaluate(app, 'checklist-original-v1');
+    const after1 = p.calls.length;
+    await evaluate(app, 'checklist-original-v1');
+    expect(p.calls.length).toBe(after1); // reuse: no model call
+
+    const res = await app.inject({ method: 'POST', url: '/api/evaluations', payload: { conversationIds: [conv.id], checklistVersionId: 'checklist-original-v1', fresh: true } });
+    expect(res.statusCode).toBe(202);
+    await app.runner.idle();
+    expect(p.calls.length).toBe(after1 + 1);
+    const row = db.select().from((await import('../src/db/schema.js')).jobs).all().find((j) => j.fresh);
+    expect(row).toBeTruthy();
+  });
+});

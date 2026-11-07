@@ -34,6 +34,7 @@ For each model: `n`, exact per-criterion accuracy, total score MAE, serious viol
 ## Improving a weak model result (procedure)
 Measure before changing; change one thing per run; judge on the holdout only (Anthropic's talks on prompting agents say the same: small realistic eval first, read the transcripts, add instructions only for failures you have seen).
 1. Request shape first: Haiku 5.5 takes no `temperature`/`top_p`/`top_k`; the provider sends `output_config.effort` (`CQA_EFFORT`, default `medium`) and `tool_choice: auto`. A failed evaluation is a request/parse problem, not a judgment problem: check the coverage section of the report before reading agreement.
+1b. Measure run-to-run stability (`evaluation` `rerun` + `stability`, see `evaluation/README.md`) before and after any change: rules should show 0, and the flip rate shows which model-decided criteria need a narrower question.
 2. Sweep `CQA_EFFORT` (low, medium, high) on the train labels; compare agreement, mean cost and latency from the report's Run section (`--price-in/--price-out`).
 3. Ceiling check (measurement only, never the default): run a stronger model once on the same labels. If it is no better, the gap is the labels or the rubric reading, not model size.
 4. Fix by cheapest layer per failing criterion: detector (rule), assisted detector (code decides, model answers a narrow question), prompt wording last. Bump `PROMPT_VERSION` on every prompt change.
