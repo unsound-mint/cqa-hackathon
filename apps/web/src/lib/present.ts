@@ -27,3 +27,17 @@ export const criterionById = (checklist: ChecklistVersion | undefined) => (id: s
 
 /** "12.5" -> "12,5": the UI is Russian. */
 export const formatScore = (n: number | null) => (n === null ? '—' : n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }));
+
+/** Weighted points a criterion earned (null for N/A, flag-only and zero-weight criteria: they carry no points). */
+export function earnedPoints(c: Criterion | undefined, r: CriterionResult): number | null {
+  if (!c || r.isNA || c.criticalFlag || c.weight <= 0) return null;
+  if (typeof r.value === 'boolean') return r.value ? c.weight : 0;
+  if (typeof r.value === 'number') {
+    const max = Math.max(...c.allowedValues.filter((x): x is number => typeof x === 'number'));
+    return max > 0 ? Math.round((r.value / max) * c.weight * 100) / 100 : 0;
+  }
+  return null;
+}
+
+/** A result a human should look at: low model confidence. */
+export const needsReview = (r: CriterionResult) => r.confidence === 'low';

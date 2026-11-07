@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@cqa/contracts": "workspace:*",
-    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/golos-text": "^5.3.0",
     "@radix-ui/react-slot": "^1.5.0",
     "@tailwindcss/vite": "^4.3.5",
     "class-variance-authority": "^0.7.1",

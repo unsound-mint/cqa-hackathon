@@ -137,7 +137,7 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
           </Field>
         </div>
         <p className="text-xs text-muted">
-          Сохранение создаёт новую версию. Старые версии и оценки по ним не меняются. Сумма весов: <strong className={weightSum === 100 ? 'text-brand-dark' : 'text-warn'}>{weightSum}</strong>
+          Сохранение создаёт новую версию. Старые версии и оценки по ним не меняются. Сумма весов: <strong className={weightSum === 100 ? 'text-accent' : 'text-warn'}>{weightSum}</strong>
           {weightSum !== 100 && ' (итоговый балл считается от применимых весов, но обычно сумма равна 100)'}.
         </p>
       </div>
@@ -185,7 +185,7 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
                   )}
                   <div className="space-y-2 sm:col-span-2">
                     <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={c.allowNA} onChange={(e) => update(c.id, (x) => ({ ...x, allowNA: e.target.checked }))} className="size-4 accent-brand-dark" />
+                      <input type="checkbox" checked={c.allowNA} onChange={(e) => update(c.id, (x) => ({ ...x, allowNA: e.target.checked }))} className="size-4 accent-brand" />
                       Допускается N/A
                     </label>
                     {c.allowNA && (
@@ -194,7 +194,7 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
                       </Field>
                     )}
                     <label className={cn('flex items-center gap-2 text-sm', c.kind !== 'boolean' && 'opacity-50')}>
-                      <input type="checkbox" checked={!!c.criticalFlag} disabled={c.kind !== 'boolean'} onChange={(e) => update(c.id, (x) => ({ ...x, criticalFlag: e.target.checked || undefined, weight: e.target.checked ? 0 : x.weight }))} className="size-4 accent-brand-dark" />
+                      <input type="checkbox" checked={!!c.criticalFlag} disabled={c.kind !== 'boolean'} onChange={(e) => update(c.id, (x) => ({ ...x, criticalFlag: e.target.checked || undefined, weight: e.target.checked ? 0 : x.weight }))} className="size-4 accent-brand" />
                       Флаг грубого нарушения (не входит в баллы)
                     </label>
                     {c.detector && <p className="text-xs text-muted">Для этого критерия включено детерминированное правило «{c.detector}»: оно сохранится в новой версии.</p>}
@@ -216,7 +216,7 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
         {errors.get('_') && <p role="alert" className="text-sm text-danger">{errors.get('_')}</p>}
         {saveError && <p role="alert" className="text-sm text-danger">{saveError}</p>}
         {saved && (
-          <div role="status" className="flex flex-wrap items-center gap-3 rounded-md bg-brand-soft px-3 py-2 text-sm text-brand-dark">
+          <div role="status" className="flex flex-wrap items-center gap-3 rounded-md bg-brand-soft px-3 py-2 text-sm text-accent">
             <CheckCircle2 aria-hidden className="size-4" />
             <span>Сохранена версия {saved.version}.</span>
             <Button size="sm" variant="primary" disabled={!hasCurrentConversation || busy !== null} onClick={() => evaluate('current')}>{busy === 'current' ? 'Идёт оценка…' : 'Оценить выбранный диалог'}</Button>

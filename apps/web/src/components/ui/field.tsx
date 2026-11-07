@@ -1,7 +1,7 @@
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
-const control = 'w-full rounded-md border border-line-strong bg-surface px-3 text-sm placeholder:text-muted disabled:bg-canvas disabled:text-muted';
+const control = 'w-full rounded-lg border border-line-strong bg-surface px-3 text-sm placeholder:text-muted disabled:bg-canvas disabled:text-muted';
 
 export function Input({ className, ...p }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(control, 'h-9', className)} {...p} />;

@@ -53,7 +53,7 @@ importers:
       '@cqa/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@fontsource-variable/inter':
+      '@fontsource-variable/golos-text':
         specifier: ^5.3.0
         version: 5.3.0
       '@radix-ui/react-slot':
@@ -359,8 +359,8 @@ packages:
   '@fastify/static@10.1.10':
     resolution: {integrity: sha512-CGwOoZiKg5m4SAqeiS8bzCSKDa71DMFQ7QeVsuWBOrfFu32DpVZWFFb0cpEg7e54YK6HZZsl4g/wfoKMnRQMUw==}
 
-  '@fontsource-variable/inter@5.3.0':
-    resolution: {integrity: sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA==}
+  '@fontsource-variable/golos-text@5.3.0':
+    resolution: {integrity: sha512-D+Evz5yqXYh6tsalc537FS+cPDWn2FTdO8j/K1ZZuFAvA7ib6WnusTiihciq7mMnm6GBo6XTlh0JXPrhBsam2g==}
 
   '@isaacs/nonrecursive-glob-match@1.1.0':
     resolution: {integrity: sha512-GPm/Dbvk5RLmhRnxXIa7nTpK0xtl4E0wj0MslsuNiJ1FIROU+2+9lgUC/dgF7Ey4QCWhfEsgxilMRMCdHPfDfw==}
@@ -2087,7 +2087,7 @@ snapshots:
       fastq: 1.20.3
       glob: 14.0.4
 
-  '@fontsource-variable/inter@5.3.0': {}
+  '@fontsource-variable/golos-text@5.3.0': {}
 
   '@isaacs/nonrecursive-glob-match@1.1.0': {}
 

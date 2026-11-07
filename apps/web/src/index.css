@@ -1,31 +1,74 @@
 @import 'tailwindcss';
 
 /*
- * Colors are taken from the Freedom Bank logo asset (bankffin.kz logo.svg), not from a published brandbook:
- * green #02B140, dark green #164734, ink #0E151C. Contrast: white on #164734 = 10.6:1 (text, buttons);
- * white on #02B140 = 2.85:1 (fails AA), so the bright green is used for accents, focus and marks only, and
- * text on it is ink (6.45:1). Everything else is a tinted neutral so the greens stay the only chroma.
+ * Colors: the Freedom Bank logo asset (bankffin.kz logo.svg), not a published brandbook: green #02B140,
+ * dark green #164734, ink #0E151C. Surfaces follow the neutral grey/charcoal of bankffin.kz, with green as the
+ * accent. Bright green fails AA with white text (2.85:1): it is used for marks, focus and fills with ink text
+ * (6.45:1). `accent` is the green for TEXT on a surface: #164734 on light (10.6:1), #5FD28D on dark (8.3:1).
+ * Every theme-dependent color is a variable below; components use the semantic names only.
  */
-@theme {
-  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+:root {
+  --c-bg: #f5f6f7;
+  --c-surface: #ffffff;
+  --c-fill: #eceef0;
+  --c-ink: #191919;
+  --c-muted: #5b6166;
+  --c-line: #e4e6e8;
+  --c-line-strong: #c9ced2;
+  --c-soft: #e6f5ec;
+  --c-accent: #164734;
+  --c-danger: #a8271c;
+  --c-danger-soft: #fdecea;
+  --c-warn: #7a5200;
+  --c-warn-soft: #fff3d1;
+  --shadow-card: 0 1px 2px rgb(25 25 25 / 0.05), 0 16px 40px -18px rgb(25 25 25 / 0.18);
+}
+.dark {
+  --c-bg: #161819;
+  --c-surface: #202325;
+  --c-fill: #2a2e31;
+  --c-ink: #f2f3f4;
+  --c-muted: #a3aaae;
+  --c-line: #2e3235;
+  --c-line-strong: #454b4f;
+  --c-soft: #16382a;
+  --c-accent: #5fd28d;
+  --c-danger: #f2a99c;
+  --c-danger-soft: #3a1f1b;
+  --c-warn: #e8be6a;
+  --c-warn-soft: #3a2f14;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px -18px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: 'Golos Text Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --color-brand: #02b140;
   --color-brand-dark: #164734;
-  --color-brand-soft: #e6f6ec;
-  --color-ink: #0e151c;
-  --color-canvas: #f4f6f5;
-  --color-surface: #ffffff;
-  --color-line: #dbe3df;
-  --color-line-strong: #bccbc4;
-  --color-muted: #55645c;
+  --color-brand-soft: var(--c-soft);
+  --color-accent: var(--c-accent);
+  --color-ink: var(--c-ink);
+  --color-canvas: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-fill: var(--c-fill);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-muted: var(--c-muted);
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-warn: var(--c-warn);
+  --color-warn-soft: var(--c-warn-soft);
 
-  --color-danger: #a8271c;
-  --color-danger-soft: #fdecea;
-  --color-warn: #7a5200;
-  --color-warn-soft: #fff3d1;
+  --radius-card: 16px;
+  --shadow-card: var(--shadow-card);
+}
 
-  --radius-card: 10px;
+/* The verdict panel is the same dark green in both themes (the banner look of the Freedom sites). */
+.verdict {
+  background: radial-gradient(120% 70% at 0% 0%, #0f3a28 0%, #0b1f17 55%, #08130e 100%);
+  color: #f2f6f3;
 }
 
 @layer base {
@@ -36,8 +79,7 @@
   }
   body {
     @apply bg-canvas font-sans text-ink antialiased;
-    font-feature-settings: 'cv11', 'ss03';
-  }
+      }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand-dark;
   }
