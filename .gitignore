@@ -13,3 +13,4 @@ evaluation/private/
 CLAUDE.local.md
 .DS_Store
 docs/official/
+.playwright-mcp/

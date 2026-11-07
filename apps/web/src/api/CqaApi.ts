@@ -6,8 +6,10 @@ import type {
   DecideAppealInput,
   Evaluation,
   Job,
+  ListAppealsQuery,
   ListConversationsQuery,
   ListEvaluationsQuery,
+  OverrideCriterionInput,
   SaveChecklistInput,
   StartEvaluationInput,
 } from '@cqa/contracts';
@@ -25,9 +27,14 @@ export interface CqaApi {
   saveChecklistVersion(input: SaveChecklistInput): Promise<ChecklistVersion>;
   startEvaluation(input: StartEvaluationInput): Promise<{ jobId: string }>;
   getJob(id: string): Promise<Job>;
-  listAppeals(query: { evaluationId: string }): Promise<Appeal[]>;
+  /** One evaluation's appeals, or (no evaluationId) all appeals across dialogs, optionally only one status. */
+  listAppeals(query?: ListAppealsQuery): Promise<Appeal[]>;
   createAppeal(input: CreateAppealInput): Promise<Appeal>;
   decideAppeal(input: DecideAppealInput): Promise<Appeal>;
+  /** A reviewer corrects one criterion directly; recorded as an already-decided appeal of kind 'correction'. */
+  overrideCriterion(input: OverrideCriterionInput): Promise<Appeal>;
+  /** What an <audio> element plays for a call: the API resolves the organizer's player page to the media file. */
+  audioSrc(conversation: Conversation): string | null;
 }
 
 export type CqaApiErrorCode = 'not_found' | 'invalid' | 'conflict';
