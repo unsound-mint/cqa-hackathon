@@ -22,6 +22,14 @@ export function openDb(path: string) {
       imported_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS conversations_group_idx ON conversations (dataset_group_id);
+    CREATE TABLE IF NOT EXISTS checklist_versions (
+      id TEXT PRIMARY KEY NOT NULL,
+      version INTEGER NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      sections TEXT,
+      criteria TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
   return drizzle(sqlite, { schema });
 }
