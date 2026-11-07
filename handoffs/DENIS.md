@@ -58,7 +58,7 @@
 
 ## Agent prompt 2 — backend/scorer/evaluator (after bootstrap)
 
-> You are Denis's agent. Work only on an assigned API/scoring GitHub issue and the shared contract only when Denis explicitly approves a change. Preserve any frontend work. Implement incremental vertical slices in this order:
+> You are Denis's agent. Work only on an assigned API/scoring GitHub issue and the shared contract. Preserve any frontend work. Implement incremental vertical slices in this order:
 >
 > 1) robust import of the organizer's JSON through server-only authenticated-config URL, validate roles/timestamps and persist each conversation; no raw dataset or signature in Git;
 > 2) a pure deterministic scoring module with the original eight rubric rules, allowed categorical values, scaling, permitted N/A, null total, two-decimal total, separate serious-violation flag, and comprehensive table tests;
