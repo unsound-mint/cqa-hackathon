@@ -18,3 +18,5 @@ Facts the evaluator relies on (computed in `services/evaluation/facts.ts`):
 - Timestamps are monotonic; ties are rare. Operator-join to first operator message takes about 37-132 s in chats.
 
 Detector coverage on this set (rules only, no model): criterion 01 decided 60/65 (Yes; the 5 undecided are real No/ambiguous cases or garbled voice), criterion 07 decided 6/65 under the strict reading (2 Yes, 4 N/A; 48 chats end with only a goodbye and go to the model). Re-run after changing the patterns.
+
+Verification on this set: 57/65 conversations show no verification activity (expected N/A); 4 have an identity-verified event (always after 1-2 operator messages); 4 have an operator asking for identification with no event recorded (3 of them voice calls, where recording pauses may hide the confirmation).

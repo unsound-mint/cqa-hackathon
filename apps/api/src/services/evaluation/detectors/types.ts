@@ -47,3 +47,20 @@ export const isBooleanYesNo = (c: Criterion) => c.kind === 'boolean' && c.allowe
 /** Unicode-aware "word" boundaries (JS \b is ASCII-only). */
 export const L = '(?<![\\p{L}\\p{N}])';
 export const R = '(?![\\p{L}\\p{N}])';
+
+/**
+ * A detector whose verdict is computed by code, but which needs a few narrow facts only a model can supply
+ * (for example "was verification required?"). The model never sees the criterion as a question about the value:
+ * it answers `questions`, validates, and `decide` turns the answers into the result.
+ */
+export type AssistedDetector<A = unknown> = {
+  name: string;
+  description: string;
+  /** Plain-language questions put to the model, with the JSON Schema its answers must follow. */
+  question: string;
+  answersJsonSchema: Record<string, unknown>;
+  appliesTo(criterion: Criterion): boolean;
+  /** Parses and checks the model's answers against the transcript. Returns problems (empty = accepted). */
+  validate(input: Omit<DetectorInput, 'criterion'>, raw: unknown): { answers?: A; problems: string[] };
+  decide(input: DetectorInput, answers: A): CriterionResult;
+};

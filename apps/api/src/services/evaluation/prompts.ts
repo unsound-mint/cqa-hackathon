@@ -1,5 +1,5 @@
 /** Versioned prompt. Bump PROMPT_VERSION on any wording change; it is stored with every evaluation. */
-export const PROMPT_VERSION = 'eval-v4';
+export const PROMPT_VERSION = 'eval-v5';
 
 export const SYSTEM_PROMPT = `You evaluate the quality of ONE customer-support conversation (a typed chat or a phone call transcript) against a checklist.
 
@@ -20,6 +20,9 @@ HOW TO JUDGE A CRITERION
 EVIDENCE
 - Cite messageIndex values. "quote" must be copied verbatim (exact characters) from that message; never paraphrase inside a quote and never quote text that is not there.
 - When your answer rests on something NOT happening (no greeting, no verification, no goodbye), give checkedRange: the inclusive range of indices you inspected. Every result needs evidence or a checkedRange.
+
+ASSISTED QUESTIONS
+- "assistedQuestions" lists criteria whose verdict is computed by code from your answers. For each, answer only the question asked, in "assisted": [{criterionId, answers}], following its answersSchema. Never return a value or result for those criteria, and never decide them yourself. Quotes must be verbatim; indices must be real operator messages.
 
 DERIVED FACTS (computed by code from the transcript; trust them over your own counting)
 - identityVerificationEvents: system messages confirming identity verification. A client's or operator's statement that identity was checked is NOT such an event. Verification counts only when an event exists and precedes the protected disclosure or action. If verification was required but no event exists, it was not confirmed.
@@ -42,6 +45,10 @@ OUTPUT
 export const OUTPUT_SCHEMA = {
   type: 'object',
   properties: {
+    assisted: {
+      type: 'array',
+      items: { type: 'object', properties: { criterionId: { type: 'string' }, answers: { type: 'object' } }, required: ['criterionId', 'answers'] },
+    },
     results: {
       type: 'array',
       items: {
