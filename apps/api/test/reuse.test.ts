@@ -131,31 +131,13 @@ describe('switching a criterion off needs no model call (live-demo path)', () =>
   });
 });
 
-describe('detector names and agent-improvement report', () => {
+describe('detector names and seeding', () => {
   it('lists detectors and rejects unknown ones when saving a checklist', async () => {
     const { app } = await setup(provider());
     expect((await app.inject({ url: '/api/detectors' })).json().map((d: { name: string }) => d.name).sort()).toEqual(['closing', 'greeting-intro']);
     const bad = await app.inject({ method: 'POST', url: '/api/checklists', payload: { ...strip, criteria: strip.criteria.map((c) => (c.id === '02' ? { ...c, detector: 'nope' } : c)) } });
     expect(bad.statusCode).toBe(400);
     expect(JSON.stringify(bad.json())).toContain('unknown detector nope');
-  });
-
-  it('reports shortfalls on criteria that have an agent hint, from final results', async () => {
-    const p = provider();
-    p.complete = async (req) => { const o = modelFor(req); o.results.forEach((r) => { if (r.criterionId === '06') r.value = 4; }); return { output: o }; };
-    const { app } = await setup(p);
-    const { ev } = await evaluate(app, 'checklist-original-v1');
-    const rep = (await app.inject({ url: '/api/insights/agent-improvements' })).json();
-    expect(rep).toMatchObject({ checklistVersionId: 'checklist-original-v1', evaluations: 1 });
-    const item = (id: string) => rep.items.find((i: { criterionId: string }) => i.criterionId === id);
-    expect(item('06')).toMatchObject({ evaluated: 1, shortfalls: 1, conversationIds: [conv.id], ruleCheckable: false });
-    expect(item('01')).toMatchObject({ evaluated: 1, shortfalls: 0, ruleCheckable: true });
-    expect(item('04')).toBeUndefined(); // no deterministic fix, no hint
-    // a reviewer fixing the result removes the shortfall
-    const ap = (await app.inject({ method: 'POST', url: `/api/evaluations/${ev.id}/appeals`, payload: { criterionId: '06', comment: 'c' } })).json();
-    await app.inject({ method: 'POST', url: `/api/appeals/${ap.id}/decision`, payload: { action: 'override', reason: 'r', value: 10 } });
-    expect((await app.inject({ url: '/api/insights/agent-improvements' })).json().items.find((i: { criterionId: string }) => i.criterionId === '06').shortfalls).toBe(0);
-    expect((await app.inject({ url: '/api/insights/agent-improvements?checklistVersionId=nope' })).statusCode).toBe(404);
   });
 
   it('refreshes an outdated, unused stored v1 from the canonical data, but never one that was used', async () => {

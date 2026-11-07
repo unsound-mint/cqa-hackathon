@@ -125,8 +125,7 @@
             false
           ],
           "allowNA": false,
-          "detector": "greeting-intro",
-          "agentHint": "Send the greeting and the operator's name automatically from a template the moment the operator joins (language taken from the client's language), instead of relying on the operator to type it."
+          "detector": "greeting-intro"
         },
         {
           "id": "02",
@@ -154,8 +153,7 @@
             false
           ],
           "allowNA": true,
-          "naCondition": "Запрос не требовал идентификации.",
-          "agentHint": "Gate any reply that discloses account data or performs a protected action behind the identity-confirmed event: keep the send action disabled until that event exists."
+          "naCondition": "Запрос не требовал идентификации."
         },
         {
           "id": "04",
@@ -200,14 +198,13 @@
             7,
             10
           ],
-          "allowNA": false,
-          "agentHint": "When a hold or internal consultation starts, send an automatic 'please wait' message to the client, and a status message if it lasts long."
+          "allowNA": false
         },
         {
           "id": "07",
           "title": "Завершение",
           "sectionId": "flow",
-          "instructions": "Да — оператор подвёл итог или предложил дальнейшую помощь и попрощался.",
+          "instructions": "Да — оператор подвёл итог или предложил дальнейшую помощь И попрощался: нужны обе части (итог/предложение помощи и прощание). Одно прощание без итога или предложения помощи — Нет.",
           "weight": 5,
           "kind": "boolean",
           "allowedValues": [
@@ -216,8 +213,7 @@
           ],
           "allowNA": true,
           "naCondition": "Чат оборвался до возможности его завершить.",
-          "detector": "closing",
-          "agentHint": "When the operator closes the dialog, send a template closing (offer of further help and goodbye) and make closing wait until it has been sent."
+          "detector": "closing"
         },
         {
           "id": "08",

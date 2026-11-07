@@ -67,9 +67,8 @@ Implemented in `packages/contracts` (Zod). v0 in `docs/INTERFACES.md` is unchang
 | `listAppeals({evaluationId})` | `GET /api/evaluations/:id/appeals` | show appeals and decisions |
 | `Appeal.createdAt/decidedAt` | | audit trail |
 | `CriterionResult.confidence` (`high`/`medium`/`low`, optional) | | model certainty; `low` (noisy speech recognition, recording gap) should be routed to human review in the UI |
-| `Criterion.detector?`, `Criterion.agentHint?` | `GET /api/detectors` | optional deterministic rule per criterion; hint on how the evaluated agent could guarantee it |
+| `Criterion.detector?` | `GET /api/detectors` | optional deterministic rule per criterion |
 | `CriterionResult.source?` (`rule`/`model`), `reusedFrom?` | | who decided; set only by code, never by the model |
-| `AgentImprovements` | `GET /api/insights/agent-improvements?checklistVersionId=` | per hinted criterion: evaluations, shortfalls, conversation ids |
 | `Evaluation.provenance {provider, model, promptVersion}` | | per-evaluation provenance; `provider: 'mock'` marks fictional output, the UI must label it |
 
 Rules fixed in the schemas: `CriterionResult` has exactly one of `isNA` / a value; `boolean` allows `[true,false]`; `discrete-scale` needs >=2 non-negative numeric tiers (top tier = full weight); `enum` criteria must have weight 0 (no numeric meaning defined); `criticalFlag` criteria are boolean with weight 0; criterion ids unique per checklist; `Conversation.transcript[i].index === i`.
@@ -90,6 +89,4 @@ For each criterion of an evaluation, in this order (`services/evaluation/evaluat
 
 A criterion without a detector (any user-added one) always works through the model, so the changed-checklist requirement holds. Detectors are a fast path, never the only one.
 
-**Provisional policy, needs a human decision (issue "Decide criterion 07 strictness"):** the rubric says the closing "summarizes or offers further help AND says goodbye", but most DEV closings are a bare goodbye ("Пожалуйста. Хорошего дня!"). The `closing` detector currently accepts a goodbye alone (`REQUIRE_OFFER_OR_SUMMARY = false` in `detectors/closing.ts`).
-
-**Agent improvement report:** criteria may carry an `agentHint`, a concrete way the evaluated agent could make the failure impossible (greeting template on join, verification gate, automatic wait message, closing template). `agentImprovements()` counts final-result shortfalls per hinted criterion. `ruleCheckable` is true when a detector decides the criterion, so the shortfall is provable by rule.
+**Criterion 07 is strict (Denis, 2026-11-07):** "summarizes or offers further help AND says goodbye" needs both parts. The `closing` detector proves Yes only when the last operator turn has a goodbye and an offer of help; a bare goodbye is left to the model, whose instructions say it is No unless a summary is present.

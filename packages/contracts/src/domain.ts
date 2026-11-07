@@ -73,8 +73,6 @@ export const CriterionSchema = z
     criticalFlag: z.boolean().optional(),
     /** Name of a deterministic rule that may decide this criterion without a model (see GET /api/detectors). Absent = model decides. */
     detector: z.string().min(1).optional(),
-    /** How the evaluated agent could guarantee this deterministically (template, gate, automatic message). Shown when the criterion fails. */
-    agentHint: z.string().optional(),
   })
   .superRefine((c, ctx) => {
     const bad = (message: string) => ctx.addIssue({ code: 'custom', path: ['allowedValues'], message });
