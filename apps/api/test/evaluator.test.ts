@@ -105,7 +105,7 @@ describe('POST /api/evaluations', () => {
     const { job } = await run(app, { conversationIds: [conv.id], checklistVersionId: 'checklist-original-v1' });
     expect(job).toMatchObject({ status: 'completed', completed: 1, total: 1 });
     const ev = (await app.inject({ url: `/api/evaluations/${job.evaluationIds[0]}` })).json();
-    expect(ev).toMatchObject({ status: 'completed', conversationId: conv.id, provenance: { provider: 'fake', model: 'fake-1', promptVersion: 'eval-v3' } });
+    expect(ev).toMatchObject({ status: 'completed', conversationId: conv.id, provenance: { provider: 'fake', model: 'fake-1', promptVersion: 'eval-v4' } });
     expect(ev.originalTotal).not.toBe(9999);
     expect(ev.finalResults).toEqual(ev.originalResults);
     expect(db.select().from(jobs).all()).toHaveLength(1);

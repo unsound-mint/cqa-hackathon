@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  criterionSignature,
   ConversationSchema,
   CriterionResultSchema,
   CriterionSchema,
@@ -87,5 +88,15 @@ describe('schemas', () => {
     expect(SaveChecklistInputSchema.safeParse({ title: 't', criteria: [c, c] }).success).toBe(false);
     expect(SaveChecklistInputSchema.safeParse({ title: 't', criteria: [{ ...c, sectionId: 's' }] }).success).toBe(false);
     expect(SaveChecklistInputSchema.safeParse({ title: 't', criteria: [c] }).success).toBe(true);
+  });
+});
+
+describe('criterionSignature', () => {
+  it('ignores weight/title/section, notices anything that changes the decision', () => {
+    const a = bool('a', 10, { instructions: 'x' });
+    expect(criterionSignature({ ...a, weight: 0, title: 'other', sectionId: 's' })).toBe(criterionSignature(a));
+    for (const change of [{ instructions: 'y' }, { allowNA: true }, { naCondition: 'c' }, { criticalFlag: true }, { detector: 'd' }, { kind: 'discrete-scale' as const, allowedValues: [0, 1] }]) {
+      expect(criterionSignature({ ...a, ...change })).not.toBe(criterionSignature(a));
+    }
   });
 });
