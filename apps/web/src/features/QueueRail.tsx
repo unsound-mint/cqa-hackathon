@@ -1,21 +1,86 @@
 import type { Conversation, Evaluation } from '@cqa/contracts';
-import { Headphones, MessagesSquare } from 'lucide-react';
+import { Headphones, MessagesSquare, Search, X } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/present';
 import { hasViolation, reviewCount } from '@/lib/queue';
 
-type Props = { conversations: Conversation[]; latest: Map<string, Evaluation>; ids: string[]; selectedId: string; filterLabel: string | null; onSelect: (id: string) => void };
+type Props = {
+  conversations: Conversation[];
+  latest: Map<string, Evaluation>;
+  /** Dialogs of the current queue (already filtered, including by the search text). */
+  ids: string[];
+  selectedId: string;
+  filterLabel: string | null;
+  query: string;
+  onQuery: (q: string) => void;
+  /** Bumped to move focus into the search field (sidebar button, Ctrl K). */
+  focusSignal: number;
+  onSelect: (id: string) => void;
+};
 
-/** The current queue beside the review: score and flags per dialog, so the next one can be picked without leaving the page. */
-export function QueueRail({ conversations, latest, ids, selectedId, filterLabel, onSelect }: Props) {
+/** A short window of the first message containing the query, with the match marked. */
+function Snippet({ c, q }: { c: Conversation; q: string }) {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return null;
+  const hit = c.transcript.find((m) => m.text.toLowerCase().includes(needle));
+  if (!hit) return null;
+  const i = hit.text.toLowerCase().indexOf(needle);
+  const start = Math.max(0, i - 24);
+  const before = (start > 0 ? '…' : '') + hit.text.slice(start, i);
+  return (
+    <span className="mt-2 block text-xs leading-4 text-muted">
+      <span className="tabular-nums">#{hit.index}</span> {before}
+      <mark className="rounded bg-brand/30 px-px text-ink">{hit.text.slice(i, i + needle.length)}</mark>
+      {hit.text.slice(i + needle.length, i + needle.length + 64)}
+    </span>
+  );
+}
+
+/** The queue beside the review, with search on top: results stay in the queue, expanded with the matching phrase. */
+export function QueueRail({ conversations, latest, ids, selectedId, filterLabel, query, onQuery, focusSignal, onSelect }: Props) {
   const byId = new Map(conversations.map((c) => [c.id, c]));
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focusSignal > 0) {
+      input.current?.focus();
+      input.current?.select();
+    }
+  }, [focusSignal]);
+
   return (
     <nav aria-label="Очередь диалогов" className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-line px-4 py-3">
-        <h2 className="text-sm font-semibold">Очередь</h2>
-        <p className="text-xs text-muted">{filterLabel ? `${filterLabel}: ${ids.length}` : `Все диалоги: ${ids.length}`}</p>
+      <div className="space-y-3 border-b border-line px-4 py-4">
+        <div>
+          <h2 className="text-sm font-semibold">Очередь</h2>
+          <p className="text-xs text-muted" aria-live="polite">
+            {filterLabel ? `${filterLabel}: ${ids.length}` : query.trim() ? `Найдено: ${ids.length}` : `Все диалоги: ${ids.length}`}
+          </p>
+        </div>
+        <label className="relative block">
+          <span className="sr-only">Поиск по номеру и тексту диалогов</span>
+          <Search aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-muted" />
+          <input
+            ref={input}
+            type="search"
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && ids[0]) onSelect(ids[0]);
+              else if (e.key === 'Escape') onQuery('');
+            }}
+            placeholder="Номер или фраза"
+            className="h-10 w-full rounded-full border border-line bg-canvas pl-10 pr-10 text-sm placeholder:text-muted"
+          />
+          {query && (
+            <button type="button" aria-label="Очистить поиск" onClick={() => onQuery('')} className="absolute right-1 top-1 grid size-8 place-items-center rounded-full text-muted hover:bg-fill hover:text-ink">
+              <X aria-hidden className="size-4" />
+            </button>
+          )}
+        </label>
       </div>
       <ul className="min-h-0 flex-1 overflow-y-auto p-2">
+        {ids.length === 0 && <li className="px-3 py-4 text-sm text-muted">Ничего не найдено.</li>}
         {ids.map((id) => {
           const c = byId.get(id);
           const e = latest.get(id);
@@ -23,7 +88,7 @@ export function QueueRail({ conversations, latest, ids, selectedId, filterLabel,
           const Icon = c?.channel === 'voice call' ? Headphones : MessagesSquare;
           return (
             <li key={id}>
-              <button type="button" onClick={() => onSelect(id)} aria-current={active ? 'true' : undefined} className={cn('w-full rounded-xl px-3 py-2 text-left transition-colors hover:bg-fill', active && 'bg-brand-soft ring-1 ring-brand/60')}>
+              <button type="button" onClick={() => onSelect(id)} aria-current={active ? 'true' : undefined} className={cn('w-full rounded-xl px-3 py-3 text-left transition-colors hover:bg-fill', active && 'bg-brand-soft ring-1 ring-brand/60')}>
                 <span className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-medium">{id}</span>
                   <span className="text-sm font-semibold tabular-nums">{e?.status === 'completed' ? formatScore(e.finalTotal) : <span className="font-normal text-muted">—</span>}</span>
@@ -34,6 +99,7 @@ export function QueueRail({ conversations, latest, ids, selectedId, filterLabel,
                   {reviewCount(e) > 0 && <span className="font-medium text-warn">проверить: {reviewCount(e)}</span>}
                   {!e && <span>не оценён</span>}
                 </span>
+                {c && <Snippet c={c} q={query} />}
               </button>
             </li>
           );

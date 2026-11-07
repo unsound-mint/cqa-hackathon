@@ -1,6 +1,6 @@
 import type { Channel, ChecklistVersion, Conversation, Evaluation, Language } from '@cqa/contracts';
 import { ArrowDown, ArrowUp, Headphones, MessagesSquare, Search } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,8 @@ type Props = {
   onOpen: (id: string) => void;
   /** Mock mode: say so next to the title. */
   demo?: boolean;
+  /** Bumped to move focus into the search field. */
+  focusSignal?: number;
 };
 
 type SortKey = 'id' | 'score';
@@ -53,7 +55,11 @@ function Status({ e }: { e: Evaluation | undefined }) {
 }
 
 /** The queue: every dialog with its score, the reason for a serious violation and what needs a human look. */
-export function DialogsPage({ conversations, latest, checklists, filters, onFilters, onOpen, demo }: Props) {
+export function DialogsPage({ conversations, latest, checklists, filters, onFilters, onOpen, demo, focusSignal = 0 }: Props) {
+  const search = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focusSignal > 0) search.current?.focus();
+  }, [focusSignal]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
   const c = useMemo(() => counts(conversations, latest), [conversations, latest]);
   const checklistOf = (e: Evaluation | undefined) => checklists.find((x) => x.id === e?.checklistVersionId);
@@ -95,7 +101,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
         <label className="relative block min-w-56 flex-1 sm:max-w-sm">
           <span className="sr-only">Поиск по номеру и тексту</span>
           <Search aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-muted" />
-          <input type="search" value={filters.query} onChange={(e) => set({ query: e.target.value })} placeholder="Номер или текст диалога" className="h-10 w-full rounded-full border border-line bg-surface pl-9 pr-4 text-sm placeholder:text-muted" />
+          <input ref={search} type="search" value={filters.query} onChange={(e) => set({ query: e.target.value })} placeholder="Номер или текст диалога" className="h-10 w-full rounded-full border border-line bg-surface pl-9 pr-4 text-sm placeholder:text-muted" />
         </label>
         <div role="group" aria-label="Язык" className="flex gap-2">
           {LANGS.map((l) => (

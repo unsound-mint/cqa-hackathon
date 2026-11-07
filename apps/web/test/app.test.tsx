@@ -287,16 +287,49 @@ it('the scorecard strip shows every criterion at a glance and opens one on click
   expect(row(/Корректная и полная консультация/).getAttribute('aria-expanded')).toBe('true');
 });
 
-it('Ctrl K opens a finder that searches ids and transcript text, and Enter opens the dialog', async () => {
-  renderApp(bundle(withSecond));
+it('search sits at the top of the queue: it filters the queue with the matching phrase, and Ctrl K focuses it', async () => {
+  window.innerWidth = 1600;
+  renderApp(bundle((b) => { withSecond(b); b.conversations[1].transcript[1].text = 'Особая фраза про курьера'; }));
   await transcriptReady();
+  const rail = within(screen.getByRole('navigation', { name: 'Очередь диалогов' }));
+  const box = rail.getByRole('searchbox') as HTMLInputElement;
   fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
-  const box = within(screen.getByRole('dialog', { name: 'Поиск диалога' }));
-  fireEvent.change(box.getByRole('textbox'), { target: { value: 'ru-002' } });
-  expect(box.getAllByRole('option').length).toBe(1);
-  fireEvent.keyDown(box.getByRole('textbox'), { key: 'Enter' });
+  expect(document.activeElement).toBe(box);
+  fireEvent.change(box, { target: { value: 'курьера' } });
+  expect(rail.getAllByRole('button', { name: /demo-ru-/ }).length).toBe(1);
+  expect(rail.getByText('курьера').tagName).toBe('MARK');
+  expect(screen.getByText('вне фильтра')).toBeTruthy(); // the open dialog does not match the search
+  fireEvent.keyDown(box, { key: 'Enter' });
   expect(window.location.hash).toBe('#/dialog/demo-ru-002');
-  expect(screen.queryByRole('dialog', { name: 'Поиск диалога' })).toBeNull();
+  fireEvent.click(rail.getByRole('button', { name: 'Очистить поиск' }));
+  expect(rail.getAllByRole('button', { name: /demo-ru-/ }).length).toBe(2);
+});
+
+it('the sidebar search button opens the list page search when no queue is beside the dialog', async () => {
+  window.innerWidth = 900;
+  renderApp(demo, '#/checklist');
+  fireEvent.click(await screen.findByRole('button', { name: /Найти диалог/ }));
+  const list = within(await screen.findByRole('region', { name: 'Диалоги' }));
+  expect(document.activeElement).toBe(list.getByRole('searchbox'));
+});
+
+it('shows the transcript as a chat by default, can switch to the dense list, and remembers it', async () => {
+  renderApp();
+  await transcriptReady();
+  const toggle = within(screen.getByRole('group', { name: 'Вид транскрипта' }));
+  expect(toggle.getByRole('button', { name: 'Чат' }).getAttribute('aria-pressed')).toBe('true');
+  expect(document.getElementById('msg-8')!.className).toContain('items-end'); // operator on the right
+  expect(document.getElementById('msg-1')!.className).toContain('items-start'); // client on the left
+  fireEvent.click(toggle.getByRole('button', { name: 'Список' }));
+  expect(document.getElementById('msg-8')!.className).toContain('grid');
+  expect(window.localStorage.getItem('cqa-transcript-view')).toBe('rows');
+});
+
+it('marks long pauses between messages', async () => {
+  renderApp(bundle((b) => { b.conversations[0].transcript[8].timestamp = '03:25'; }));
+  await transcriptReady();
+  expect(document.getElementById('msg-8')!.textContent).toMatch(/пауза 2 мин \d+ с/);
+  expect(document.getElementById('msg-9')!.textContent).not.toMatch(/пауза/);
 });
 
 it('the queue rail lists the filtered dialogs and switches between them', async () => {

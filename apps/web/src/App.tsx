@@ -7,7 +7,6 @@ import { DEFAULT_FILTERS, hasViolation, matches, reviewCount, type Filters } fro
 import { formatScore, outcome, type Tone } from '@/lib/present';
 import { useTheme } from '@/lib/theme';
 import { ChecklistEditor } from './features/ChecklistEditor';
-import { CommandSearch } from './features/CommandSearch';
 import { DialogsPage } from './features/DialogsPage';
 import { QueueRail } from './features/QueueRail';
 import { Sidebar } from './features/Sidebar';
@@ -53,7 +52,7 @@ export function App() {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [appeals, setAppeals] = useState<Appeal[]>([]);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchFocus, setSearchFocus] = useState(0);
   const [railOpen, setRailOpen] = useState(() => window.innerWidth >= 1440);
 
   useEffect(() => {
@@ -126,16 +125,24 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [route.name, step]);
 
+  /** Search lives at the top of the queue beside a dialog, and on the list page otherwise. */
+  const focusSearch = useCallback(() => {
+    const wide = window.matchMedia?.('(min-width: 1280px)').matches ?? window.innerWidth >= 1280;
+    if (route.name === 'dialog' && wide) setRailOpen(true);
+    else if (route.name !== 'list') go({ name: 'list' });
+    setSearchFocus((n) => n + 1);
+  }, [route.name, go]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'л')) {
         e.preventDefault();
-        setSearchOpen((o) => !o);
+        focusSearch();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [focusSearch]);
 
   const evaluationId = (() => {
     const list = selectedId ? byConversation.get(selectedId) : undefined;
@@ -279,23 +286,11 @@ export function App() {
       <Sidebar
         active={route.name === 'checklist' ? 'checklist' : 'dialogs'}
         onNavigate={(to) => go(to === 'checklist' ? { name: 'checklist' } : { name: 'list' })}
-        onSearch={() => setSearchOpen(true)}
+        onSearch={focusSearch}
         theme={theme}
         onToggleTheme={toggleTheme}
         demo={mode === 'mock'}
       />
-      {searchOpen && (
-        <CommandSearch
-          conversations={data.conversations}
-          latest={latest}
-          onClose={() => setSearchOpen(false)}
-          onOpen={(id) => {
-            setSearchOpen(false);
-            go({ name: 'dialog', id });
-          }}
-        />
-      )}
-
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {route.name === 'checklist' ? (
           <main className="min-h-0 flex-1 bg-canvas">
@@ -303,7 +298,7 @@ export function App() {
           </main>
         ) : route.name === 'list' ? (
           <main className="min-h-0 flex-1 bg-canvas">
-            <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} demo={mode === 'mock'} />
+            <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} demo={mode === 'mock'} focusSignal={searchFocus} />
           </main>
         ) : !conversation ? (
           <main className="p-6 text-sm">
@@ -323,7 +318,7 @@ export function App() {
             <main className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 xl:p-4', railOpen ? 'xl:grid-cols-[280px_minmax(0,1fr)_480px]' : 'xl:grid-cols-[minmax(0,1fr)_480px]')}>
               {railOpen && (
                 <div className="hidden min-h-0 overflow-hidden rounded-card bg-surface shadow-card xl:block">
-                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filterLabel={filterLabel} onSelect={(id) => go({ name: 'dialog', id })} />
+                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filterLabel={filterLabel} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} onSelect={(id) => go({ name: 'dialog', id })} />
                 </div>
               )}
               <div className={cn('min-h-0 flex-col bg-surface xl:rounded-card xl:shadow-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>

@@ -49,3 +49,22 @@ export function shortOutcome(criterion: Criterion | undefined, r: CriterionResul
   if (typeof r.value === 'number') return String(r.value);
   return outcome(criterion, r).label;
 }
+
+/** Seconds for "MM:SS" or an ISO timestamp; null if unparseable. Timestamps are shown raw; this only measures gaps. */
+export function toSeconds(ts: string): number | null {
+  const mmss = /^(\d+):(\d{2})$/.exec(ts);
+  if (mmss) return Number(mmss[1]) * 60 + Number(mmss[2]);
+  const ms = Date.parse(ts);
+  return Number.isNaN(ms) ? null : ms / 1000;
+}
+
+/** "пауза 45 с" for a silence of 30 seconds or more between two messages (waits matter for the speed criterion). */
+export function gapLabel(prev: string | undefined, cur: string): { text: string; long: boolean } | null {
+  if (prev === undefined) return null;
+  const a = toSeconds(prev);
+  const b = toSeconds(cur);
+  if (a === null || b === null || b - a < 30) return null;
+  const s = Math.round(b - a);
+  const m = Math.floor(s / 60);
+  return { text: `пауза ${m ? `${m} мин${s % 60 ? ` ${s % 60} с` : ''}` : `${s} с`}`, long: s >= 120 };
+}

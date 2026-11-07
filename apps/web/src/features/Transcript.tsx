@@ -1,8 +1,8 @@
 import type { Conversation, Speaker } from '@cqa/contracts';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { SPEAKER_LABEL, type Tone } from '@/lib/present';
+import { SPEAKER_LABEL, gapLabel, type Tone } from '@/lib/present';
 
 export type Focus = { index: number; nonce: number } | null;
 export type Tag = { id: string; tone: Tone };
@@ -75,8 +75,37 @@ const ROW: Record<Speaker, string> = {
 };
 const NAME: Record<Speaker, string> = { operator: 'text-accent', client: 'text-ink', bot: 'text-muted', system: 'text-muted' };
 
+type View = 'chat' | 'rows';
+const VIEW_KEY = 'cqa-transcript-view';
+function readView(): View {
+  try {
+    const v = window.localStorage.getItem(VIEW_KEY);
+    if (v === 'chat' || v === 'rows') return v;
+  } catch {
+    /* blocked storage: use the default */
+  }
+  return 'chat';
+}
+
+/** Chat view: client on the left, operator (the graded party) on the right, bot dimmed, system as small centered notes. */
+const BUBBLE: Record<Speaker, string> = {
+  operator: 'rounded-2xl rounded-tr-sm bg-brand-soft',
+  client: 'rounded-2xl rounded-tl-sm border border-line bg-surface',
+  bot: 'rounded-2xl rounded-tl-sm border border-dashed border-line-strong text-muted',
+  system: 'rounded-full bg-fill px-4 py-1 text-sm italic text-muted',
+};
+
 export function Transcript({ conversation, cited, checkedRange, focus, markers, tags, onTag, onSeek, toolbar }: Props) {
   const refs = useRef(new Map<number, HTMLLIElement>());
+  const [view, setView] = useState<View>(readView);
+  const pick = (v: View) => {
+    setView(v);
+    try {
+      window.localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* not persisted */
+    }
+  };
 
   useEffect(() => {
     if (!focus) return;
@@ -95,25 +124,63 @@ export function Transcript({ conversation, cited, checkedRange, focus, markers, 
         {toolbar}
         {conversation.channel === 'voice call' && <Badge tone="warn">Распознанная речь: возможны ошибки в словах</Badge>}
         {conversation.audioUrl && <audio controls preload="none" src={conversation.audioUrl} aria-label="Запись звонка" className="h-10 w-full" />}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4" title="Карта диалога. Точки: основание критерия, проверка человеком, нарушение">
           <ConversationMap conversation={conversation} markers={markers} current={focus?.index ?? 0} onSeek={onSeek} />
-          <p className="hidden text-xs text-muted lg:block">Точки: основание, проверка, нарушение</p>
+          <div role="group" aria-label="Вид транскрипта" className="flex shrink-0 gap-1 rounded-full bg-fill p-1">
+            {([['chat', 'Чат'], ['rows', 'Список']] as const).map(([id, label]) => (
+              <button key={id} type="button" aria-pressed={view === id} onClick={() => pick(id)} className={cn('h-8 rounded-full px-3 text-sm transition-colors', view === id ? 'bg-surface font-medium text-ink shadow-sm' : 'text-muted hover:text-ink')}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
-      <ol start={0} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
-        {conversation.transcript.map((m) => {
+      <ol start={0} className={cn('min-h-0 flex-1 overflow-y-auto p-4', view === 'chat' ? 'space-y-4' : 'space-y-2')}>
+        {conversation.transcript.map((m, k) => {
           const isCited = cited.has(m.index);
           const inChecked = checkedRange && m.index >= checkedRange.from && m.index <= checkedRange.to;
           const mine = tags.get(m.index) ?? [];
           const system = m.speaker === 'system';
+          const gap = gapLabel(conversation.transcript[k - 1]?.timestamp, m.timestamp);
+          const setRef = (el: HTMLLIElement | null) => {
+            if (el) refs.current.set(m.index, el);
+            else refs.current.delete(m.index);
+          };
+          const tagRow = mine.length > 0 && (
+            <span className={cn('mt-2 flex flex-wrap gap-1', view === 'chat' && m.speaker === 'operator' && 'justify-end', view === 'chat' && system && 'justify-center')}>
+              {mine.map((t) => (
+                <button key={t.id} type="button" onClick={() => onTag(t.id)} aria-label={`Открыть критерий ${t.id}`} className={cn('h-6 min-w-8 rounded-full px-2 text-xs font-semibold tabular-nums', TAG[t.tone])}>
+                  {t.id}
+                </button>
+              ))}
+            </span>
+          );
+          const meta = (
+            <>
+              {m.timestamp} · #{m.index}
+              {gap && <span className={cn('ml-2', gap.long && 'font-medium text-warn')}>· {gap.text}</span>}
+            </>
+          );
+
+          if (view === 'chat') {
+            const right = m.speaker === 'operator';
+            return (
+              <li key={m.index} id={`msg-${m.index}`} ref={setRef} tabIndex={-1} data-cited={isCited || undefined} className={cn('flex flex-col outline-none', right ? 'items-end' : system ? 'items-center' : 'items-start')}>
+                <span className={cn('mb-1 flex gap-2 text-xs tabular-nums text-muted', right && 'flex-row-reverse')}>
+                  {!system && <span className={cn('font-medium', NAME[m.speaker])}>{SPEAKER_LABEL[m.speaker]}</span>}
+                  <span>{meta}</span>
+                </span>
+                <span className={cn('block max-w-[85%] whitespace-pre-wrap break-words px-4 py-3 text-base sm:max-w-[72%]', BUBBLE[m.speaker], isCited && 'ring-2 ring-brand', inChecked && !isCited && 'ring-1 ring-line-strong')}>{m.text}</span>
+                {tagRow}
+              </li>
+            );
+          }
+
           return (
             <li
               key={m.index}
               id={`msg-${m.index}`}
-              ref={(el) => {
-                if (el) refs.current.set(m.index, el);
-                else refs.current.delete(m.index);
-              }}
+              ref={setRef}
               tabIndex={-1}
               data-cited={isCited || undefined}
               className={cn(
@@ -126,21 +193,11 @@ export function Transcript({ conversation, cited, checkedRange, focus, markers, 
             >
               <span className="select-none">
                 <span className={cn('block text-sm font-medium', NAME[m.speaker])}>{SPEAKER_LABEL[m.speaker]}</span>
-                <span className="block text-xs tabular-nums text-muted">
-                  {m.timestamp} · #{m.index}
-                </span>
+                <span className="block text-xs tabular-nums text-muted">{meta}</span>
               </span>
               <span className="min-w-0">
                 <span className={cn('block whitespace-pre-wrap break-words', system ? 'text-sm italic' : 'text-base')}>{m.text}</span>
-                {mine.length > 0 && (
-                  <span className="mt-2 flex flex-wrap gap-1">
-                    {mine.map((t) => (
-                      <button key={t.id} type="button" onClick={() => onTag(t.id)} aria-label={`Открыть критерий ${t.id}`} className={cn('h-6 min-w-8 rounded-full px-2 text-xs font-semibold tabular-nums', TAG[t.tone])}>
-                        {t.id}
-                      </button>
-                    ))}
-                  </span>
-                )}
+                {tagRow}
               </span>
             </li>
           );
