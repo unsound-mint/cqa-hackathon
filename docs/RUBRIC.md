@@ -42,6 +42,8 @@ A saved checklist has immutable version and schema: ID, section, description, an
 ## Reviewed criterion boundaries
 
 The versioned fictional examples in `apps/api/src/services/evaluation/calibration.ts` implement these interpretations for the unchanged original rubric:
+- When similar search results or an uncertain name prevent finding the intended item, asking whether the customer has/uses an exact identifier clarifies necessary search context. The identifier need not be dictated to the operator for 02 to pass.
+- When the customer initially only asks to reach an operator to explain their problem, the problem itself is missing information. Asking how to help identifies that need under 02; completing the handoff alone does not justify N/A.
 - Verification applicability follows the assistance actually undertaken: a declined protected check followed only by generic/public guidance is N/A. An accepted account-specific investigation still requires verification even if it is escalated rather than resolved.
 - Criterion 05 requires recognizable professional courtesy, not merely absence of insults or eventual correctness. In this formal Russian support setting, casual «Привет» does not establish politeness. No single apology phrase is mandatory.
 - Polite, relevant assistance may pass criterion 05 even when a separate improper private offer triggers 08. Assess an actual insult/dismissal or unaddressed inconvenience under 05 independently.

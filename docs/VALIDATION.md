@@ -43,7 +43,7 @@ Measure before changing; change one thing per run; judge on the holdout only (An
 
 ## Semantic-fact evaluator checks
 
-For `eval-v13` / `operator-v3`, include these regression checks before reference comparison:
+For `eval-v14` / `operator-v3`, include these regression checks before reference comparison:
 - 02: sufficient initial context gives N/A; missing necessary details require operator clarification before the answer, including clause order inside one message. Prior bot questions supply context but cannot prove operator clarification.
 - 04: formulated-request applicability must agree with the request list. Problem reports count even without a question mark. Exercise 0/5/10/15/20, a correct pending next step, explicitly requested minor omissions and multiple material requests. Do not invent an unasked ETA.
 - 06: a forced causal re-ask remains 4 after successful correction; an ordinary new question or refusal of a clear improper offer does not lower clarity. Test actual hold/warning order and exclude internal consultation speech. Voice ASR fragments alone cannot establish incoherence.

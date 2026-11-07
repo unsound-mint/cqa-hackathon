@@ -108,7 +108,7 @@ Imports preserve immutable conversation sources: identical re-imports succeed; a
 
 On database open, additive idempotent migrations add nullable evaluations.cache_context and jobs.force (default false). Back up the SQLite database before deployment; existing evaluation results and appeal history are untouched.
 
-Identity verification recognizes explicit whole-message affirmative RU/KZ/EN events. Negative statuses, questions and unrecognized extended forms cannot establish verification. Unknown event vocabulary requires a reviewed parser extension. Closing N/A is assessed semantically; client disconnection does not establish whether an earlier closing opportunity existed.
+Identity verification recognizes explicit whole-message affirmative RU/KZ/EN events. Negative statuses and questions cannot establish verification. The verification helper may identify an unrecognized affirmative system confirmation; its exact source and role are validated, and confidence is capped. Closing N/A is assessed semantically; client disconnection does not establish whether an earlier closing opportunity existed.
 
 ### Required model output (eval-v9)
 
@@ -126,7 +126,7 @@ Original-rubric requests omit first-response SLA measurements and pre-operator g
 
 See `docs/RUBRIC.md` for reviewed criterion boundaries. Reference agreement measures model-to-model agreement until human adjudication; keep complete original model reasons/evidence in private validation artifacts for diagnosis and report rerun stability.
 
-### Semantic facts and deterministic tiers (eval-v13 / operator-v3)
+### Semantic facts and deterministic tiers (eval-v14 / operator-v3)
 
 Canonical original criteria 02, 04 and 06 now use internal helpers under `services/evaluation/semantic/`; 03 retains its verification helper. Signature matching excludes titles, ids and weights, so renaming/reweighting retains the helper while edited instructions, values or applicability use the generic evaluator.
 
