@@ -60,7 +60,7 @@
 }
 
 @theme inline {
-  --font-sans: 'Golos Text Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Onest Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --color-brand: #02b140;
@@ -141,6 +141,8 @@
   h1,
   h2,
   h3 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
     text-wrap: balance;
   }
   html,
