@@ -40,7 +40,9 @@ describe('evaluations + appeals', () => {
     expect(ev.originalTotal).toBe(94.12);
     expect(ev.finalTotal).toBe(100);
     expect(ev.finalTotal).toBe(computeTotal(ORIGINAL_CHECKLIST.criteria, ev.finalResults));
-    expect(ev.finalResults.find((r: { criterionId: string }) => r.criterionId === '04').explanation).toContain('Reviewer override');
+    // The reviewer's reason replaces the explanation (no English prefix); the AI's own words stay in originalResults.
+    expect(ev.finalResults.find((r: { criterionId: string }) => r.criterionId === '04')).toMatchObject({ explanation: 'Согласен', source: 'reviewer' });
+    expect(ev.finalResults.find((r: { criterionId: string }) => r.criterionId === '04').confidence).toBeUndefined();
   });
 
   it('uphold keeps both results identical and records the decision', async () => {
@@ -99,5 +101,84 @@ describe('evaluations + appeals', () => {
     const a = (await appeal(app)).json();
     await decide(app, a.id, { action: 'override', reason: 'r', value: 10 });
     expect((await evaluation(app)).finalTotal).toBe(88.24); // v1 weights (v2 would give 78.26)
+  });
+
+  it('lists appeals across evaluations for the approver, oldest first, filtered by status', async () => {
+    const app = setup();
+    const a = (await appeal(app, '04', 'первое')).json();
+    const b = (await appeal(app, '05', 'второе')).json();
+    await decide(app, a.id, { action: 'uphold', reason: 'ИИ прав' });
+    const all = (await app.inject({ url: '/api/appeals' })).json();
+    expect(all.map((x: { id: string }) => x.id)).toEqual([a.id, b.id]);
+    const pending = (await app.inject({ url: '/api/appeals?status=pending' })).json();
+    expect(pending.map((x: { id: string }) => x.id)).toEqual([b.id]);
+    const decided = (await app.inject({ url: '/api/appeals?status=upheld' })).json();
+    expect(decided[0]).toMatchObject({ id: a.id, status: 'upheld', reviewerReason: 'ИИ прав' });
+    expect((await app.inject({ url: '/api/appeals?status=nonsense' })).statusCode).toBe(400);
+  });
+
+  it('a criterion can be appealed again after a decision, and two overrides in a row keep the originals and both decisions', async () => {
+    const app = setup();
+    const first = (await appeal(app, '04')).json();
+    await decide(app, first.id, { action: 'override', reason: 'первое решение', value: 20 });
+    const second = (await appeal(app, '04', 'снова')).json();
+    expect(second.status).toBe('pending');
+    await decide(app, second.id, { action: 'override', reason: 'второе решение', value: 10 });
+    const ev = await evaluation(app);
+    expect(ev.finalResults.find((r: { criterionId: string }) => r.criterionId === '04')).toMatchObject({ value: 10 });
+    expect(ev.finalTotal).toBe(computeTotal(ORIGINAL_CHECKLIST.criteria, ev.finalResults));
+    expect(ev.originalResults).toEqual(base.originalResults);
+    expect(ev.originalTotal).toBe(base.originalTotal);
+    const history = (await app.inject({ url: `/api/evaluations/${base.id}/appeals` })).json();
+    expect(history.map((x: { reviewerReason: string }) => x.reviewerReason)).toEqual(['первое решение', 'второе решение']);
+  });
+
+  it('an appeal on an evaluation that is not completed is refused', async () => {
+    const db = openDb(':memory:');
+    const app = buildApp({ db });
+    insertEvaluation(db, { ...base, id: 'eval-failed', status: 'failed', originalResults: [], originalTotal: null, finalResults: [], finalTotal: null, error: 'x' });
+    const res = await app.inject({ method: 'POST', url: '/api/evaluations/eval-failed/appeals', payload: { criterionId: '04', comment: 'c' } });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it('a direct reviewer correction recomputes the total, keeps the originals and is recorded as a decided correction', async () => {
+    const app = setup();
+    const res = await app.inject({ method: 'POST', url: `/api/evaluations/${base.id}/overrides`, payload: { criterionId: '04', reason: 'Вопросы закрыты', value: 20 } });
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({ kind: 'correction', status: 'overridden', comment: '', reviewerValue: 20, reviewerReason: 'Вопросы закрыты' });
+    const ev = await evaluation(app);
+    expect(ev.originalResults).toEqual(base.originalResults);
+    expect(ev.finalTotal).toBe(computeTotal(ORIGINAL_CHECKLIST.criteria, ev.finalResults));
+    const list = (await app.inject({ url: `/api/evaluations/${base.id}/appeals` })).json();
+    expect(list.map((a: { kind: string }) => a.kind)).toEqual(['correction']);
+    // A correction does not block a later appeal by the operator.
+    expect((await appeal(app)).statusCode).toBe(201);
+  });
+
+  it('a direct correction is refused while an appeal is pending, and for a disallowed value', async () => {
+    const app = setup();
+    await appeal(app);
+    const blocked = await app.inject({ method: 'POST', url: `/api/evaluations/${base.id}/overrides`, payload: { criterionId: '04', reason: 'x', value: 20 } });
+    expect(blocked.statusCode).toBe(409);
+    const bad = await app.inject({ method: 'POST', url: `/api/evaluations/${base.id}/overrides`, payload: { criterionId: '05', reason: 'x', value: 7 } });
+    expect(bad.statusCode).toBe(400);
+    expect((await evaluation(app)).finalResults).toEqual(base.originalResults);
+    expect((await app.inject({ method: 'POST', url: `/api/evaluations/${base.id}/overrides`, payload: { criterionId: '05', reason: 'x' } })).statusCode).toBe(400);
+  });
+
+  it('opens a database file created before appeals had a kind column, and reads its rows as appeals', async () => {
+    const { mkdtempSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const Database = (await import('better-sqlite3')).default;
+    const path = join(mkdtempSync(join(tmpdir(), 'cqa-')), 'old.sqlite');
+    const old = new Database(path);
+    old.exec(`CREATE TABLE appeals (id TEXT PRIMARY KEY NOT NULL, evaluation_id TEXT NOT NULL, criterion_id TEXT NOT NULL, comment TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, decided_at TEXT, reviewer_reason TEXT, reviewer_value TEXT, reviewer_is_na INTEGER);
+      INSERT INTO appeals (id, evaluation_id, criterion_id, comment, status, created_at) VALUES ('a1', '${base.id}', '04', 'c', 'pending', '2026-01-01T00:00:00Z');`);
+    old.close();
+    const db = openDb(path);
+    insertEvaluation(db, base);
+    const app = buildApp({ db });
+    expect((await app.inject({ url: `/api/evaluations/${base.id}/appeals` })).json()).toMatchObject([{ id: 'a1', kind: 'appeal' }]);
   });
 });

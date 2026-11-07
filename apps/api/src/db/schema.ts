@@ -48,6 +48,8 @@ export const appeals = sqliteTable('appeals', {
   id: text('id').primaryKey(),
   evaluationId: text('evaluation_id').notNull(),
   criterionId: text('criterion_id').notNull(),
+  /** 'appeal' | 'correction'; NULL on rows written before the column existed means 'appeal'. */
+  kind: text('kind'),
   comment: text('comment').notNull(),
   status: text('status').notNull(),
   createdAt: text('created_at').notNull(),

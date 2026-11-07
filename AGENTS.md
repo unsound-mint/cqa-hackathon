@@ -29,7 +29,7 @@ Build a working Conversation Quality Analytics prototype within a 24-hour hackat
 - Import `@cqa/contracts` from `packages/contracts/`. Do not independently invent duplicate shared types.
 - Sofia's frontend must work against a mock `CqaApi` adapter and switch to HTTP without component rewrites. Backend must expose the same contract.
 - Keep criterion instructions and model prompts versioned in source/control data; store model, provider, prompt version, checklist version, and output/provenance per evaluation.
-- See `docs/INTERFACES.md` for shared DTO/API contracts and `docs/ARCHITECTURE.md` when modifying pipeline or contracts and `docs/RUBRIC.md` for scoring; see `docs/WORKFLOW.md` when creating issues/PRs. Each human also has a handoff in `handoffs/`. Do not read every document for trivial edits.
+- For UI changes read `docs/DESIGN.md` first (4px/8px grid, type scale, hierarchy; a test enforces the grid). See `docs/INTERFACES.md` for shared DTO/API contracts and `docs/ARCHITECTURE.md` when modifying pipeline or contracts and `docs/RUBRIC.md` for scoring; see `docs/WORKFLOW.md` when creating issues/PRs. Each human also has a handoff in `handoffs/`. Do not read every document for trivial edits.
 
 ## GitHub collaboration contract
 1. Use one issue per independently demonstrable deliverable, with owner, area, P0/P1, acceptance criteria, and dependencies. Existing issue first; avoid duplicate tickets. Agents may create or update issues without asking (verified remote; search for an existing issue first).

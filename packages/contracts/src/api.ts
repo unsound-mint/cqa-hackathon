@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ChannelSchema, CriterionValueSchema, EvaluationStatusSchema, LanguageSchema } from './domain.js';
+import { AppealStatusSchema, ChannelSchema, CriterionValueSchema, EvaluationStatusSchema, LanguageSchema } from './domain.js';
 
 /** Request/response shapes shared by MockCqaApi, HttpCqaApi and the Fastify routes. */
 
@@ -29,6 +29,10 @@ export const JobSchema = z.object({
 });
 export type Job = z.infer<typeof JobSchema>;
 
+/** Appeals of one evaluation, and/or only those in a status. Without `evaluationId` it lists across all dialogs (the approver's queue). */
+export const ListAppealsQuerySchema = z.object({ evaluationId: z.string().min(1).optional(), status: AppealStatusSchema.optional() });
+export type ListAppealsQuery = z.infer<typeof ListAppealsQuerySchema>;
+
 export const ListEvaluationsQuerySchema = z.object({ conversationId: z.string().optional() });
 export type ListEvaluationsQuery = z.infer<typeof ListEvaluationsQuerySchema>;
 
@@ -53,3 +57,17 @@ export const DecideAppealInputSchema = z
     }
   });
 export type DecideAppealInput = z.infer<typeof DecideAppealInputSchema>;
+
+/** A reviewer changes one criterion directly (no appeal first). Refused while that criterion has a pending appeal. */
+export const OverrideCriterionInputSchema = z
+  .object({
+    evaluationId: z.string().min(1),
+    criterionId: z.string().min(1),
+    reason: z.string().min(1),
+    value: CriterionValueSchema.nullable().optional(),
+    isNA: z.boolean().optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (!d.isNA && (d.value === undefined || d.value === null)) ctx.addIssue({ code: 'custom', path: ['value'], message: 'override needs a value, or isNA=true' });
+  });
+export type OverrideCriterionInput = z.infer<typeof OverrideCriterionInputSchema>;
