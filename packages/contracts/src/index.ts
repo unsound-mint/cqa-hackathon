@@ -5,3 +5,4 @@ export * from './evidence.js';
 export * from './bundle.js';
 export * from './checklist.js';
 export * from './roles.js';
+export * from './team.js';
