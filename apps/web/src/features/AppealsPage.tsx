@@ -81,7 +81,7 @@ export function AppealsPage({ appeals: all, evaluations, checklists, conversatio
                   <tr key={a.id} onClick={() => conv && onOpen(conv.id, a.criterionId)} className={cn('align-top', conv && 'cursor-pointer hover:bg-brand-soft/60')}>
                     <td className="px-3 py-3">
                       {conv ? (
-                        <a href={`#/dialog/${encodeURIComponent(conv.id)}?criterion=${encodeURIComponent(a.criterionId)}`} onClick={(e) => e.stopPropagation()} className="text-base font-medium text-accent underline-offset-2 hover:underline">{conv.id}</a>
+                        <a href={`#/dialog/${encodeURIComponent(conv.id)}?criterion=${encodeURIComponent(a.criterionId)}`} onClick={(e) => e.stopPropagation()} className="inline-flex min-h-6 items-center text-base font-medium text-accent underline-offset-2 hover:underline">{conv.id}</a>
                       ) : (
                         <span className="text-base font-medium">Диалог не найден</span>
                       )}

@@ -78,7 +78,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
   const narrow = 'h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm';
   const th = (key: SortKey, label: string, className?: string) => (
     <th scope="col" aria-sort={sort?.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'} className={cn('px-3 py-2 text-left font-medium', className)}>
-      <button type="button" onClick={() => setSort((s) => (s?.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: key === 'score' ? -1 : 1 }))} className="inline-flex items-center gap-1 rounded hover:text-ink">
+      <button type="button" onClick={() => setSort((s) => (s?.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: key === 'score' ? -1 : 1 }))} className="inline-flex min-h-8 items-center gap-1 rounded hover:text-ink">
         {label}
         {sort?.key === key && (sort.dir === 1 ? <ArrowUp aria-hidden className="size-4" /> : <ArrowDown aria-hidden className="size-4" />)}
       </button>
@@ -145,7 +145,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
                 return (
                   <tr key={x.id} onClick={() => onOpen(x.id)} className="cursor-pointer align-top hover:bg-brand-soft/60">
                     <td className="px-3 py-3">
-                      <a href={`#/dialog/${encodeURIComponent(x.id)}`} onClick={(ev) => ev.stopPropagation()} className="text-base font-medium text-accent underline-offset-2 hover:underline">{x.id}</a>
+                      <a href={`#/dialog/${encodeURIComponent(x.id)}`} onClick={(ev) => ev.stopPropagation()} className="inline-flex min-h-6 items-center text-base font-medium text-accent underline-offset-2 hover:underline">{x.id}</a>
                       <div className="text-xs text-muted">{x.transcript.length} сообщ.</div>
                       {reasons.length > 0 && <p className="mt-1 text-xs text-danger md:hidden">{reasons[0]!.explanation}</p>}
                     </td>

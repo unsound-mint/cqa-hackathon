@@ -47,6 +47,11 @@ Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid
 - **Text:** body 16/24, explanations 16/24, secondary 14/20, meta 12/16; `text-wrap: pretty` on paragraphs and `balance` on headings.
 - **Calls:** evidence moves the audio player to the message (MM:SS timestamps only) without starting playback; each message has a play-from-here button.
 
+## Screens
+- Dialogs list: one quiet toolbar. The review-state switch (segments with counts; a colored dot, not colored text, marks violations and review) carries the decision; search, language and channel are small. Rows carry a status chip only when there is something to do (not evaluated, failed, review count); an evaluated dialog has none.
+- Checklist editor: from 1024 px a grouped list beside the selected criterion's form (what is judged: title, instructions, N/A; how it is scored: section, type, steps, weight, flag). Below 1024 the form opens inside the list. Delete lives in the form; up/down moves within a section.
+- Targets: every control is at least 24 px in both directions (sort headers 32, row links 24); checkboxes are 16 px inside a label that is at least 32 px tall.
+
 ## Reviewer actions
 - A reviewer corrects a criterion directly ("Изменить оценку"); "Оспорить" files an appeal, the operator's dispute path, decided on the Апелляции page. Corrections are history of the dialog and never enter the appeal queue.
 - Decision forms preselect nothing, list every answer with its points, mark the current one, and preview the new dialog total before saving. After a change the row shows the reviewer's reason and, below it, the AI's original answer with its evidence.
