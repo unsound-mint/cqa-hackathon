@@ -320,37 +320,37 @@
 /* Separate the navigation, queue and reading surface without changing verdict colors. */
 .workspace-sidebar,
 .queue-pane {
-  --c-fill: #e5e7f2;
-  --c-line: #d4d8e6;
-  --c-line-strong: #a6afc5;
-  --glass-fill: rgb(239 240 253 / 0.88);
+  --c-fill: #e4ede9;
+  --c-line: #d1ded7;
+  --c-line-strong: #9aafa3;
+  --glass-fill: rgb(239 245 241 / 0.92);
   --glass-edge: rgb(255 255 255 / 0.8);
 }
 .workspace-sidebar {
-  --glass-fill: rgb(225 230 247 / 0.9);
+  --glass-fill: rgb(225 236 229 / 0.94);
 }
 .transcript-pane {
-  --glass-fill: rgb(249 252 255 / 0.86);
-  --c-fill: #e7edf6;
-  --c-line: #d9e2ed;
-  --c-line-strong: #a0b1c9;
-  --c-surface: #f8fbff;
+  --glass-fill: rgb(253 254 253 / 0.92);
+  --c-fill: #e9efec;
+  --c-line: #dbe4df;
+  --c-line-strong: #9bafa2;
+  --c-surface: #fcfdfc;
 }
 .queue-selected {
-  background: linear-gradient(120deg, #dcdff6, #e9ecfb);
+  background: linear-gradient(120deg, #cee7d8, #e3f2e9);
 }
 .chat-bubble {
   border: 1px solid transparent;
 }
 .chat-bubble-client {
-  color: #23354a;
-  border-color: #d0dce9;
-  background: #e9f0f8;
+  color: #293b36;
+  border-color: #d5dfda;
+  background: #ffffff;
 }
 .chat-bubble-bot {
-  color: #555875;
-  border-color: #dbdbed;
-  background: #eeedf7;
+  color: #48596a;
+  border-color: #d3dfe8;
+  background: #edf3f7;
 }
 .chat-bubble-operator {
   color: #113f32;

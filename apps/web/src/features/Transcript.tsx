@@ -33,11 +33,11 @@ type Props = {
 const TAG = { neutral: 'bg-fill text-muted', success: 'bg-brand-soft text-accent', danger: 'bg-danger-soft text-danger', warn: 'bg-warn-soft text-warn' } as const;
 const TAG_ACTIVE = { neutral: 'bg-ink text-canvas', success: 'bg-brand text-[#0e151c]', danger: 'bg-danger text-canvas', warn: 'bg-warn text-canvas' } as const;
 
-/** Client on the left, operator (the graded party) on the right, bot dimmed, system as small centered notes. */
+/** Client on the left; operator and bot on the right; system events centered. */
 const BUBBLE: Record<Speaker, string> = {
   operator: 'chat-bubble chat-bubble-operator rounded-2xl rounded-tr-sm',
   client: 'chat-bubble chat-bubble-client rounded-2xl rounded-tl-sm',
-  bot: 'chat-bubble chat-bubble-bot rounded-2xl rounded-tl-sm',
+  bot: 'chat-bubble chat-bubble-bot rounded-2xl rounded-tr-sm',
   system: 'rounded-full bg-fill px-4 py-1 text-sm italic text-muted',
 };
 const NAME: Record<Speaker, string> = { operator: 'text-accent', client: 'text-ink', bot: 'text-muted', system: 'text-muted' };
@@ -130,7 +130,7 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
           const inChecked = checkedRange && m.index >= checkedRange.from && m.index <= checkedRange.to;
           const mine = tags.get(m.index) ?? [];
           const system = m.speaker === 'system';
-          const right = m.speaker === 'operator';
+          const right = m.speaker === 'operator' || m.speaker === 'bot';
           const gap = gapLabel(conversation.transcript[k - 1]?.timestamp, m.timestamp);
           const seg = canPlay ? segmentOf(conversation, m.index) : null;
           const isPlaying = player.playing === m.index;
