@@ -618,3 +618,18 @@ it('does not label an HTTP-backed workspace as a fictional offline demo', async 
   await screen.findByRole('link', { name: 'demo-ru-001' });
   expect(screen.queryByTitle(/Вымышленные данные/)).toBeNull();
 });
+
+it('does not label an HTTP-backed workspace as a fictional offline demo', async () => {
+  window.location.hash = '';
+  const mock = new MockCqaApi(demo);
+  const payloads: Record<string, unknown> = {
+    '/api/conversations': await mock.listConversations(),
+    '/api/evaluations': await mock.listEvaluations(),
+    '/api/checklists': await mock.listChecklists(),
+    '/api/appeals': await mock.listAppeals(),
+  };
+  const fetchFn = (async (url: string) => new Response(JSON.stringify(payloads[url.split('?')[0]!]), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch;
+  render(<ApiProvider api={new HttpCqaApi({ fetch: fetchFn })}><App /></ApiProvider>);
+  await screen.findByRole('link', { name: 'demo-ru-001' });
+  expect(screen.queryByTitle(/Вымышленные данные/)).toBeNull();
+});
