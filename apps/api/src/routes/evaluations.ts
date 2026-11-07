@@ -2,7 +2,6 @@ import { CreateAppealInputSchema, DecideAppealInputSchema, ListEvaluationsQueryS
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { Db } from '../db/index.js';
 import { AppealError, createAppeal, decideAppeal, listAppeals } from '../services/appeals.js';
-import { agentImprovements } from '../services/insights.js';
 import { getEvaluation, listEvaluations } from '../services/evaluations.js';
 import { JobError, type JobRunner } from '../services/evaluation/jobs.js';
 
@@ -17,8 +16,6 @@ export function evaluationRoutes(app: FastifyInstance, db: Db, runner: JobRunner
     if (!q.success) return reply.code(400).send({ error: 'invalid query' });
     return listEvaluations(db, q.data.conversationId);
   });
-
-  app.get<{ Querystring: { checklistVersionId?: string } }>('/api/insights/agent-improvements', async (req, reply) => agentImprovements(db, req.query.checklistVersionId) ?? reply.code(404).send({ error: 'checklist not found' }));
 
   app.post('/api/evaluations', async (req, reply) => {
     const body = StartEvaluationInputSchema.safeParse(req.body);
