@@ -1,0 +1,64 @@
+@import 'tailwindcss';
+
+/*
+ * Colors are taken from the Freedom Bank logo asset (bankffin.kz logo.svg), not from a published brandbook:
+ * green #02B140, dark green #164734, ink #0E151C. Contrast: white on #164734 = 10.6:1 (text, buttons);
+ * white on #02B140 = 2.85:1 (fails AA), so the bright green is used for accents, focus and marks only, and
+ * text on it is ink (6.45:1). Everything else is a tinted neutral so the greens stay the only chroma.
+ */
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  --color-brand: #02b140;
+  --color-brand-dark: #164734;
+  --color-brand-soft: #e6f6ec;
+  --color-ink: #0e151c;
+  --color-canvas: #f4f6f5;
+  --color-surface: #ffffff;
+  --color-line: #dbe3df;
+  --color-line-strong: #bccbc4;
+  --color-muted: #55645c;
+
+  --color-danger: #a8271c;
+  --color-danger-soft: #fdecea;
+  --color-warn: #7a5200;
+  --color-warn-soft: #fff3d1;
+
+  --radius-card: 10px;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss03';
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-dark;
+  }
+  ::selection {
+    background: var(--color-brand-soft);
+  }
+}
+
+@keyframes flash {
+  0% {
+    box-shadow: 0 0 0 0 rgb(2 177 64 / 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgb(2 177 64 / 0);
+  }
+}
+.flash {
+  animation: flash 0.9s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flash {
+    animation: none;
+  }
+}
