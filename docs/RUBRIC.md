@@ -45,6 +45,8 @@ A saved checklist has immutable version and schema: ID, section, description, an
 ## Reviewed criterion boundaries
 
 The versioned fictional examples in `apps/api/src/services/evaluation/calibration.ts` implement these interpretations for the unchanged original rubric:
+- When similar search results or an uncertain name prevent finding the intended item, asking whether the customer has/uses an exact identifier clarifies necessary search context. The identifier need not be dictated to the operator for 02 to pass.
+- When the customer initially only asks to reach an operator to explain their problem, the problem itself is missing information. Asking how to help identifies that need under 02; completing the handoff alone does not justify N/A.
 - Verification applicability follows the assistance actually undertaken: a declined protected check followed only by generic/public guidance is N/A. An accepted account-specific investigation still requires verification even if it is escalated rather than resolved.
 - Criterion 05 requires recognizable professional courtesy, not merely absence of insults or eventual correctness. In this formal Russian support setting, casual «Привет» does not establish politeness. No single apology phrase is mandatory.
 - Polite, relevant assistance may pass criterion 05 even when a separate improper private offer triggers 08. Assess an actual insult/dismissal or unaddressed inconvenience under 05 independently.
@@ -53,3 +55,7 @@ The versioned fictional examples in `apps/api/src/services/evaluation/calibratio
 - After a resolved exchange, a short successful-outcome acknowledgement or “Happy to help” with a farewell can satisfy criterion 07. A farewell alone does not.
 
 The examples are owner-reviewed policy clarifications, not adjudication of all ChatGPT reference labels. Changed criteria keep their own instructions; examples are selected by the original criterion signature, never conversation id.
+
+## Deterministic semantic decisions
+
+For unchanged original criteria 02, 04 and 06, the model supplies evidence-backed semantic facts and code selects the grade. No necessary missing information takes N/A precedence for 02. Criterion 04 tiers follow actual requested coverage; unasked details never create an omission. Criterion 06 uses the strongest demonstrated communication failure, so later correction cannot erase a forced re-ask. See `docs/ARCHITECTURE.md` for fact validation, storage and generic fallback. Extracting the wrong facts remains possible and requires review; deterministic mapping does not prove semantic accuracy.

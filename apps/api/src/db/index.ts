@@ -74,6 +74,7 @@ export function openDb(path: string) {
   // intentionally have no reusable cache context; legacy appeal rows (no kind) read as 'appeal'.
   const columns = (table: string) => sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns('evaluations').some((c) => c.name === 'cache_context')) sqlite.exec('ALTER TABLE evaluations ADD COLUMN cache_context TEXT');
+  if (!columns('evaluations').some((c) => c.name === 'decision_facts')) sqlite.exec('ALTER TABLE evaluations ADD COLUMN decision_facts TEXT');
   if (!columns('jobs').some((c) => c.name === 'force')) sqlite.exec('ALTER TABLE jobs ADD COLUMN force INTEGER NOT NULL DEFAULT 0');
   if (!columns('appeals').some((c) => c.name === 'kind')) sqlite.exec('ALTER TABLE appeals ADD COLUMN kind TEXT');
   return drizzle(sqlite, { schema });

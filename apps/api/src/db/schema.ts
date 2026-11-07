@@ -39,6 +39,7 @@ export const evaluations = sqliteTable('evaluations', {
   provenance: text('provenance', { mode: 'json' }),
   error: text('error'),
   cacheContext: text('cache_context'),
+  decisionFacts: text('decision_facts', { mode: 'json' }),
   createdAt: text('created_at').notNull(),
 });
 

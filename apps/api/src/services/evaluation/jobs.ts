@@ -6,6 +6,7 @@ import { evaluations, jobs } from '../../db/schema.js';
 import { getChecklist } from '../checklists.js';
 import { getConversation } from '../conversations.js';
 import { insertEvaluation } from '../evaluations.js';
+import type { DecisionFacts } from './semantic/index.js';
 import { evaluateConversation, planCriteria } from './evaluator.js';
 import { evaluationCacheContext, makeReuseLookup } from './reuse.js';
 import type { LlmProvider } from './provider.js';
@@ -94,8 +95,10 @@ export class JobRunner {
         const conversation = getConversation(this.db, id)!;
         const base = { id: `eval-${randomUUID()}`, conversationId: id, checklistVersionId: checklist.id };
         let ev: Evaluation;
+        let decisionFacts: DecisionFacts | undefined;
         try {
           const r = await evaluateConversation(provider, conversation, checklist, job.force ? undefined : makeReuseLookup(this.db, id, provider));
+          decisionFacts = r.decisionFacts;
           this.log.info({ conversationId: id, provider: r.provenance.provider, model: r.provenance.model, modelCriteria: r.modelCriteria.length, ...r.usage }, 'evaluation cost');
           ev = { ...base, status: 'completed', originalResults: r.results, originalTotal: r.total, finalResults: structuredClone(r.results), finalTotal: r.total, seriousViolation: r.seriousViolation, provenance: r.provenance };
         } catch (e) {
@@ -105,7 +108,7 @@ export class JobRunner {
         }
         // Evaluation row and job progress commit together, so a crash never loses or duplicates one.
         this.db.transaction((tx) => {
-          insertEvaluation(tx as unknown as Db, ev, evaluationCacheContext(conversation, provider));
+          insertEvaluation(tx as unknown as Db, ev, evaluationCacheContext(conversation, provider), decisionFacts);
           const cur = tx.select().from(jobs).where(eq(jobs.id, jobId)).get()!;
           tx.update(jobs).set({ evaluationIds: [...cur.evaluationIds, ev.id], completed: cur.completed + 1 }).where(eq(jobs.id, jobId)).run();
         });
