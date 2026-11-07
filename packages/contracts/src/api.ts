@@ -49,3 +49,22 @@ export const DecideAppealInputSchema = z
     }
   });
 export type DecideAppealInput = z.infer<typeof DecideAppealInputSchema>;
+
+/** GET /api/insights/agent-improvements: where the evaluated agent could be made deterministic (v0.1 addition). */
+export const AgentImprovementsSchema = z.object({
+  checklistVersionId: z.string(),
+  evaluations: z.number().int().nonnegative(),
+  items: z.array(
+    z.object({
+      criterionId: z.string(),
+      title: z.string(),
+      agentHint: z.string(),
+      /** True when a deterministic detector decides this criterion, so the failure is provable by rule. */
+      ruleCheckable: z.boolean(),
+      evaluated: z.number().int().nonnegative(),
+      shortfalls: z.number().int().nonnegative(),
+      conversationIds: z.array(z.string()),
+    }),
+  ),
+});
+export type AgentImprovements = z.infer<typeof AgentImprovementsSchema>;

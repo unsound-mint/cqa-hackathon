@@ -67,6 +67,9 @@ Implemented in `packages/contracts` (Zod). v0 in `docs/INTERFACES.md` is unchang
 | `listAppeals({evaluationId})` | `GET /api/evaluations/:id/appeals` | show appeals and decisions |
 | `Appeal.createdAt/decidedAt` | | audit trail |
 | `CriterionResult.confidence` (`high`/`medium`/`low`, optional) | | model certainty; `low` (noisy speech recognition, recording gap) should be routed to human review in the UI |
+| `Criterion.detector?`, `Criterion.agentHint?` | `GET /api/detectors` | optional deterministic rule per criterion; hint on how the evaluated agent could guarantee it |
+| `CriterionResult.source?` (`rule`/`model`), `reusedFrom?` | | who decided; set only by code, never by the model |
+| `AgentImprovements` | `GET /api/insights/agent-improvements?checklistVersionId=` | per hinted criterion: evaluations, shortfalls, conversation ids |
 | `Evaluation.provenance {provider, model, promptVersion}` | | per-evaluation provenance; `provider: 'mock'` marks fictional output, the UI must label it |
 
 Rules fixed in the schemas: `CriterionResult` has exactly one of `isNA` / a value; `boolean` allows `[true,false]`; `discrete-scale` needs >=2 non-negative numeric tiers (top tier = full weight); `enum` criteria must have weight 0 (no numeric meaning defined); `criticalFlag` criteria are boolean with weight 0; criterion ids unique per checklist; `Conversation.transcript[i].index === i`.
@@ -78,3 +81,15 @@ Rules fixed in the schemas: `CriterionResult` has exactly one of `isNA` / a valu
 **Frontend service:** `apps/web/src/api/CqaApi.ts` is the interface; `MockCqaApi` (in-memory over `fixtures/demo.json`, returns copies, overrides never touch `originalResults`/`originalTotal`, a saved checklist is a new immutable version and mock evaluations use that version's own criteria with placeholder results) is the only implementation so far. `createApi()` in `apps/web/src/api/index.ts` is the one place to switch to `HttpCqaApi`. Mock/real is chosen there, not in components. Mock errors are `CqaApiError('not_found'|'invalid'|'conflict')`; HTTP should map 404/400/409 to the same codes.
 
 **Packaging:** `@cqa/contracts` is consumed as TypeScript source (no build step); the API bundles it with tsup. Server-only secrets are unprefixed env vars; `VITE_*` is public.
+
+## Rules first, reuse second, model last
+For each criterion of an evaluation, in this order (`services/evaluation/evaluator.ts: planCriteria`):
+1. **Detector** (`Criterion.detector`, rules in `services/evaluation/detectors/`). A detector only *proves* an answer (a greeting + introduction in the client's language in the first operator turn: Yes; a goodbye in the last operator turn: Yes; the client side hung up right after speaking: N/A). If it cannot prove it, it returns undecided, never "No", and the model decides. Unknown detector names are rejected when a checklist is saved.
+2. **Reuse** (`reuse.ts`). If the same conversation already has a result for a criterion with the same `criterionSignature` (instructions, kind, values, N/A rule, flag, detector; not weight/title/section/hint), the stored original result is copied with `reusedFrom`. Switching a criterion off (weight 0) or re-weighting therefore rescoring needs **no model call and no API key**. Reviewer overrides are not carried over.
+3. **Model** for what is left, with `alreadyDecided` as context. If nothing is left the model is never called; `POST /api/evaluations` answers 503 up front only when a needed model is missing.
+
+A criterion without a detector (any user-added one) always works through the model, so the changed-checklist requirement holds. Detectors are a fast path, never the only one.
+
+**Provisional policy, needs a human decision (issue "Decide criterion 07 strictness"):** the rubric says the closing "summarizes or offers further help AND says goodbye", but most DEV closings are a bare goodbye ("Пожалуйста. Хорошего дня!"). The `closing` detector currently accepts a goodbye alone (`REQUIRE_OFFER_OR_SUMMARY = false` in `detectors/closing.ts`).
+
+**Agent improvement report:** criteria may carry an `agentHint`, a concrete way the evaluated agent could make the failure impossible (greeting template on join, verification gate, automatic wait message, closing template). `agentImprovements()` counts final-result shortfalls per hinted criterion. `ruleCheckable` is true when a detector decides the criterion, so the shortfall is provable by rule.
