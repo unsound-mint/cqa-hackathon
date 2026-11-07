@@ -226,6 +226,7 @@ describe('AnthropicProvider', () => {
     expect(body.model).toBe('m');
     expect(body.system[0]).toMatchObject({ type: 'text', text: 's', cache_control: { type: 'ephemeral' } });
     expect(body.tools[0].name).toBe('submit_evaluation');
+    expect(body.tools[0].strict).toBe(true);
   });
 
   it('defaults to medium effort', async () => {

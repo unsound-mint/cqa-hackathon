@@ -4,7 +4,8 @@ import original from '../../checklists/original.json';
 import { ASSISTED_DETECTORS, DETECTORS } from './detectors/index.js';
 import type { AssistedDetector } from './detectors/types.js';
 import { deriveFacts } from './facts.js';
-import { OUTPUT_SCHEMA, PROMPT_VERSION, SYSTEM_PROMPT } from './prompts.js';
+import { PROMPT_VERSION, SYSTEM_PROMPT } from './prompts.js';
+import { buildOutputSchema } from './output-schema.js';
 import type { LlmProvider } from './provider.js';
 
 export class EvaluationFailure extends Error {}
@@ -29,7 +30,12 @@ function buildUserPayload(c: Conversation, checklist: Pick<ChecklistVersion, 'id
   });
 }
 
-const RawSchema = z.object({ results: z.array(z.unknown()), assisted: z.array(z.object({ criterionId: z.string(), answers: z.unknown() })).optional() });
+const AssistedAnswersSchema = z.union([
+  // Retain support for provider-neutral adapters that already return the original array representation.
+  z.array(z.object({ criterionId: z.string(), answers: z.unknown() })),
+  z.record(z.string(), z.unknown()).transform((answers) => Object.entries(answers).map(([criterionId, value]) => ({ criterionId, answers: value }))),
+]);
+const RawSchema = z.object({ results: z.array(z.unknown()), assisted: AssistedAnswersSchema.optional() });
 
 export type AssistedItem = { criterion: Criterion; detector: AssistedDetector<any> };
 
@@ -183,10 +189,11 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
   if (undecided.length > 0 || assisted.length > 0) {
     if (!provider) throw new EvaluationFailure(`a model is required for criteria: ${[...undecided, ...assisted.map((a) => a.criterion)].map((c) => c.id).join(', ')}`);
     const subset = { id: checklist.id, criteria: undecided };
+    const outputSchema = buildOutputSchema(undecided, assisted);
     let problems: string[] = [];
     let ok = false;
     for (let attempt = 1; attempt <= maxAttempts && !ok; attempt++) {
-      const res = await provider.complete({ system: SYSTEM_PROMPT, user: buildUserPayload(conversation, subset, [...decided.values()], assisted, problems), outputSchema: OUTPUT_SCHEMA as unknown as Record<string, unknown> });
+      const res = await provider.complete({ system: SYSTEM_PROMPT, user: buildUserPayload(conversation, subset, [...decided.values()], assisted, problems), outputSchema });
       usage.inputTokens += res.usage?.inputTokens ?? 0;
       usage.outputTokens += res.usage?.outputTokens ?? 0;
       usage.cacheReadTokens += res.usage?.cacheReadTokens ?? 0;
