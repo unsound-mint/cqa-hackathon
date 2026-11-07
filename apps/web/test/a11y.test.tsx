@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import axe from 'axe-core';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { ApiProvider } from '../src/ApiContext';
 import { App } from '../src/App';
@@ -49,7 +49,9 @@ it('review screen of a voice call has none', async () => {
 
 it('checklist editor has none', async () => {
   await open('#/checklist', 'Чек-лист');
-  fireEvent.click((await screen.findAllByRole('button', { expanded: false }))[0]!);
+  // Wide layout: the list selects, the form beside it edits (no accordion).
+  fireEvent.click(within(await screen.findByRole('navigation', { name: 'Критерии' })).getAllByRole('button')[1]!);
+  expect(screen.getByRole('region', { name: 'Критерий' })).toBeTruthy();
   expect(await violations()).toEqual([]);
 });
 

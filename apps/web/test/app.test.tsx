@@ -211,10 +211,12 @@ it('blocks saving an invalid criterion and says why', async () => {
 
 it('a deleted criterion can be put back before saving', async () => {
   renderApp(demo, '#/checklist');
-  fireEvent.click(await screen.findByRole('button', { name: 'Удалить критерий 03' }));
+  // Delete lives in the selected criterion's form; the list selects.
+  fireEvent.click(within(await screen.findByRole('navigation', { name: 'Критерии' })).getByRole('button', { name: /^03/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Удалить критерий 03' }));
   expect(screen.queryByRole('button', { name: 'Удалить критерий 03' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Вернуть' }));
-  expect(screen.getByRole('button', { name: 'Удалить критерий 03' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Удалить критерий 03' })).toBeTruthy(); // restored and selected again
   expect(screen.getByText('Изменений нет.')).toBeTruthy();
 });
 
