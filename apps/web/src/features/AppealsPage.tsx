@@ -52,11 +52,11 @@ export function AppealsPage({ appeals: all, evaluations, checklists, conversatio
       </div>
 
       {rows.length === 0 ? (
-        <div className="rounded-card border border-line bg-surface p-6 text-sm text-muted">
+        <div className="rounded-card border border-line glass-panel p-6 text-sm text-muted">
           {appeals.length === 0 ? 'Апелляций пока нет. Оператор может оспорить оценку в карточке диалога: откройте критерий и нажмите «Оспорить оценку».' : filter === 'pending' ? 'Нет обращений, ожидающих решения.' : 'Нет решённых обращений.'}
         </div>
       ) : (
-        <div className="min-h-0 overflow-auto rounded-card border border-line bg-surface shadow-card">
+        <div className="min-h-0 overflow-auto rounded-card border border-line glass-panel">
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">Апелляции</caption>
             <thead className="sticky top-0 z-10 bg-surface text-xs text-muted shadow-[0_1px_0_var(--c-line)]">

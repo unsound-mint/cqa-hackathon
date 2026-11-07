@@ -35,9 +35,9 @@ const TAG_ACTIVE = { neutral: 'bg-ink text-canvas', success: 'bg-brand text-[#0e
 
 /** Client on the left, operator (the graded party) on the right, bot dimmed, system as small centered notes. */
 const BUBBLE: Record<Speaker, string> = {
-  operator: 'rounded-2xl rounded-tr-sm bg-brand-soft',
-  client: 'rounded-2xl rounded-tl-sm border border-line-strong bg-surface',
-  bot: 'rounded-2xl rounded-tl-sm bg-fill text-muted',
+  operator: 'glass-inset rounded-2xl rounded-tr-sm bg-brand-soft',
+  client: 'glass-inset rounded-2xl rounded-tl-sm bg-surface/40',
+  bot: 'glass-inset rounded-2xl rounded-tl-sm bg-fill/40 text-muted',
   system: 'rounded-full bg-fill px-4 py-1 text-sm italic text-muted',
 };
 const NAME: Record<Speaker, string> = { operator: 'text-accent', client: 'text-ink', bot: 'text-muted', system: 'text-muted' };
