@@ -3,11 +3,11 @@ import type { ChecklistVersion, Criterion, CriterionResult } from './domain.js';
 /**
  * THE single total calculation (docs/RUBRIC.md "Calculation"). Driven only by criterion
  * kind / allowedValues / weight / allowNA — never by criterion id. Fails closed on invalid input.
- * Used by MockCqaApi today; the API scorer (issue D3) must extend this module, not copy it.
+ * Used by MockCqaApi and the API; extend this module, never copy it.
  *
- * Rounding is PROVISIONAL: the rubric only says "two decimals". We round half away from zero on the
- * decimal value (the epsilon only helps for tiny totals; exact-binary halfway cases are fine). Revisit in
- * issue D3 / when the organizer clarifies.
+ * Rounding decision (docs/RUBRIC.md leaves halfway cases open): two decimals, halves round away from
+ * zero, judged on the decimal value. The product is first cleaned to 12 significant digits so binary
+ * noise such as 28.499999999999996 is treated as the 28.5 it represents. Change only with a human decision.
  */
 
 export class ScoringError extends Error {}
@@ -23,7 +23,8 @@ function normalized(c: Criterion, value: NonNullable<CriterionResult['value']>):
 }
 
 export function roundTo2(x: number): number {
-  return Math.sign(x) * (Math.round((Math.abs(x) + Number.EPSILON) * 100) / 100);
+  const scaled = Number((Math.abs(x) * 100).toPrecision(12));
+  return (Math.sign(x) * Math.round(scaled)) / 100;
 }
 
 /** Weighted 0..100 total over applicable criteria, or null when no weighted criterion applies. */
