@@ -1,7 +1,6 @@
 import { SaveChecklistInputSchema, type ChecklistVersion, type Criterion, type CriterionKind, type CriterionValue } from '@cqa/contracts';
 import { ArrowDown, ArrowUp, CheckCircle2, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Select, Textarea } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
@@ -125,6 +124,10 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
     <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col">
       <div className="space-y-3 border-b border-line bg-surface px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-end gap-3">
+          <div className="w-full">
+            <h1 className="text-2xl font-semibold leading-8">Чек-лист</h1>
+            <p className="text-sm text-muted">Сохранение создаёт новую версию: старые версии и оценки по ним не меняются.</p>
+          </div>
           <Field id="cl-title" label="Название чек-листа" className="min-w-60 flex-1">
             <Input id="cl-title" value={title} onChange={(e) => setTitle(e.target.value)} />
           </Field>
@@ -137,28 +140,26 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
           </Field>
         </div>
         <p className="text-xs text-muted">
-          Сохранение создаёт новую версию. Старые версии и оценки по ним не меняются. Сумма весов: <strong className={weightSum === 100 ? 'text-accent' : 'text-warn'}>{weightSum}</strong>
+          Сумма весов: <strong className={weightSum === 100 ? 'text-accent' : 'text-warn'}>{weightSum}</strong>
           {weightSum !== 100 && ' (итоговый балл считается от применимых весов, но обычно сумма равна 100)'}.
         </p>
       </div>
 
-      <ol className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-4 sm:p-6">
+      <ol className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 sm:p-6">
         {draft.map((c, i) => {
           const isOpen = open === c.id;
           const err = errors.get(c.id);
           return (
             <li key={c.id} className={cn('rounded-card border bg-surface', err ? 'border-danger/50' : 'border-line')}>
-              <div className="flex items-center gap-2 px-3 py-2.5">
+              <div className="flex items-center gap-2 px-3 py-3">
                 <button type="button" onClick={() => setOpen(isOpen ? null : c.id)} aria-expanded={isOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
                   <span className="font-mono text-xs text-muted">{c.id}</span>
-                  <span className="min-w-0 flex-1 truncate font-medium">{c.title || <em className="font-normal text-muted">Без названия</em>}</span>
-                  <Badge>{c.criticalFlag ? 'флаг' : `вес ${c.weight}`}</Badge>
-                  <Badge tone="neutral">{KIND_LABEL[c.kind]}</Badge>
-                  {c.allowNA && <Badge>N/A</Badge>}
+                  <span className="min-w-0 flex-1 truncate text-base font-medium">{c.title || <em className="font-normal text-muted">Без названия</em>}</span>
+                  <span className="hidden shrink-0 text-xs text-muted sm:inline">{c.criticalFlag ? 'флаг' : `вес ${c.weight}`} · {KIND_LABEL[c.kind]}{c.allowNA ? ' · N/A' : ''}</span>
                 </button>
                 <Button variant="ghost" size="sm" aria-label={`Поднять критерий ${c.id}`} onClick={() => move(i, -1)} disabled={i === 0}><ArrowUp aria-hidden className="size-4" /></Button>
                 <Button variant="ghost" size="sm" aria-label={`Опустить критерий ${c.id}`} onClick={() => move(i, 1)} disabled={i === draft.length - 1}><ArrowDown aria-hidden className="size-4" /></Button>
-                <Button variant="ghost" size="sm" aria-label={`Удалить критерий ${c.id}`} onClick={() => setDraft((d) => d.filter((x) => x.id !== c.id))}><Trash2 aria-hidden className="size-4 text-danger" /></Button>
+                <Button variant="ghost" size="sm" className="hover:bg-danger-soft" aria-label={`Удалить критерий ${c.id}`} onClick={() => setDraft((d) => d.filter((x) => x.id !== c.id))}><Trash2 aria-hidden className="size-4 text-muted" /></Button>
               </div>
               {err && !isOpen && <p role="alert" className="px-3 pb-2 text-xs text-danger">{err}</p>}
 

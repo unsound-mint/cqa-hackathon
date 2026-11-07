@@ -1,0 +1,30 @@
+# Design rules (apps/web)
+
+Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid spacing.
+
+## Grid
+- **4px unit, 8px rhythm.** Spacing and component sizes are multiples of 8 (4 for tight gaps, icons, type). Material's layout guide uses the same split: most measurements on 8dp, icons and type on 4dp.
+- Spacing scale (Tailwind steps): 4 (`1`), 8 (`2`), 12 (`3`), 16 (`4`), 24 (`6`), 32 (`8`), 48 (`12`). No half steps (`gap-1.5`, `px-3.5`, `py-0.5`) and no arbitrary pixel values that are not multiples of 4.
+- Control heights: 32 compact (`h-8`), 40 default (`h-10`), 48 primary or touch (`h-12`). Badges 24 (`h-6`).
+- Radii: 8 inputs, 12 rows and messages, 16 cards, full for pills and chips.
+- Layout widths: queue rail 280, verdict panel 480, page gutter 16/24, gap between panes 16.
+
+## Type (size / line-height, all multiples of 4)
+| Role | Class | Use |
+|---|---|---|
+| Score | `text-score` 56/64, semibold | total score only |
+| Page title | `text-2xl` 24/32, semibold | one per screen: dialog id, "Диалоги", "Чек-лист" |
+| Section title | `text-base` 16/24, semibold | panel headings |
+| Primary content | `text-base` 16/24 | message text, criterion titles, row titles |
+| Secondary | `text-sm` 14/20 | labels, controls, explanations |
+| Meta | `text-xs` 12/16, muted | timestamps, weights, hints |
+
+## Hierarchy
+1. The score and any serious violation come first (dark-green banner, largest type, red block for a violation).
+2. Then the open criterion and its evidence (selected row, tags and ring on the cited messages).
+3. Then the graded party: operator messages carry the weight (tinted row, green name); client is plain; bot and system recede.
+4. Metadata (weights, time, source, confidence) is small and muted. Chips are for state only (answer, needs review, changed, appeal), never for static facts.
+
+## Color
+- Neutrals carry the UI; green is an accent: marks, focus, the open row, the primary action. `text-accent` is the green for text (#164734 light, #5FD28D dark). Bright green `#02B140` never carries white text.
+- Red only for a violation or an error, amber only for "needs a human look" or a partial score. Theme colors are CSS variables (`index.css`); components use the semantic names.

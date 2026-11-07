@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
-import { CONFIDENCE_LABEL, SOURCE_LABEL, earnedPoints, formatScore, needsReview, outcome, sameResult } from '@/lib/present';
+import { CONFIDENCE_LABEL, SOURCE_LABEL, earnedPoints, formatScore, needsReview, outcome, sameResult, shortOutcome } from '@/lib/present';
 import { violationReasons } from '@/lib/queue';
 import { AppealBox } from './Appeals';
 
@@ -42,8 +42,8 @@ function EvidenceChip({ e, conversation, onJump }: { e: EvidenceReference; conve
   const problem = evidenceProblem(conversation, e);
   if (problem) {
     return (
-      <span role="note" title={problem} className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-danger-soft px-3 py-1.5 text-xs text-danger">
-        <Link2Off aria-hidden className="size-3.5 shrink-0" />#{e.messageIndex}: {problem}
+      <span role="note" title={problem} className="inline-flex max-w-full items-center gap-2 rounded-full bg-danger-soft px-3 py-2 text-xs text-danger">
+        <Link2Off aria-hidden className="size-4 shrink-0" />#{e.messageIndex}: {problem}
       </span>
     );
   }
@@ -54,10 +54,10 @@ function EvidenceChip({ e, conversation, onJump }: { e: EvidenceReference; conve
         ev.stopPropagation();
         onJump(e.messageIndex);
       }}
-      className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border border-line-strong bg-surface px-3 text-left text-xs transition-colors hover:border-accent hover:bg-brand-soft"
+      className="inline-flex min-h-10 max-w-full items-center gap-2 rounded-full border border-line-strong bg-surface px-3 text-left text-sm transition-colors hover:border-accent hover:bg-brand-soft"
       aria-label={`Перейти к сообщению ${e.messageIndex}${e.quote ? `: ${e.quote}` : ''}`}
     >
-      <Quote aria-hidden className="size-3.5 shrink-0 text-accent" />
+      <Quote aria-hidden className="size-4 shrink-0 text-accent" />
       <span className="shrink-0 font-semibold tabular-nums">#{e.messageIndex}</span>
       {e.quote && <span className="truncate text-muted">«{e.quote}»</span>}
     </button>
@@ -79,15 +79,15 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
   const panelId = `crit-${evaluationId}-${result.criterionId}`;
 
   return (
-    <li className={cn('rounded-2xl transition-colors', open ? 'bg-fill ring-1 ring-brand/60' : 'hover:bg-fill/60')}>
-      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="w-full rounded-2xl px-3.5 py-3 text-left">
-        <span className="flex items-start justify-between gap-3">
+    <li id={`row-${evaluationId}-${result.criterionId}`} className={cn('rounded-2xl transition-colors', open ? 'bg-fill ring-1 ring-brand/60' : 'hover:bg-fill/60')}>
+      <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="w-full rounded-2xl px-4 py-3 text-left">
+        <span className="flex items-start justify-between gap-4">
           <span className="min-w-0">
-            <span className="block font-medium leading-snug">
-              <span className="mr-1.5 tabular-nums text-muted">{result.criterionId}</span>
+            <span className="block text-base font-medium leading-6">
+              <span className="mr-2 text-sm tabular-nums text-muted">{result.criterionId}</span>
               {criterion?.title ?? 'Критерий не найден в чек-листе'}
             </span>
-            <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+            <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
               {criterion?.criticalFlag ? 'флаг, без баллов' : result.isNA ? `вес ${weight}: не считается` : `вес ${weight}`}
               {needsReview(result) && <Badge tone="warn">Проверить</Badge>}
               {changed && <Badge tone="warn">Изменено ревьюером</Badge>}
@@ -97,25 +97,25 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
           </span>
           <span className="flex shrink-0 items-center gap-2">
             {changed && original && <span className="text-xs text-muted line-through" aria-label={`Ответ ИИ был: ${outcome(criterion, original).label}`}>ИИ: {outcome(criterion, original).label}</span>}
-            <span className={cn('rounded-full px-3 py-1 text-sm font-semibold whitespace-nowrap', CHIP[o.tone])}>{o.label}</span>
+            <span className={cn('inline-flex h-8 items-center rounded-full px-3 text-sm font-semibold whitespace-nowrap', CHIP[o.tone])}>{o.label}</span>
             <ChevronDown aria-hidden className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} />
           </span>
         </span>
         {pts !== null && weight > 0 && (
-          <span className="mt-2 flex items-center gap-3">
+          <span className="mt-3 flex items-center gap-4">
             <span className="h-1 flex-1 rounded-full bg-line"><span className={cn('block h-1 rounded-full', BAR[o.tone])} style={{ width: `${Math.round((pts / weight) * 100)}%` }} /></span>
-            <span className="min-w-14 text-right text-xs tabular-nums text-muted">{formatScore(pts)} / {weight}</span>
+            <span className="min-w-16 text-right text-xs tabular-nums text-muted">{formatScore(pts)} / {weight}</span>
           </span>
         )}
       </button>
 
       {open && (
-        <div id={panelId} className="space-y-3 px-3.5 pb-4">
+        <div id={panelId} className="space-y-4 px-4 pb-4">
           {result.isNA && result.naReason && <p className="text-sm"><span className="font-medium">Причина N/A:</span> {result.naReason}</p>}
-          <p className="text-sm leading-relaxed">{result.explanation}</p>
+          <p className="text-sm leading-5">{result.explanation}</p>
 
           {result.evidence.length > 0 && (
-            <div className="flex flex-wrap gap-1.5" aria-label="Доказательства">
+            <div className="flex flex-wrap gap-2" aria-label="Доказательства">
               {result.evidence.map((e, i) => (
                 <EvidenceChip key={`${e.messageIndex}-${i}`} e={e} conversation={conversation} onJump={onJump} />
               ))}
@@ -202,29 +202,31 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
     ? [...sections.map((s) => ({ id: s.id, title: s.title, rows: shown.filter((r) => lookup(r.criterionId)?.sectionId === s.id) })), { id: '_', title: 'Прочее', rows: shown.filter((r) => !sections.some((s) => s.id === lookup(r.criterionId)?.sectionId)) }].filter((g) => g.rows.length)
     : [{ id: '_', title: '', rows: shown }];
 
+  const scorecardRows = shown.map((r) => ({ r, c: lookup(r.criterionId) }));
+
   return (
     <section aria-label="Оценка" className="flex h-full min-h-0 flex-col">
       {isMock && (
-        <p className="flex items-center gap-2 bg-warn-soft px-4 py-2 text-xs text-warn" role="note">
+        <p className="flex items-center gap-2 bg-warn-soft px-6 py-2 text-xs text-warn" role="note">
           <FlaskConical aria-hidden className="size-4 shrink-0" />
           Демо-данные: вымышленный пример, а не оценка модели.
         </p>
       )}
 
-      <header className="verdict px-6 pb-5 pt-5">
+      <header className="verdict px-6 py-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-medium text-[#9fb5a9]">Оценка</h2>
-          <div className="flex flex-wrap gap-1.5">
-            {pendingIds.size > 0 && <span className="rounded-full bg-white/10 px-3 py-1 text-xs">Апелляция: {pendingIds.size}</span>}
-            {changedCount > 0 && <span className="rounded-full bg-white/10 px-3 py-1 text-xs">Изменено ревьюером: {changedCount}</span>}
+          <div className="flex flex-wrap gap-2">
+            {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Апелляция: {pendingIds.size}</span>}
+            {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Изменено ревьюером: {changedCount}</span>}
           </div>
         </div>
-        <p className="mt-2 flex items-baseline gap-2.5">
-          <span className="text-6xl font-medium leading-none tracking-tight tabular-nums">{formatScore(evaluation.finalTotal)}</span>
-          <span className="text-[#9fb5a9]">из 100</span>
+        <p className="mt-2 flex items-baseline gap-2">
+          <span className="text-score font-semibold tracking-tight tabular-nums">{formatScore(evaluation.finalTotal)}</span>
+          <span className="text-base text-[#9fb5a9]">из 100</span>
         </p>
         {evaluation.originalTotal !== evaluation.finalTotal && <p className="mt-1 text-xs text-[#9fb5a9]">Исходная оценка ИИ: {formatScore(evaluation.originalTotal)}</p>}
-        <p className="mt-1.5 text-sm text-[#9fb5a9]">
+        <p className="mt-2 text-sm text-[#9fb5a9]">
           {evaluation.finalTotal === null
             ? 'Нет применимых критериев: балл не считается.'
             : lost.length
@@ -234,19 +236,19 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         </p>
 
         {evaluation.seriousViolation ? (
-          <div className="mt-4 rounded-xl bg-[#3a1a16] p-3 text-[#ffd3cb]" role="alert">
-            <p className="flex items-center gap-2 text-sm font-semibold"><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</p>
+          <div className="mt-4 rounded-xl bg-[#3a1a16] p-4 text-[#ffd3cb]" role="alert">
+            <p className="flex items-center gap-2 text-base font-semibold"><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</p>
             {reasons.length === 0 && <p className="mt-1 text-sm">Флаг поднят.</p>}
             {reasons.map((r) => (
-              <p key={r.criterionId} className="mt-1 text-sm"><span className="font-medium">{r.title}:</span> {r.explanation}</p>
+              <p key={r.criterionId} className="mt-1 text-sm leading-5"><span className="font-medium">{r.title}:</span> {r.explanation}</p>
             ))}
           </div>
         ) : (
-          <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm"><span aria-hidden className="size-1.5 rounded-full bg-brand" />Грубых нарушений нет</p>
+          <p className="mt-4 inline-flex h-8 items-center gap-2 rounded-full bg-white/10 px-3 text-sm"><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</p>
         )}
       </header>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-2.5 text-sm">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-6 py-3">
         {versions.length > 1 && (
           <label className="flex items-center gap-2 text-xs">
             <span className="text-muted">Оценка по версии:</span>
@@ -268,10 +270,35 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         {startError && <span role="alert" className="text-xs text-danger">{startError}</span>}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-surface p-3">
+      <div className="border-b border-line bg-surface px-6 py-4">
+        <p className="mb-2 text-xs font-medium text-muted">Критерии: нажмите, чтобы открыть</p>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(56px,1fr))] gap-2">
+          {scorecardRows.map(({ r, c }) => {
+            const o = outcome(c, r);
+            return (
+              <button
+                key={r.criterionId}
+                type="button"
+                onClick={() => {
+                  onSelectCriterion(r.criterionId);
+                  document.getElementById(`row-${evaluation.id}-${r.criterionId}`)?.scrollIntoView?.({ block: 'nearest' });
+                }}
+                aria-label={`Критерий ${r.criterionId}: ${o.label}`}
+                aria-pressed={selectedCriterionId === r.criterionId}
+                className={cn('flex h-12 flex-col items-center justify-center rounded-xl text-center transition-colors', CHIP[o.tone], selectedCriterionId === r.criterionId && 'ring-2 ring-ink')}
+              >
+                <span className="text-sm font-semibold leading-5 tabular-nums">{r.criterionId}</span>
+                <span className="text-xs leading-4">{shortOutcome(c, r)}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-surface p-2 pb-6">
         {groups.map((g) => (
           <div key={g.id}>
-            {g.title && <h3 className="mb-1 px-3.5 text-xs font-medium text-muted">{g.title}</h3>}
+            {g.title && <h3 className="mb-1 mt-2 px-4 text-xs font-medium text-muted">{g.title}</h3>}
             <ul className="space-y-1">
               {g.rows.map((r) => (
                 <CriterionRow
@@ -292,7 +319,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
             </ul>
           </div>
         ))}
-        {shown.length === 0 && <p className="p-3 text-sm text-muted">Ничего не требует внимания.</p>}
+        {shown.length === 0 && <p className="p-4 text-sm text-muted">Ничего не требует внимания.</p>}
       </div>
     </section>
   );

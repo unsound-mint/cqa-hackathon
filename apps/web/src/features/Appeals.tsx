@@ -79,11 +79,11 @@ export function AppealBox({ evaluationId, criterionId, criterion, appeals, onCre
             void run(() => onDecide({ appealId: pending.id, action, reason: reason.trim(), ...(action === 'override' && o ? { value: o.value, isNA: o.isNA } : {}) }));
           }}
         >
-          <p className="flex items-center gap-1.5 text-sm font-medium"><Gavel aria-hidden className="size-4 text-accent" />Решение ревьюера</p>
+          <p className="flex items-center gap-2 text-sm font-medium"><Gavel aria-hidden className="size-4 text-accent" />Решение ревьюера</p>
           <p className="text-xs text-muted">Вход в систему и роли в демо не реализованы: решение принимает любой пользователь. Исходный ответ ИИ сохраняется всегда.</p>
           <div role="radiogroup" aria-label="Решение" className="flex gap-4 text-sm">
-            <label className="flex items-center gap-1.5"><input type="radio" name={`act-${id}`} checked={action === 'uphold'} onChange={() => setAction('uphold')} className="accent-brand" />Оставить оценку ИИ</label>
-            <label className="flex items-center gap-1.5"><input type="radio" name={`act-${id}`} checked={action === 'override'} onChange={() => setAction('override')} className="accent-brand" />Изменить оценку</label>
+            <label className="flex items-center gap-2"><input type="radio" name={`act-${id}`} checked={action === 'uphold'} onChange={() => setAction('uphold')} className="accent-brand" />Оставить оценку ИИ</label>
+            <label className="flex items-center gap-2"><input type="radio" name={`act-${id}`} checked={action === 'override'} onChange={() => setAction('override')} className="accent-brand" />Изменить оценку</label>
           </div>
           {action === 'override' && (
             <Field id={`val-${id}`} label="Новое значение">

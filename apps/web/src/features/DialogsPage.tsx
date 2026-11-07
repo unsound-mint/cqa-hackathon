@@ -32,7 +32,7 @@ function Chip({ pressed, onClick, children, tone }: { pressed: boolean; onClick:
       aria-pressed={pressed}
       onClick={onClick}
       className={cn(
-        'inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm transition-colors',
+        'inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm transition-colors',
         pressed ? 'border-ink bg-ink text-canvas' : 'border-line bg-surface text-ink hover:border-line-strong',
         !pressed && tone === 'danger' && 'text-danger',
         !pressed && tone === 'warn' && 'text-warn',
@@ -74,7 +74,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
     <th scope="col" aria-sort={sort?.key === key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'} className={cn('px-3 py-2 text-left font-medium', className)}>
       <button type="button" onClick={() => setSort((s) => (s?.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: key === 'score' ? -1 : 1 }))} className="inline-flex items-center gap-1 rounded hover:text-ink">
         {label}
-        {sort?.key === key && (sort.dir === 1 ? <ArrowUp aria-hidden className="size-3.5" /> : <ArrowDown aria-hidden className="size-3.5" />)}
+        {sort?.key === key && (sort.dir === 1 ? <ArrowUp aria-hidden className="size-4" /> : <ArrowDown aria-hidden className="size-4" />)}
       </button>
     </th>
   );
@@ -82,7 +82,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
   return (
     <section aria-label="Диалоги" className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
       <div>
-        <h2 className="text-xl font-semibold">Диалоги</h2>
+        <h1 className="text-2xl font-semibold leading-8">Диалоги</h1>
         <p className="text-sm text-muted">Очередь проверки: откройте диалог, чтобы увидеть оценку и её обоснование.</p>
       </div>
 
@@ -92,12 +92,12 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
           <Search aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-muted" />
           <input type="search" value={filters.query} onChange={(e) => set({ query: e.target.value })} placeholder="Номер или текст диалога" className="h-10 w-full rounded-full border border-line bg-surface pl-9 pr-4 text-sm placeholder:text-muted" />
         </label>
-        <div role="group" aria-label="Язык" className="flex gap-1.5">
+        <div role="group" aria-label="Язык" className="flex gap-2">
           {LANGS.map((l) => (
             <Chip key={l} pressed={filters.lang === l} onClick={() => set({ lang: l })}>{l === 'all' ? 'Все языки' : l}</Chip>
           ))}
         </div>
-        <div role="group" aria-label="Канал" className="flex gap-1.5">
+        <div role="group" aria-label="Канал" className="flex gap-2">
           {CHANNELS.map((x) => (
             <Chip key={x.value} pressed={filters.channel === x.value} onClick={() => set({ channel: x.value })}>{x.label}</Chip>
           ))}
@@ -121,7 +121,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">Диалоги с оценками</caption>
             <thead className="sticky top-0 z-10 bg-surface text-xs text-muted shadow-[0_1px_0_var(--c-line)]">
-              <tr>
+              <tr className="h-10">
                 {th('id', 'Диалог')}
                 <th scope="col" className="hidden px-3 py-2 text-left font-medium sm:table-cell">Язык и канал</th>
                 {th('score', 'Балл')}
@@ -138,17 +138,17 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
                 return (
                   <tr key={x.id} onClick={() => onOpen(x.id)} className="cursor-pointer align-top hover:bg-brand-soft/60">
                     <td className="px-3 py-3">
-                      <a href={`#/dialog/${encodeURIComponent(x.id)}`} onClick={(ev) => ev.stopPropagation()} className="font-medium text-accent underline-offset-2 hover:underline">{x.id}</a>
+                      <a href={`#/dialog/${encodeURIComponent(x.id)}`} onClick={(ev) => ev.stopPropagation()} className="text-base font-medium text-accent underline-offset-2 hover:underline">{x.id}</a>
                       <div className="text-xs text-muted">{x.transcript.length} сообщ.</div>
                       {reasons.length > 0 && <p className="mt-1 text-xs text-danger md:hidden">{reasons[0]!.explanation}</p>}
                     </td>
                     <td className="hidden px-3 py-3 sm:table-cell">
                       <span className="inline-flex items-center gap-2"><Badge tone="dark">{x.language}</Badge><span className="inline-flex items-center gap-1 text-muted"><Icon aria-hidden className="size-4" />{x.channel === 'voice call' ? 'Звонок' : 'Чат'}</span></span>
                     </td>
-                    <td className="px-3 py-3 font-semibold tabular-nums">{e?.status === 'completed' ? formatScore(e.finalTotal) : <span className="font-normal text-muted">—</span>}</td>
+                    <td className="px-3 py-3 text-base font-semibold tabular-nums">{e?.status === 'completed' ? formatScore(e.finalTotal) : <span className="font-normal text-muted">—</span>}</td>
                     <td className="hidden max-w-md px-3 py-3 md:table-cell">
                       {hasViolation(e) ? (
-                        <div className="space-y-0.5">
+                        <div className="space-y-1">
                           <Badge tone="danger">Грубое нарушение</Badge>
                           {reasons.map((r) => <p key={r.criterionId} className="text-xs text-muted">{r.explanation}</p>)}
                         </div>
@@ -157,7 +157,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex flex-wrap gap-1.5"><Status e={e} />{review > 0 && <Badge tone="warn">Проверить: {review}</Badge>}</div>
+                      <div className="flex flex-wrap gap-2"><Status e={e} />{review > 0 && <Badge tone="warn">Проверить: {review}</Badge>}</div>
                     </td>
                   </tr>
                 );

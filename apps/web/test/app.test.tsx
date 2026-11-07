@@ -78,7 +78,7 @@ it('keeps the original zero-based index and raw timestamp on every message', asy
   renderApp();
   await transcriptReady();
   expect(document.querySelectorAll('[id^="msg-"]').length).toBe(13);
-  expect(within(document.getElementById('msg-6')!).getByText('#6')).toBeTruthy();
+  expect(document.getElementById('msg-6')!.textContent).toMatch(/01:04 · #6/);
 });
 
 it('clicking evidence moves focus to exactly that message, even when timestamps repeat', async () => {
@@ -265,4 +265,46 @@ it('switches to the dark theme and remembers the choice', async () => {
   expect(document.documentElement.classList.contains('dark')).toBe(true);
   expect(window.localStorage.getItem('cqa-theme')).toBe('dark');
   expect(screen.getByRole('button', { name: 'Включить светлую тему' })).toBeTruthy();
+});
+
+it('shows numbered criterion tags on the messages that back a grade, and a tag opens its criterion', async () => {
+  renderApp();
+  await transcriptReady();
+  const msg8 = within(document.getElementById('msg-8')!);
+  const tags = msg8.getAllByRole('button', { name: /Открыть критерий/ }).map((b) => b.textContent);
+  expect(tags).toEqual(expect.arrayContaining(['03', '04', '05']));
+  fireEvent.click(msg8.getByRole('button', { name: 'Открыть критерий 05' }));
+  expect(row(/Эмпатия/).getAttribute('aria-expanded')).toBe('true');
+});
+
+it('the scorecard strip shows every criterion at a glance and opens one on click', async () => {
+  renderApp();
+  await transcriptReady();
+  const strip = panel().getByRole('button', { name: 'Критерий 04: 15 из 20' });
+  expect(strip.textContent).toContain('15');
+  expect(panel().getByRole('button', { name: 'Критерий 02: N/A' })).toBeTruthy();
+  fireEvent.click(strip);
+  expect(row(/Корректная и полная консультация/).getAttribute('aria-expanded')).toBe('true');
+});
+
+it('Ctrl K opens a finder that searches ids and transcript text, and Enter opens the dialog', async () => {
+  renderApp(bundle(withSecond));
+  await transcriptReady();
+  fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+  const box = within(screen.getByRole('dialog', { name: 'Поиск диалога' }));
+  fireEvent.change(box.getByRole('textbox'), { target: { value: 'ru-002' } });
+  expect(box.getAllByRole('option').length).toBe(1);
+  fireEvent.keyDown(box.getByRole('textbox'), { key: 'Enter' });
+  expect(window.location.hash).toBe('#/dialog/demo-ru-002');
+  expect(screen.queryByRole('dialog', { name: 'Поиск диалога' })).toBeNull();
+});
+
+it('the queue rail lists the filtered dialogs and switches between them', async () => {
+  window.innerWidth = 1600;
+  renderApp(bundle(withSecond));
+  await transcriptReady();
+  const rail = within(screen.getByRole('navigation', { name: 'Очередь диалогов' }));
+  expect(rail.getByRole('button', { name: /demo-ru-001/ }).getAttribute('aria-current')).toBe('true');
+  fireEvent.click(rail.getByRole('button', { name: /demo-ru-002/ }));
+  expect(window.location.hash).toBe('#/dialog/demo-ru-002');
 });

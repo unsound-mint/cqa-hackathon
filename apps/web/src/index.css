@@ -61,6 +61,10 @@
   --color-warn: var(--c-warn);
   --color-warn-soft: var(--c-warn-soft);
 
+  /* Type scale on the 4px grid (size / line-height): xs 12/16, sm 14/20, base 16/24, xl 20/28, 2xl 24/32, score 56/64. */
+  --text-score: 3.5rem;
+  --text-score--line-height: 4rem;
+
   --radius-card: 16px;
   --shadow-card: var(--shadow-card);
 }
