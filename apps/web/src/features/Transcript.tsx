@@ -20,6 +20,8 @@ type Props = {
   /** Criteria that cite each message, shown as small numbered tags that open that criterion. */
   tags: ReadonlyMap<number, Tag[]>;
   onTag: (criterionId: string) => void;
+  /** The open criterion, if any. */
+  activeId: string | null;
   onSeek: (index: number) => void;
   /** Title and queue controls of the dialog, rendered at the top of the card (replaces a separate title bar). */
   toolbar: ReactNode;
@@ -27,7 +29,9 @@ type Props = {
 
 const TICK: Record<Speaker, string> = { client: 'h-5 bg-muted', operator: 'h-5 bg-accent', bot: 'h-5 bg-line-strong', system: 'h-2 bg-line-strong' };
 const DOT = { evidence: 'bg-brand', review: 'bg-warn', violation: 'bg-danger' } as const;
-const TAG = { neutral: 'bg-fill text-ink', success: 'bg-brand text-[#0e151c]', danger: 'bg-danger text-canvas', warn: 'bg-warn text-canvas' } as const;
+/** Tags are quiet tints; only the open criterion's tag is solid, so the eye lands on the evidence being discussed. */
+const TAG = { neutral: 'bg-fill text-muted', success: 'bg-brand-soft text-accent', danger: 'bg-danger-soft text-danger', warn: 'bg-warn-soft text-warn' } as const;
+const TAG_ACTIVE = { neutral: 'bg-ink text-canvas', success: 'bg-brand text-[#0e151c]', danger: 'bg-danger text-canvas', warn: 'bg-warn text-canvas' } as const;
 
 /** One focusable slider over the whole dialog: arrow keys step through messages, a click jumps to the one under the pointer. */
 function ConversationMap({ conversation, markers, current, onSeek }: { conversation: Conversation; markers: Props['markers']; current: number; onSeek: (i: number) => void }) {
@@ -95,7 +99,7 @@ const BUBBLE: Record<Speaker, string> = {
   system: 'rounded-full bg-fill px-4 py-1 text-sm italic text-muted',
 };
 
-export function Transcript({ conversation, cited, checkedRange, focus, markers, tags, onTag, onSeek, toolbar }: Props) {
+export function Transcript({ conversation, cited, checkedRange, focus, markers, tags, onTag, activeId, onSeek, toolbar }: Props) {
   const refs = useRef(new Map<number, HTMLLIElement>());
   const [view, setView] = useState<View>(readView);
   const pick = (v: View) => {
@@ -150,7 +154,7 @@ export function Transcript({ conversation, cited, checkedRange, focus, markers, 
             <span className={cn('mt-2 flex flex-wrap gap-1', view === 'chat' && m.speaker === 'operator' && 'justify-end', view === 'chat' && system && 'justify-center')}>
               {mine.map((t) => (
                 <span key={t.id} className="group relative">
-                  <button type="button" onClick={() => onTag(t.id)} aria-label={`Открыть критерий ${t.id}: ${t.title}, ${t.label}`} className={cn('h-6 min-w-8 rounded-full px-2 text-xs font-semibold tabular-nums', TAG[t.tone])}>
+                  <button type="button" onClick={() => onTag(t.id)} aria-label={`Открыть критерий ${t.id}: ${t.title}, ${t.label}`} className={cn('h-6 min-w-8 rounded-full px-2 text-xs font-semibold tabular-nums', (activeId === t.id ? TAG_ACTIVE : TAG)[t.tone])}>
                     {t.id}
                   </button>
                   {/* Preview on hover or keyboard focus: which criterion, its verdict and the reason. Decorative: the button already has the full name. */}

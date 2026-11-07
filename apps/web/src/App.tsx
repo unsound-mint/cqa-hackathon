@@ -1,10 +1,11 @@
 import type { Appeal, ChecklistVersion, Conversation, DecideAppealInput, Evaluation, SaveChecklistInput } from '@cqa/contracts';
-import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApi } from './ApiContext';
 import { cn } from '@/lib/utils';
 import { DEFAULT_FILTERS, hasViolation, matches, needsAttention, reviewCount, type Filters } from '@/lib/queue';
 import { formatScore, outcome, type Tone } from '@/lib/present';
+import { useWide } from '@/lib/media';
 import { useTheme } from '@/lib/theme';
 import { ChecklistEditor } from './features/ChecklistEditor';
 import { DialogsPage } from './features/DialogsPage';
@@ -55,7 +56,7 @@ export function App() {
   const [startError, setStartError] = useState<string | null>(null);
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [searchFocus, setSearchFocus] = useState(0);
-  const [railOpen, setRailOpen] = useState(() => window.innerWidth >= 1440);
+  const wide = useWide();
 
   useEffect(() => {
     const onHash = () => setRoute(parseHash());
@@ -117,14 +118,14 @@ export function App() {
 
   /** Search lives at the top of the queue beside a dialog, and on the list page otherwise. */
   const focusSearch = useCallback(() => {
-    const wide = window.matchMedia?.('(min-width: 1280px)').matches ?? window.innerWidth >= 1280;
-    if (route.name === 'dialog' && wide) setRailOpen(true);
-    else if (route.name !== 'list') {
+    if (route.name === 'dialog' && wide) {
+      /* the queue rail is beside the dialog: its search field takes the focus */
+    } else if (route.name !== 'list') {
       keepFocus.current = true;
       go({ name: 'list' });
     }
     setSearchFocus((n) => n + 1);
-  }, [route.name, go]);
+  }, [route.name, wide, go]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -298,34 +299,35 @@ export function App() {
   const filterLabel = filters.quick === 'violations' ? 'Грубые нарушения' : filters.quick === 'review' ? 'Нужна проверка' : filters.quick === 'unevaluated' ? 'Не оценены' : null;
   const e = evaluation;
 
-  /** Title and queue controls live at the top of the transcript card, so no separate bar takes vertical space. */
+  /**
+   * Title row of the transcript card. Next to the queue rail it is only the title; without the rail (narrower
+   * screens) it also carries the queue controls, so the same navigation is never shown twice.
+   */
   const toolbar = conversation && (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         <Button variant="ghost" size="sm" aria-label="К списку диалогов" onClick={() => go({ name: 'list' })} className="-ml-3"><ArrowLeft aria-hidden className="size-4" /></Button>
         <h1 className="text-2xl font-semibold leading-8">{conversation.id}</h1>
-        {hasViolation(e) && <Badge tone="danger">Грубое нарушение</Badge>}
-        {reviewCount(e) > 0 && <Badge tone="warn">Проверить: {reviewCount(e)}</Badge>}
-        <p className="text-sm text-muted">{conversation.language} · {conversation.channel === 'voice call' ? 'звонок' : 'чат'} · {conversation.transcript.length} сообщений · индексы с нуля</p>
+        <p className="text-sm text-muted">{conversation.language} · {conversation.channel === 'voice call' ? 'звонок' : 'чат'} · {conversation.transcript.length} сообщений</p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => setRailOpen((o) => !o)} aria-pressed={railOpen} className="hidden xl:inline-flex"><PanelLeft aria-hidden className="size-4" />Очередь</Button>
-        <Button variant="outline" size="sm" aria-label="Предыдущий диалог (K)" disabled={position <= 0} onClick={() => step(-1)}><ChevronLeft aria-hidden className="size-4" /></Button>
-        <label className="sr-only" htmlFor="dialog-switch">Диалог</label>
-        <Select id="dialog-switch" value={conversation.id} onChange={(ev) => go({ name: 'dialog', id: ev.target.value })} className="h-8 w-auto max-w-56 rounded-full text-sm font-medium xl:hidden">
-          {position < 0 && <option value={conversation.id}>{conversation.id} (вне фильтра)</option>}
-          {queue.map((id) => {
-            const ev = latest.get(id);
-            return <option key={id} value={id}>{id}{ev?.status === 'completed' ? ` · ${formatScore(ev.finalTotal)}` : ''}</option>;
-          })}
-        </Select>
-        <Button variant="outline" size="sm" aria-label="Следующий диалог (J)" disabled={position < 0 || position >= queue.length - 1} onClick={() => step(1)}><ChevronRight aria-hidden className="size-4" /></Button>
-        <p className="min-w-16 text-sm text-muted" aria-live="polite">{position >= 0 ? `${position + 1} из ${queue.length}` : 'вне фильтра'}</p>
-        <Button variant="outline" size="sm" disabled={!nextAttention} onClick={() => nextAttention && go({ name: 'dialog', id: nextAttention })} title="Следующий диалог с нарушением, ошибкой оценки или низкой уверенностью (N)" aria-label="К диалогу, требующему проверки (N)">
-          <AlertTriangle aria-hidden className="size-4" />
-          <span className="hidden 2xl:inline">На проверку</span>
-        </Button>
-      </div>
+      {!wide && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" aria-label="Предыдущий диалог (K)" disabled={position <= 0} onClick={() => step(-1)}><ChevronLeft aria-hidden className="size-4" /></Button>
+          <label className="sr-only" htmlFor="dialog-switch">Диалог</label>
+          <Select id="dialog-switch" value={conversation.id} onChange={(ev) => go({ name: 'dialog', id: ev.target.value })} className="h-8 w-auto max-w-56 rounded-full text-sm font-medium">
+            {position < 0 && <option value={conversation.id}>{conversation.id} (вне фильтра)</option>}
+            {queue.map((id) => {
+              const ev = latest.get(id);
+              return <option key={id} value={id}>{id}{ev?.status === 'completed' ? ` · ${formatScore(ev.finalTotal)}` : ''}</option>;
+            })}
+          </Select>
+          <Button variant="outline" size="sm" aria-label="Следующий диалог (J)" disabled={position < 0 || position >= queue.length - 1} onClick={() => step(1)}><ChevronRight aria-hidden className="size-4" /></Button>
+          <p className="min-w-16 text-sm text-muted" aria-live="polite">{position >= 0 ? `${position + 1} из ${queue.length}` : 'вне фильтра'}</p>
+          <Button variant="outline" size="sm" disabled={!nextAttention} onClick={() => nextAttention && go({ name: 'dialog', id: nextAttention })} title="Следующий диалог с нарушением, ошибкой оценки или низкой уверенностью (N)" aria-label="К диалогу, требующему проверки (N)">
+            <AlertTriangle aria-hidden className="size-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 
@@ -364,14 +366,14 @@ export function App() {
               ))}
             </nav>
 
-            <main id="content" tabIndex={-1} className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 outline-none xl:p-4', railOpen ? 'xl:grid-cols-[280px_minmax(0,1fr)_480px]' : 'xl:grid-cols-[minmax(0,1fr)_480px]')}>
-              {railOpen && (
-                <div className="hidden min-h-0 overflow-hidden rounded-card bg-surface shadow-card xl:block">
-                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filterLabel={filterLabel} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} onSelect={(id) => go({ name: 'dialog', id })} />
+            <main id="content" tabIndex={-1} className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[280px_minmax(0,1fr)_480px]' : 'xl:grid-cols-[minmax(0,1fr)_480px]')}>
+              {wide && (
+                <div className="min-h-0 overflow-hidden rounded-card bg-surface shadow-card">
+                  <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filterLabel={filterLabel} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} nextAttentionId={nextAttention} onSelect={(id) => go({ name: 'dialog', id })} />
                 </div>
               )}
               <div className={cn('min-h-0 flex-col bg-surface xl:rounded-card xl:shadow-card', pane === 'transcript' ? 'flex' : 'hidden xl:flex')}>
-                <Transcript conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} markers={markers} tags={tags} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} onSeek={jump} toolbar={toolbar} />
+                <Transcript conversation={conversation} cited={cited} checkedRange={selectedResult?.evidence.length === 0 ? selectedResult.checkedRange : undefined} focus={focus} markers={markers} tags={tags} activeId={criterionId} onTag={(id) => { setCriterionId(id); setPane('evaluation'); }} onSeek={jump} toolbar={toolbar} />
               </div>
               <div className={cn('min-h-0 flex-col overflow-hidden bg-surface xl:rounded-card xl:shadow-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
                 <EvaluationPanel

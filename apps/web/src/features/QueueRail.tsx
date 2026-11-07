@@ -1,5 +1,5 @@
 import type { Conversation, Evaluation } from '@cqa/contracts';
-import { Headphones, MessagesSquare, Search, X } from 'lucide-react';
+import { AlertTriangle, Headphones, MessagesSquare, Search, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/present';
@@ -16,6 +16,8 @@ type Props = {
   onQuery: (q: string) => void;
   /** Bumped to move focus into the search field (sidebar button, Ctrl K). */
   focusSignal: number;
+  /** Next dialog needing a human look (N), if any. */
+  nextAttentionId: string | null;
   onSelect: (id: string) => void;
 };
 
@@ -38,7 +40,7 @@ function Snippet({ c, q }: { c: Conversation; q: string }) {
 }
 
 /** The queue beside the review, with search on top: results stay in the queue, expanded with the matching phrase. */
-export function QueueRail({ conversations, latest, ids, selectedId, filterLabel, query, onQuery, focusSignal, onSelect }: Props) {
+export function QueueRail({ conversations, latest, ids, selectedId, filterLabel, query, onQuery, focusSignal, nextAttentionId, onSelect }: Props) {
   const byId = new Map(conversations.map((c) => [c.id, c]));
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -50,34 +52,48 @@ export function QueueRail({ conversations, latest, ids, selectedId, filterLabel,
 
   return (
     <nav aria-label="Очередь диалогов" className="flex h-full min-h-0 flex-col">
-      <div className="space-y-3 border-b border-line px-4 py-4">
-        <div>
-          <h2 className="text-sm font-semibold">Очередь</h2>
-          <p className="text-xs text-muted" aria-live="polite">
-            {filterLabel ? `${filterLabel}: ${ids.length}` : query.trim() ? `Найдено: ${ids.length}` : `Все диалоги: ${ids.length}`}
-          </p>
+      <div className="space-y-2 border-b border-line px-4 py-4">
+        <h2 className="sr-only">Очередь диалогов</h2>
+        <div className="flex items-center gap-2">
+          <label className="relative block min-w-0 flex-1">
+            <span className="sr-only">Поиск по номеру и тексту диалогов</span>
+            <Search aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-muted" />
+            <input
+              ref={input}
+              type="search"
+              value={query}
+              onChange={(e) => onQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && ids[0]) onSelect(ids[0]);
+                else if (e.key === 'Escape') onQuery('');
+              }}
+              placeholder="Поиск"
+              title="Поиск (Ctrl K)"
+              className="h-10 w-full rounded-full border border-line bg-canvas pl-10 pr-10 text-sm placeholder:text-muted"
+            />
+            {query && (
+              <button type="button" aria-label="Очистить поиск" onClick={() => onQuery('')} className="absolute right-1 top-1 grid size-8 place-items-center rounded-full text-muted hover:bg-fill hover:text-ink">
+                <X aria-hidden className="size-4" />
+              </button>
+            )}
+          </label>
+          <button
+            type="button"
+            disabled={!nextAttentionId}
+            onClick={() => nextAttentionId && onSelect(nextAttentionId)}
+            title="Следующий диалог с нарушением, ошибкой оценки или низкой уверенностью (N)"
+            aria-label="К диалогу, требующему проверки (N)"
+            className="grid size-10 shrink-0 place-items-center rounded-full border border-line text-ink transition-colors hover:bg-fill disabled:opacity-50"
+          >
+            <AlertTriangle aria-hidden className="size-4" />
+          </button>
         </div>
-        <label className="relative block">
-          <span className="sr-only">Поиск по номеру и тексту диалогов</span>
-          <Search aria-hidden className="pointer-events-none absolute left-3 top-3 size-4 text-muted" />
-          <input
-            ref={input}
-            type="search"
-            value={query}
-            onChange={(e) => onQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && ids[0]) onSelect(ids[0]);
-              else if (e.key === 'Escape') onQuery('');
-            }}
-            placeholder="Номер или фраза"
-            className="h-10 w-full rounded-full border border-line bg-canvas pl-10 pr-10 text-sm placeholder:text-muted"
-          />
-          {query && (
-            <button type="button" aria-label="Очистить поиск" onClick={() => onQuery('')} className="absolute right-1 top-1 grid size-8 place-items-center rounded-full text-muted hover:bg-fill hover:text-ink">
-              <X aria-hidden className="size-4" />
-            </button>
-          )}
-        </label>
+        {(filterLabel || query.trim()) && (
+          <p className="text-xs text-muted" aria-live="polite">
+            {filterLabel ? `${filterLabel}: ` : 'Найдено: '}
+            {ids.length}
+          </p>
+        )}
       </div>
       <ul className="min-h-0 flex-1 overflow-y-auto p-2">
         {ids.length === 0 && <li className="px-3 py-4 text-sm text-muted">Ничего не найдено.</li>}
@@ -105,9 +121,6 @@ export function QueueRail({ conversations, latest, ids, selectedId, filterLabel,
           );
         })}
       </ul>
-      <p className="border-t border-line px-4 py-3 text-xs leading-4 text-muted">
-        <kbd className="rounded bg-fill px-1">J</kbd> <kbd className="rounded bg-fill px-1">K</kbd> диалоги · <kbd className="rounded bg-fill px-1">N</kbd> на проверку · <kbd className="rounded bg-fill px-1">1–9</kbd> критерии · <kbd className="rounded bg-fill px-1">Ctrl K</kbd> поиск
-      </p>
     </nav>
   );
 }

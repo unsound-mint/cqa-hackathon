@@ -42,14 +42,6 @@ export function earnedPoints(c: Criterion | undefined, r: CriterionResult): numb
 /** A result a human should look at: low model confidence. */
 export const needsReview = (r: CriterionResult) => r.confidence === 'low';
 
-/** Two-to-four character label for the scorecard strip: the answer without its scale ("15", not "15 из 20"). */
-export function shortOutcome(criterion: Criterion | undefined, r: CriterionResult): string {
-  if (r.isNA) return 'N/A';
-  if (criterion?.criticalFlag) return r.value === true ? 'Флаг' : 'Нет';
-  if (typeof r.value === 'number') return String(r.value);
-  return outcome(criterion, r).label;
-}
-
 /** Seconds for "MM:SS" or an ISO timestamp; null if unparseable. Timestamps are shown raw; this only measures gaps. */
 export function toSeconds(ts: string): number | null {
   const mmss = /^(\d+):(\d{2})$/.exec(ts);

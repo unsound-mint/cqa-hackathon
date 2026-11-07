@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
-import { CONFIDENCE_LABEL, SOURCE_LABEL, earnedPoints, formatScore, needsReview, outcome, sameResult, shortOutcome } from '@/lib/present';
+import { CONFIDENCE_LABEL, SOURCE_LABEL, earnedPoints, formatScore, needsReview, outcome, sameResult } from '@/lib/present';
 import { downloadText, evaluationCsv } from '@/lib/export';
 import { violationReasons } from '@/lib/queue';
 import { AppealBox } from './Appeals';
@@ -102,10 +102,10 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
             <ChevronDown aria-hidden className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} />
           </span>
         </span>
-        {pts !== null && weight > 0 && (
+        {pts !== null && weight > 0 && pts < weight && (
           <span className="mt-3 flex items-center gap-4">
             <span className="h-1 flex-1 rounded-full bg-line"><span className={cn('block h-1 rounded-full', BAR[o.tone])} style={{ width: `${Math.round((pts / weight) * 100)}%` }} /></span>
-            <span className="min-w-16 text-right text-xs tabular-nums text-muted">{formatScore(pts)} / {weight}</span>
+            <span className="min-w-24 text-right text-xs tabular-nums text-muted">{formatScore(pts)} / {weight} <span className="text-warn">(−{formatScore(weight - pts)})</span></span>
           </span>
         )}
       </button>
@@ -188,9 +188,10 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
   const isMock = evaluation.provenance?.provider === 'mock';
   const originalById = new Map(evaluation.originalResults.map((r) => [r.criterionId, r]));
   const reasons = violationReasons(evaluation, checklist);
-  const lost = evaluation.finalResults
-    .map((r) => ({ id: r.criterionId, loss: (lookup(r.criterionId)?.weight ?? 0) - (earnedPoints(lookup(r.criterionId), r) ?? (lookup(r.criterionId)?.weight ?? 0)) }))
-    .filter((x) => x.loss > 0);
+  /** Points earned out of the points that were possible: N/A criteria and flags are not part of either number. */
+  const scored = evaluation.finalResults.map((r) => ({ id: r.criterionId, c: lookup(r.criterionId), pts: earnedPoints(lookup(r.criterionId), r) })).filter((x) => x.pts !== null && x.c);
+  const earned = scored.reduce((sum, x) => sum + (x.pts ?? 0), 0);
+  const possible = scored.reduce((sum, x) => sum + (x.c?.weight ?? 0), 0);
   const naIds = evaluation.finalResults.filter((r) => r.isNA && (lookup(r.criterionId)?.weight ?? 0) > 0).map((r) => r.criterionId);
   const pendingIds = new Set(appeals.filter((a) => a.status === 'pending').map((a) => a.criterionId));
   const flagged = (r: CriterionResult) => needsReview(r) || pendingIds.has(r.criterionId) || !sameResult(originalById.get(r.criterionId), r);
@@ -203,38 +204,27 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
     ? [...sections.map((s) => ({ id: s.id, title: s.title, rows: shown.filter((r) => lookup(r.criterionId)?.sectionId === s.id) })), { id: '_', title: 'Прочее', rows: shown.filter((r) => !sections.some((s) => s.id === lookup(r.criterionId)?.sectionId)) }].filter((g) => g.rows.length)
     : [{ id: '_', title: '', rows: shown }];
 
-  const scorecardRows = shown.map((r) => ({ r, c: lookup(r.criterionId) }));
-
   return (
     <section aria-label="Оценка" className="flex h-full min-h-0 flex-col">
       <header className="verdict px-6 py-4">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <h2 className="text-sm font-medium text-[#9fb5a9]">Оценка{versions.length <= 1 && checklist ? ` · чек-лист, версия ${checklist.version}` : ''}</h2>
+          <h2 className="flex flex-wrap items-center gap-2 text-sm font-medium text-[#9fb5a9]">
+            Оценка{versions.length <= 1 && checklist ? ` · версия ${checklist.version}` : ''}
+            {isMock && <span title="Вымышленный пример, а не оценка модели" aria-label="Демо-данные: вымышленный пример, а не оценка модели" className="inline-flex h-6 items-center gap-1 rounded-full bg-[#3a2f14] px-2 text-xs text-[#e8be6a]"><FlaskConical aria-hidden className="size-4" />Демо-данные</span>}
+          </h2>
           <div className="flex flex-wrap gap-2">
             {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Апелляция: {pendingIds.size}</span>}
             {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Изменено ревьюером: {changedCount}</span>}
-            <button type="button" onClick={() => downloadText(`${conversation.id}-evaluation.csv`, evaluationCsv(conversation, evaluation, checklist), 'text/csv;charset=utf-8')} aria-label="Скачать оценку в CSV" title="Скачать оценку в CSV (Excel)" className="inline-flex h-6 items-center gap-1 rounded-full bg-white/10 px-2 text-xs hover:bg-white/20"><Download aria-hidden className="size-4" />CSV</button>
-            <button type="button" onClick={() => window.print()} aria-label="Печать или сохранить в PDF" title="Печать или сохранить в PDF" className="inline-flex h-6 items-center gap-1 rounded-full bg-white/10 px-2 text-xs hover:bg-white/20"><Printer aria-hidden className="size-4" />PDF</button>
           </div>
         </div>
-        {isMock && (
-          <p className="mt-1 flex items-center gap-2 text-xs text-[#e8be6a]" role="note">
-            <FlaskConical aria-hidden className="size-4 shrink-0" />
-            Демо-данные: вымышленный пример, а не оценка модели.
-          </p>
-        )}
         <p className="mt-1 flex items-baseline gap-2">
           <span className="text-score font-semibold tracking-tight tabular-nums">{formatScore(evaluation.finalTotal)}</span>
           <span className="text-base text-[#9fb5a9]">из 100</span>
         </p>
         {evaluation.originalTotal !== evaluation.finalTotal && <p className="mt-1 text-xs text-[#9fb5a9]">Исходная оценка ИИ: {formatScore(evaluation.originalTotal)}</p>}
         <p className="mt-2 text-sm text-[#9fb5a9]">
-          {evaluation.finalTotal === null
-            ? 'Нет применимых критериев: балл не считается.'
-            : lost.length
-              ? `Потеряно: ${lost.map((x) => `${x.id} (−${formatScore(x.loss)})`).join(', ')}.`
-              : 'Баллы не потеряны.'}
-          {naIds.length > 0 && ` N/A: ${naIds.join(', ')}, вес перераспределён.`}
+          {evaluation.finalTotal === null ? 'Нет применимых критериев: балл не считается.' : `Набрано ${formatScore(earned)} из ${formatScore(possible)} возможных баллов`}
+          {naIds.length > 0 && evaluation.finalTotal !== null && <span className="block text-xs">Не применимы и не учитываются: {naIds.join(', ')}</span>}
         </p>
 
         {evaluation.seriousViolation ? (
@@ -242,11 +232,11 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
             <p className="flex items-center gap-2 text-base font-semibold"><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</p>
             {reasons.length === 0 && <p className="mt-1 text-sm">Флаг поднят.</p>}
             {reasons.map((r) => (
-              <p key={r.criterionId} className="mt-1 text-sm leading-5"><span className="font-medium">{r.title}:</span> {r.explanation}</p>
+              <p key={r.criterionId} className="mt-1 text-sm leading-5">{reasons.length > 1 && <span className="font-medium">{r.title}: </span>}{r.explanation}</p>
             ))}
           </div>
         ) : (
-          <p className="mt-3 inline-flex h-8 items-center gap-2 rounded-full bg-white/10 px-3 text-sm"><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</p>
+          <p className="mt-3 flex items-center gap-2 text-sm text-[#9fb5a9]"><span aria-hidden className="size-2 rounded-full bg-brand" />Грубых нарушений нет</p>
         )}
       </header>
 
@@ -267,38 +257,13 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         </div>
       )}
 
-      <div className="space-y-2 border-b border-line bg-surface px-6 py-3">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-surface p-2 pb-4">
         {flaggedCount > 0 && (
-          <label className="flex items-center gap-2 text-xs">
+          <label className="flex items-center gap-2 px-4 pt-2 text-xs">
             <input type="checkbox" checked={onlyFlagged} onChange={(e) => setOnlyFlagged(e.target.checked)} className="size-4 accent-brand" />
             Только требующие внимания ({flaggedCount})
           </label>
         )}
-        <div role="group" aria-label="Критерии: нажмите, чтобы открыть" className="flex gap-2 overflow-x-auto pb-1">
-          {scorecardRows.map(({ r, c }, k) => {
-            const o = outcome(c, r);
-            return (
-              <button
-                key={r.criterionId}
-                type="button"
-                onClick={() => {
-                  onSelectCriterion(r.criterionId);
-                  document.getElementById(`row-${evaluation.id}-${r.criterionId}`)?.scrollIntoView?.({ block: 'nearest' });
-                }}
-                aria-label={`Критерий ${r.criterionId}: ${o.label}`}
-                title={k < 9 ? `Клавиша ${k + 1}` : undefined}
-                aria-pressed={selectedCriterionId === r.criterionId}
-                className={cn('flex h-12 min-w-10 max-w-14 flex-1 flex-col items-center justify-center rounded-xl text-center transition-colors', CHIP[o.tone], selectedCriterionId === r.criterionId && 'ring-2 ring-ink')}
-              >
-                <span className="text-sm font-semibold leading-5 tabular-nums">{r.criterionId}</span>
-                <span className="text-xs leading-4">{shortOutcome(c, r)}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-surface p-2 pb-6">
         {groups.map((g) => (
           <div key={g.id}>
             {g.title && <h3 className="mb-1 mt-2 px-4 text-xs font-medium text-muted">{g.title}</h3>}
@@ -324,6 +289,12 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         ))}
         {shown.length === 0 && <p className="p-4 text-sm text-muted">Ничего не требует внимания.</p>}
       </div>
+
+      <footer className="flex items-center justify-end gap-2 border-t border-line bg-surface px-6 py-2 text-sm text-muted">
+        Экспорт
+        <button type="button" onClick={() => downloadText(`${conversation.id}-evaluation.csv`, evaluationCsv(conversation, evaluation, checklist), 'text/csv;charset=utf-8')} aria-label="Скачать оценку в CSV" title="Таблица для Excel" className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-ink hover:bg-fill"><Download aria-hidden className="size-4" />CSV</button>
+        <button type="button" onClick={() => window.print()} aria-label="Печать или сохранить в PDF" title="Отчёт для печати или сохранения в PDF" className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-ink hover:bg-fill"><Printer aria-hidden className="size-4" />PDF</button>
+      </footer>
     </section>
   );
 }

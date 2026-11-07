@@ -29,3 +29,9 @@ Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid
 ## Color
 - Neutrals carry the UI; green is an accent: marks, focus, the open row, the primary action. `text-accent` is the green for text (#164734 light, #5FD28D dark). Bright green `#02B140` never carries white text.
 - Red only for a violation or an error, amber only for "needs a human look" or a partial score. Theme colors are CSS variables (`index.css`); components use the semantic names.
+
+## One place per fact
+- Show each fact once, where it is used. The violation reason is in the verdict banner (the rail and the list carry only a short flag); the queue is the rail beside the dialog, so arrows and a dropdown appear only when the rail does not fit (below 1536 px); the position in the queue is the highlighted row.
+- The score banner states the score and what it is made of ("earned X of Y possible points", which criteria were not counted). Per-criterion detail lives in the rows: a points bar appears only where points were lost.
+- No overview that repeats the list below it. Quiet by default: tags on messages are tints, solid only for the open criterion; export sits in the panel footer.
+

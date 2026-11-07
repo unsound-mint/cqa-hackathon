@@ -13,6 +13,7 @@ afterEach(() => {
   cleanup();
   window.location.hash = '';
   document.documentElement.classList.remove('dark');
+  window.innerWidth = 1024;
   try {
     window.localStorage.clear();
   } catch {
@@ -62,16 +63,23 @@ it('shows the dialog: transcript, total, N/A reason and the demo label', async (
   renderApp();
   await transcriptReady();
   expect(panel().getByText('94,12')).toBeTruthy();
-  expect(panel().getByText(/Демо-данные: вымышленный пример/)).toBeTruthy();
+  expect(panel().getByLabelText(/Демо-данные: вымышленный пример/)).toBeTruthy();
   fireEvent.click(row(/Выявление потребности/));
   expect(panel().getByText(/Данных для ответа хватало с самого начала/)).toBeTruthy();
 });
 
-it('explains where points were lost and which criterion was N/A', async () => {
+it('states points earned out of points possible, and which criteria are not counted', async () => {
   renderApp();
   await transcriptReady();
-  expect(panel().getByText(/Потеряно: 04 \(−5\)/)).toBeTruthy();
-  expect(panel().getByText(/N\/A: 02, вес перераспределён/)).toBeTruthy();
+  expect(panel().getByText(/Набрано 80 из 85 возможных баллов/)).toBeTruthy();
+  expect(panel().getByText(/Не применимы и не учитываются: 02/)).toBeTruthy();
+});
+
+it('a row shows a points bar only where points were lost, with the amount', async () => {
+  renderApp();
+  await transcriptReady();
+  expect(row(/Корректная и полная консультация/).textContent).toContain('15 / 20 (−5)');
+  expect(row(/Установление контакта/).textContent).not.toMatch(/\//); // full points: no bar, no fraction
 });
 
 it('keeps the original zero-based index and raw timestamp on every message', async () => {
@@ -279,16 +287,6 @@ it('shows numbered criterion tags on the messages that back a grade, and a tag o
   expect(row(/Эмпатия/).getAttribute('aria-expanded')).toBe('true');
 });
 
-it('the scorecard strip shows every criterion at a glance and opens one on click', async () => {
-  renderApp();
-  await transcriptReady();
-  const strip = panel().getByRole('button', { name: 'Критерий 04: 15 из 20' });
-  expect(strip.textContent).toContain('15');
-  expect(panel().getByRole('button', { name: 'Критерий 02: N/A' })).toBeTruthy();
-  fireEvent.click(strip);
-  expect(row(/Корректная и полная консультация/).getAttribute('aria-expanded')).toBe('true');
-});
-
 it('search sits at the top of the queue: it filters the queue with the matching phrase, and Ctrl K focuses it', async () => {
   window.innerWidth = 1600;
   renderApp(bundle((b) => { withSecond(b); b.conversations[1].transcript[1].text = 'Особая фраза про курьера'; }));
@@ -300,7 +298,6 @@ it('search sits at the top of the queue: it filters the queue with the matching 
   fireEvent.change(box, { target: { value: 'курьера' } });
   expect(rail.getAllByRole('button', { name: /demo-ru-/ }).length).toBe(1);
   expect(rail.getByText('курьера').tagName).toBe('MARK');
-  expect(screen.getByText('вне фильтра')).toBeTruthy(); // the open dialog does not match the search
   fireEvent.keyDown(box, { key: 'Enter' });
   expect(window.location.hash).toBe('#/dialog/demo-ru-002');
   fireEvent.click(rail.getByRole('button', { name: 'Очистить поиск' }));
