@@ -109,3 +109,11 @@ Imports preserve immutable conversation sources: identical re-imports succeed; a
 On database open, additive idempotent migrations add nullable evaluations.cache_context and jobs.force (default false). Back up the SQLite database before deployment; existing evaluation results and appeal history are untouched.
 
 Identity verification recognizes explicit whole-message affirmative RU/KZ/EN events. Negative statuses, questions and unrecognized extended forms cannot establish verification. Unknown event vocabulary requires a reviewed parser extension. Closing N/A is assessed semantically; client disconnection does not establish whether an earlier closing opportunity existed.
+
+### Required model output (eval-v9)
+
+The evaluator builds a request-specific schema in services/evaluation/output-schema.ts. Both results and assisted are required. The assisted wire value is an object keyed by the exact planned criterion ids, with each detector's full answer schema and all those keys required. No-assisted requests use an empty closed object. Provider-neutral adapters may still return the earlier array representation; it goes through the same duplicate/id/role/quote validation.
+
+Anthropic tool calls use strict mode with closed nested objects. The result schema lists only undecided criterion ids and allowed values; every result includes an inspected range and N/A reason field (empty when applicable). Code still checks per-criterion values and N/A, coverage/duplicates, range bounds, verbatim quotes and operator attribution, then computes totals. Grammar compliance does not establish semantic correctness. Prompt versions invalidate older cached results.
+
+The schema uses only supported strict-tool constraints (minItems 0 or 1, no numerical/string bounds). Multiple assisted answers use required object keys because supported array constraints cannot enforce one answer per distinct id. Source: https://platform.claude.com/docs/en/build-with-claude/structured-outputs#json-schema-limitations
