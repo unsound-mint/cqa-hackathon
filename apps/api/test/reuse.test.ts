@@ -1,3 +1,4 @@
+import { semanticAnswers } from './helpers/semantic.js';
 import { readFileSync } from 'node:fs';
 import { DemoBundleSchema, type Conversation } from '@cqa/contracts';
 import { describe, expect, it } from 'vitest';
@@ -12,10 +13,10 @@ const { id: _i, version: _v, createdAt: _c, ...strip } = ORIGINAL_CHECKLIST;
 
 function modelFor(req: ProviderRequest) {
   const p = JSON.parse(req.user) as { checklist: { criteria: { id: string; kind: string; allowedValues: unknown[]; allowNA: boolean }[] }; conversation: { transcript: { text: string }[] } };
-  const assisted = (JSON.parse(req.user).assistedQuestions ?? []).map((q: { criterionId: string }) => ({
+  const assisted = [...semanticAnswers(req, true), ...(JSON.parse(req.user).assistedQuestions ?? []).filter((q: any) => q.answersSchema.properties.verificationRequired).map((q: any) => ({
     criterionId: q.criterionId,
     answers: { verificationRequired: true, reason: 'ok', confidence: 'high', firstProtectedDisclosure: { messageIndex: 8, quote: 'Вижу заказ' } },
-  }));
+  }))];
   return {
     assisted,
     results: p.checklist.criteria.map((c) => ({
@@ -56,11 +57,12 @@ describe('rules decide first, the model gets only the rest', () => {
     const by = (id: string) => ev.originalResults.find((r: { criterionId: string }) => r.criterionId === id);
     expect(by('01')).toMatchObject({ source: 'rule', value: true });
     expect(by('07')).toMatchObject({ source: 'rule', value: true });
-    expect(by('04')).toMatchObject({ source: 'model' });
+    expect(by('04')).toMatchObject({ source: 'hybrid' });
     expect(by('03')).toMatchObject({ source: 'hybrid', value: true });
     const sent = JSON.parse(p.calls[0]!.user);
-    expect(sent.checklist.criteria.map((c: { id: string }) => c.id)).toEqual(['02', '04', '05', '06', '08']);
-    expect(sent.assistedQuestions.map((q: { criterionId: string }) => q.criterionId)).toEqual(['03']);
+    expect(sent.checklist.criteria.map((c: { id: string }) => c.id)).toEqual(['05', '08']);
+    expect(sent.assistedQuestions.map((q: { criterionId: string }) => q.criterionId)).toEqual(['02', '03']);
+    expect(JSON.parse(p.calls[1]!.user).assistedQuestions.map((q: {criterionId:string})=>q.criterionId)).toEqual(['04','06']);
     expect(sent.alreadyDecided.map((r: { criterionId: string }) => r.criterionId)).toEqual(['01', '07']);
   });
 
@@ -69,7 +71,7 @@ describe('rules decide first, the model gets only the rest', () => {
     p.complete = async (req) => { const o = modelFor(req); o.results.forEach((r) => Object.assign(r, { source: 'rule', reusedFrom: 'eval-fake' })); return { output: o }; };
     const { app } = await setup(p);
     const { ev } = await evaluate(app, 'checklist-original-v1');
-    const m = ev.originalResults.find((r: { criterionId: string }) => r.criterionId === '04');
+    const m = ev.originalResults.find((r: { criterionId: string }) => r.criterionId === '05');
     expect(m.source).toBe('model');
     expect(m.reusedFrom).toBeUndefined();
   });
@@ -134,7 +136,7 @@ describe('switching a criterion off needs no model call (live-demo path)', () =>
     const v2 = await save(app, [...ORIGINAL_CHECKLIST.criteria, { id: 'x1', title: 'Новый', instructions: 'любой текст', weight: 5, kind: 'boolean', allowedValues: [true, false], allowNA: false }]);
     const { ev } = await evaluate(app, v2.id);
     expect(ev.originalResults.find((r: { criterionId: string }) => r.criterionId === 'x1').source).toBe('model');
-    expect(ev.originalResults.find((r: { criterionId: string }) => r.criterionId === '04').value).toBe(15); // the original decision, not the override (10)
+    expect(ev.originalResults.find((r: { criterionId: string }) => r.criterionId === '04').value).toBe(20); // the original decision, not the override (10)
   });
 });
 
@@ -169,8 +171,8 @@ describe('cache context and fresh evaluation', () => {
     const res = await app.inject({method:'POST',url:'/api/evaluations',payload:{conversationIds:[conv.id],checklistVersionId:ORIGINAL_CHECKLIST.id,force:true}});
     expect(res.statusCode).toBe(202);
     await app.runner.idle();
-    expect(p.calls.length).toBe(count+1);
-    expect(JSON.parse(p.calls.at(-1)!.user).checklist.criteria.map((c:{id:string})=>c.id)).toContain('04');
+    expect(p.calls.length).toBe(count+2);
+    expect(JSON.parse(p.calls.at(-1)!.user).assistedQuestions.map((q:{criterionId:string})=>q.criterionId)).toContain('04');
   });
 
   it('does not reuse another model or changed transcript content', async () => {
@@ -180,13 +182,13 @@ describe('cache context and fresh evaluation', () => {
     const other = {...p, model:'different-model'};
     const app2 = buildApp({db, provider:other});
     await evaluate(app2, ORIGINAL_CHECKLIST.id);
-    expect(p.calls).toHaveLength(2);
+    expect(p.calls).toHaveLength(4);
     // Direct DB mutation simulates a legacy/external writer; HTTP imports forbid this.
     const {eq} = await import('drizzle-orm');
     await import('../src/db/schema.js').then(({conversations}) =>
       db.update(conversations).set({transcript:conv.transcript.map(m=>m.index===0?{...m,text:'changed fictional input'}:m)}).where(eq(conversations.id,conv.id)).run());
     await evaluate(app2, ORIGINAL_CHECKLIST.id);
-    expect(p.calls).toHaveLength(3);
+    expect(p.calls).toHaveLength(6);
   });
 
   it('rejects legacy or obsolete evaluator/prompt cache contexts', async () => {
@@ -217,7 +219,7 @@ describe('fresh jobs', () => {
     const res = await app.inject({ method: 'POST', url: '/api/evaluations', payload: { conversationIds: [conv.id], checklistVersionId: 'checklist-original-v1', fresh: true } });
     expect(res.statusCode).toBe(202);
     await app.runner.idle();
-    expect(p.calls.length).toBe(after1 + 1);
+    expect(p.calls.length).toBe(after1 + 2);
     const row = db.select().from((await import('../src/db/schema.js')).jobs).all().find((j) => j.force);
     expect(row).toBeTruthy();
   });
@@ -229,5 +231,5 @@ it('invalidates reused results when model effort changes', async () => {
   await evaluate(app,ORIGINAL_CHECKLIST.id);
   const next = buildApp({db,provider:{...p,effort:'high'}});
   await evaluate(next,ORIGINAL_CHECKLIST.id);
-  expect(p.calls).toHaveLength(2);
+  expect(p.calls).toHaveLength(4);
 });

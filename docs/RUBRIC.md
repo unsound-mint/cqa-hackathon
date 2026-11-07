@@ -50,3 +50,7 @@ The versioned fictional examples in `apps/api/src/services/evaluation/calibratio
 - After a resolved exchange, a short successful-outcome acknowledgement or “Happy to help” with a farewell can satisfy criterion 07. A farewell alone does not.
 
 The examples are owner-reviewed policy clarifications, not adjudication of all ChatGPT reference labels. Changed criteria keep their own instructions; examples are selected by the original criterion signature, never conversation id.
+
+## Deterministic semantic decisions
+
+For unchanged original criteria 02, 04 and 06, the model supplies evidence-backed semantic facts and code selects the grade. No necessary missing information takes N/A precedence for 02. Criterion 04 tiers follow actual requested coverage; unasked details never create an omission. Criterion 06 uses the strongest demonstrated communication failure, so later correction cannot erase a forced re-ask. See `docs/ARCHITECTURE.md` for fact validation, storage and generic fallback. Extracting the wrong facts remains possible and requires review; deterministic mapping does not prove semantic accuracy.
