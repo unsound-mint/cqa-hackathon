@@ -12,7 +12,12 @@ const { id: _i, version: _v, createdAt: _c, ...strip } = ORIGINAL_CHECKLIST;
 
 function modelFor(req: ProviderRequest) {
   const p = JSON.parse(req.user) as { checklist: { criteria: { id: string; kind: string; allowedValues: unknown[]; allowNA: boolean }[] }; conversation: { transcript: { text: string }[] } };
+  const assisted = (JSON.parse(req.user).assistedQuestions ?? []).map((q: { criterionId: string }) => ({
+    criterionId: q.criterionId,
+    answers: { verificationRequired: true, reason: 'ok', confidence: 'high', firstProtectedDisclosure: { messageIndex: 8, quote: 'Вижу заказ' } },
+  }));
   return {
+    assisted,
     results: p.checklist.criteria.map((c) => ({
       criterionId: c.id,
       value: c.kind === 'discrete-scale' ? [...(c.allowedValues as number[])].sort((a, b) => b - a)[1] : c.id === '08' ? false : true, // second-best tier, so totals are not 100
@@ -52,8 +57,10 @@ describe('rules decide first, the model gets only the rest', () => {
     expect(by('01')).toMatchObject({ source: 'rule', value: true });
     expect(by('07')).toMatchObject({ source: 'rule', value: true });
     expect(by('04')).toMatchObject({ source: 'model' });
+    expect(by('03')).toMatchObject({ source: 'hybrid', value: true });
     const sent = JSON.parse(p.calls[0]!.user);
-    expect(sent.checklist.criteria.map((c: { id: string }) => c.id)).toEqual(['02', '03', '04', '05', '06', '08']);
+    expect(sent.checklist.criteria.map((c: { id: string }) => c.id)).toEqual(['02', '04', '05', '06', '08']);
+    expect(sent.assistedQuestions.map((q: { criterionId: string }) => q.criterionId)).toEqual(['03']);
     expect(sent.alreadyDecided.map((r: { criterionId: string }) => r.criterionId)).toEqual(['01', '07']);
   });
 
@@ -134,7 +141,7 @@ describe('switching a criterion off needs no model call (live-demo path)', () =>
 describe('detector names and seeding', () => {
   it('lists detectors and rejects unknown ones when saving a checklist', async () => {
     const { app } = await setup(provider());
-    expect((await app.inject({ url: '/api/detectors' })).json().map((d: { name: string }) => d.name).sort()).toEqual(['closing', 'greeting-intro']);
+    expect((await app.inject({ url: '/api/detectors' })).json().map((d: { name: string }) => d.name).sort()).toEqual(['closing', 'greeting-intro', 'verification']);
     const bad = await app.inject({ method: 'POST', url: '/api/checklists', payload: { ...strip, criteria: strip.criteria.map((c) => (c.id === '02' ? { ...c, detector: 'nope' } : c)) } });
     expect(bad.statusCode).toBe(400);
     expect(JSON.stringify(bad.json())).toContain('unknown detector nope');

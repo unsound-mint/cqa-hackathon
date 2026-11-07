@@ -68,7 +68,7 @@ Implemented in `packages/contracts` (Zod). v0 in `docs/INTERFACES.md` is unchang
 | `Appeal.createdAt/decidedAt` | | audit trail |
 | `CriterionResult.confidence` (`high`/`medium`/`low`, optional) | | model certainty; `low` (noisy speech recognition, recording gap) should be routed to human review in the UI |
 | `Criterion.detector?` | `GET /api/detectors` | optional deterministic rule per criterion |
-| `CriterionResult.source?` (`rule`/`model`), `reusedFrom?` | | who decided; set only by code, never by the model |
+| `CriterionResult.source?` (`rule`/`hybrid`/`model`), `reusedFrom?` | | who decided; set only by code, never by the model |
 | `Evaluation.provenance {provider, model, promptVersion}` | | per-evaluation provenance; `provider: 'mock'` marks fictional output, the UI must label it |
 
 Rules fixed in the schemas: `CriterionResult` has exactly one of `isNA` / a value; `boolean` allows `[true,false]`; `discrete-scale` needs >=2 non-negative numeric tiers (top tier = full weight); `enum` criteria must have weight 0 (no numeric meaning defined); `criticalFlag` criteria are boolean with weight 0; criterion ids unique per checklist; `Conversation.transcript[i].index === i`.
@@ -86,6 +86,8 @@ For each criterion of an evaluation, in this order (`services/evaluation/evaluat
 1. **Detector** (`Criterion.detector`, rules in `services/evaluation/detectors/`). A detector only *proves* an answer (a greeting + introduction in the client's language in the first operator turn: Yes; a goodbye in the last operator turn: Yes; the client side hung up right after speaking: N/A). If it cannot prove it, it returns undecided, never "No", and the model decides. Unknown detector names are rejected when a checklist is saved.
 2. **Reuse** (`reuse.ts`). If the same conversation already has a result for a criterion with the same `criterionSignature` (instructions, kind, values, N/A rule, flag, detector; not weight/title/section/hint), the stored original result is copied with `reusedFrom`. Switching a criterion off (weight 0) or re-weighting therefore rescoring needs **no model call and no API key**. Reviewer overrides are not carried over.
 3. **Model** for what is left, with `alreadyDecided` as context. If nothing is left the model is never called; `POST /api/evaluations` answers 503 up front only when a needed model is missing.
+
+**Assisted detectors** (`detectors/verification.ts`, criterion 03): code computes the verdict, the model only answers narrow questions in the same single call (`assistedQuestions` -> `assisted[{criterionId, answers}]`). For 03 the questions are "was verification required?" and "which operator message first disclosed protected data or acted on the account (verbatim quote)?". Answers are validated against the transcript (operator message, real index, verbatim quote) and a bad answer is sent back once, like any other output. The verdict is then: not required -> N/A; an identity-verified system event before that message -> Yes; otherwise No (rubric: required but not confirmed in the transcript). If the recording was paused the No is marked `low` confidence for human review. The result is stamped `source: 'hybrid'`, and a model that returns its own result for such a criterion is rejected. An assisted detector applies only to boolean criteria that allow N/A; anything else falls back to the model.
 
 A criterion without a detector (any user-added one) always works through the model, so the changed-checklist requirement holds. Detectors are a fast path, never the only one.
 

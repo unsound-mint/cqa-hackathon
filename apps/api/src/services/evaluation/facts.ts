@@ -7,7 +7,7 @@ import type { Conversation, TranscriptMessage } from '@cqa/contracts';
  */
 
 /** System events confirming identity verification. */
-export const IDENTITY_VERIFIED_PATTERNS = [/личност\p{L}*\s+клиента\s+подтвержд/iu, /жеке\s+басы\s+расталды/iu, /identity\s+(?:was\s+|has\s+been\s+)?verified/iu];
+export const IDENTITY_VERIFIED_PATTERNS = [/личност\p{L}*\s+клиента\s+подтвержд\p{L}*/iu, /жеке\s+басы\s+расталды/iu, /identity\s+(?:was\s+|has\s+been\s+)?verified/iu];
 /** System events showing the chat/call reached a human operator. */
 const OPERATOR_JOIN_PATTERNS = [/эскалаци\p{L}*\s+на\s+оператора/iu, /чат\s+операторға\s+жіберілді/iu, /transferred\s+to\s+an?\s+agent/iu, /агент\s+присоединил\p{L}*/iu];
 /** Hold / internal consultation: the client cannot hear the operator while it lasts. */

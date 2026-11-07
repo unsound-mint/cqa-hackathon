@@ -154,8 +154,8 @@ export const CriterionResultSchema = z
     explanation: z.string(),
     /** Model's own certainty. 'low' (e.g. noisy speech recognition) routes the result to human review. */
     confidence: z.enum(['high', 'medium', 'low']).optional(),
-    /** Who decided: a deterministic rule or the model. Absent on older data. */
-    source: z.enum(['rule', 'model']).optional(),
+    /** Who decided: a deterministic rule, a rule fed narrow facts by the model ('hybrid'), or the model. Absent on older data. */
+    source: z.enum(['rule', 'hybrid', 'model']).optional(),
     /** Set when copied unchanged from an earlier evaluation of the same conversation (no new decision was made). */
     reusedFrom: z.string().optional(),
     evidence: z.array(EvidenceReferenceSchema),
