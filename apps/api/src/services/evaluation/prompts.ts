@@ -1,5 +1,5 @@
 /** Versioned prompt. Bump PROMPT_VERSION on any wording change; it is stored with every evaluation. */
-export const PROMPT_VERSION = 'eval-v6';
+export const PROMPT_VERSION = 'eval-v7';
 
 export const SYSTEM_PROMPT = `You evaluate the quality of ONE customer-support conversation (a typed chat or a phone call transcript) against a checklist.
 
