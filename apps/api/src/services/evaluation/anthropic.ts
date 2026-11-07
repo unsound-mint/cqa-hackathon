@@ -29,6 +29,7 @@ type Body = {
  * - `tool_choice: auto` plus a prompt instruction, because a forced tool call makes Haiku 5.5 skip thinking;
  * - explicit `output_config.effort`, and a `max_tokens` large enough to hold thinking plus the answer;
  * - the stable system prompt is cache-marked (it silently does nothing below the model's minimum prefix size).
+ * - strict tool input grammar; the evaluator supplies a closed, request-specific schema.
  * No SDK dependency; the stop reason is checked, so a truncated or refused answer is a clear error, not bad JSON.
  */
 export class AnthropicProvider implements LlmProvider {
@@ -59,7 +60,7 @@ export class AnthropicProvider implements LlmProvider {
             output_config: { effort: this.effort },
             system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }],
             messages: [{ role: 'user', content: req.user }],
-            tools: [{ name: 'submit_evaluation', description: 'Submit the structured evaluation. Call this exactly once, as your final action.', input_schema: req.outputSchema }],
+            tools: [{ name: 'submit_evaluation', strict: true, description: 'Submit the structured evaluation. Call this exactly once, as your final action.', input_schema: req.outputSchema }],
             tool_choice: { type: 'auto' },
           }),
           signal: req.signal ?? AbortSignal.timeout(this.o.timeoutMs ?? 120_000),

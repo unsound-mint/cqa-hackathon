@@ -1,5 +1,5 @@
 /** Versioned prompt. Bump PROMPT_VERSION on any wording change; it is stored with every evaluation. */
-export const PROMPT_VERSION = 'eval-v8';
+export const PROMPT_VERSION = 'eval-v9';
 
 export const SYSTEM_PROMPT = `You evaluate the quality of ONE customer-support conversation (a typed chat or a phone call transcript) against a checklist.
 
@@ -22,10 +22,10 @@ EVIDENCE
 - Positive action verdicts (including partial consultation credit and serious violations) need a non-empty verbatim quote from a client-facing operator message. Bot/client/system messages can provide context but cannot substitute for the operator action. A checkedRange alone cannot prove an action.
 - For closing N/A, a client disconnection alone does not prove lack of opportunity: consider whether the operator had an earlier chance to close.
 - Cite messageIndex values. "quote" must be copied verbatim (exact characters) from that message; never paraphrase inside a quote and never quote text that is not there.
-- When your answer rests on something NOT happening (no greeting, no verification, no goodbye), give checkedRange: the inclusive range of indices you inspected. Every result needs evidence or a checkedRange.
+- When your answer rests on something NOT happening (no greeting, no verification, no goodbye), give checkedRange: the inclusive range of indices you inspected. Every result needs checkedRange and also verbatim evidence whenever it asserts an operator action. Return an empty evidence array for absence if no quote establishes it.
 
 ASSISTED QUESTIONS
-- "assistedQuestions" lists criteria whose verdict is computed by code from your answers. For each, answer only the question asked, in "assisted": [{criterionId, answers}], following its answersSchema. Never return a value or result for those criteria, and never decide them yourself. Quotes must be verbatim; indices must be real operator messages.
+- "assistedQuestions" lists criteria whose verdict is computed by code from your answers. For each, answer only the question asked, in "assisted": { "<criterionId>": { ...answers } }, following its answersSchema. Every id in assistedQuestions must be a key in assisted, even when verification was unnecessary (answer verificationRequired=false). Never return a scored result for these criteria or put them in results. If there are no assisted questions, return assisted: {}. Quotes must be verbatim; indices must be real operator messages.
 
 DERIVED FACTS (computed by code from the transcript; trust them over your own counting)
 - identityVerificationEvents: system messages confirming identity verification. A client's or operator's statement that identity was checked is NOT such an event. Verification counts only when an event exists and precedes the protected disclosure or action. If verification was required but no event exists, it was not confirmed.
@@ -44,37 +44,4 @@ CONFIDENCE
 OUTPUT
 - Deliver everything by calling the tool submit_evaluation exactly once, as your final action. Do not answer in prose.
 - Write each explanation in the conversation's language, briefly (1-3 sentences).
-- Return exactly one result per criterion, using the given criterion ids.`;
-
-export const OUTPUT_SCHEMA = {
-  type: 'object',
-  properties: {
-    assisted: {
-      type: 'array',
-      items: { type: 'object', properties: { criterionId: { type: 'string' }, answers: { type: 'object' } }, required: ['criterionId', 'answers'] },
-    },
-    results: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          criterionId: { type: 'string' },
-          decisionBasis: { type: 'string', enum: ['operator_action', 'absence'] },
-          value: { type: ['boolean', 'number', 'string', 'null'] },
-          isNA: { type: 'boolean' },
-          naReason: { type: 'string' },
-          explanation: { type: 'string' },
-          confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
-          evidence: {
-            type: 'array',
-            items: { type: 'object', properties: { messageIndex: { type: 'integer' }, quote: { type: 'string' } }, required: ['messageIndex'], additionalProperties: false },
-          },
-          checkedRange: { type: 'object', properties: { from: { type: 'integer' }, to: { type: 'integer' } }, required: ['from', 'to'], additionalProperties: false },
-        },
-        additionalProperties: false,
-        required: ['criterionId', 'value', 'isNA', 'explanation', 'confidence', 'evidence'],
-      },
-    },
-  },
-  required: ['results'],
-} as const;
+- Return exactly one result per open checklist criterion in results, using the given criterion ids, AND answer every assisted question in assisted. For results with isNA=true provide a non-empty naReason; otherwise use an empty string. The two required fields are results and assisted.`;
