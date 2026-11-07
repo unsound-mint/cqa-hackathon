@@ -21,7 +21,7 @@
   "dependencies": {
     "@cqa/contracts": "workspace:*",
     "@fastify/static": "^10.1.10",
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "^12.11.1",
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.8",
     "zod": "^4.6.7"
