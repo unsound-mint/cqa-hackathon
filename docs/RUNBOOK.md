@@ -36,3 +36,6 @@ Two files must be pushed to the public repo before the stop-code: `results/dev/r
 1. Import and evaluate the control set in the app (all 10 conversations; an evaluation that fails is exported as `status: "error"`, never as a zero).
 2. `node scripts/export-results.mjs --group <control group id> --out results/prod/results.json --team "<team name>" --expect 10` (DEV: `--group DEV --expect 65`).
 3. `pnpm results:check results/prod/results.json --expect 10`, then commit, push, and confirm the file is visible on GitHub. Local commit without push does not count.
+
+## Dynamics 365 (HTML web resource)
+The guide asks for a UI that can later be adapted as a Dynamics 365 HTML component. Prepared, not exercised in a real Dynamics org: the build uses relative asset URLs (`base: './'`), routing is hash-based (no server rewrites), and the API origin is configurable. To embed: build with `VITE_API_BASE_URL=https://<api host>`, upload `apps/web/dist/index.html` and `dist/assets/*` as web resources keeping the `assets/` folder layout, and start the API with `CORS_ORIGIN=https://<org>.crm.dynamics.com`. The API must be reachable over HTTPS from the browser.

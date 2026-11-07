@@ -11,6 +11,6 @@ export { MockCqaApi } from './MockCqaApi';
 export function createApi(): CqaApi {
   const mode = import.meta.env.VITE_API_MODE || (import.meta.env.PROD ? 'http' : 'mock');
   if (mode === 'mock') return new MockCqaApi(richDemo(), richDemoAppeals());
-  if (mode === 'http') return new HttpCqaApi();
+  if (mode === 'http') return new HttpCqaApi({ baseUrl: import.meta.env.VITE_API_BASE_URL || '' });
   throw new Error(`VITE_API_MODE=${mode}: unknown mode. Use 'mock' or 'http'.`);
 }
