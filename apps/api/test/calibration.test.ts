@@ -1,3 +1,4 @@
+import { semanticAnswers } from './helpers/semantic.js';
 import { describe, expect, it } from 'vitest';
 import type { Conversation, Criterion } from '@cqa/contracts';
 import { ORIGINAL_CHECKLIST } from '../src/services/checklists.js';
@@ -49,7 +50,7 @@ it('requests the validated explanation language in the schema',()=>{
 it('excludes first-response facts only for original semantics while preserving timestamps and custom timing support',async()=>{
  async function capture(c:Criterion){
   let sent:any;
-  await evaluateConversation({name:'fake',model:'fake',async complete(req){sent={...req,user:JSON.parse(req.user)};return {output:{results:[{criterionId:c.id,value:c.kind==='discrete-scale'?10:true,isNA:false,explanation:'e',evidence:[{messageIndex:2,quote:'receipt'}]}],assisted:{}}};}},conversation,{...ORIGINAL_CHECKLIST,criteria:[c]});
+  await evaluateConversation({name:'fake',model:'fake',async complete(req){sent={...req,user:JSON.parse(req.user)};return {output:{results:sent.user.checklist.criteria.length?[{criterionId:c.id,value:c.kind==='discrete-scale'?10:true,isNA:false,explanation:'e',evidence:[{messageIndex:2,quote:'receipt'}]}]:[],assisted:semanticAnswers(req)}};}},conversation,{...ORIGINAL_CHECKLIST,criteria:[c]});
   return sent;
  }
  const original=await capture(criterion('06'));

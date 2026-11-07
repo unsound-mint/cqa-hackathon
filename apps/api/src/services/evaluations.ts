@@ -1,6 +1,7 @@
 import { EvaluationSchema, type Evaluation } from '@cqa/contracts';
 import { asc, eq } from 'drizzle-orm';
 import type { Db } from '../db/index.js';
+import type { DecisionFacts } from './evaluation/semantic/index.js';
 import { evaluations } from '../db/schema.js';
 
 export function toEvaluation(row: typeof evaluations.$inferSelect): Evaluation {
@@ -9,9 +10,9 @@ export function toEvaluation(row: typeof evaluations.$inferSelect): Evaluation {
 }
 
 /** Used by the evaluation job (issue #5). Final results start as a copy of the originals. */
-export function insertEvaluation(db: Db, e: Evaluation, cacheContext?: string): void {
+export function insertEvaluation(db: Db, e: Evaluation, cacheContext?: string, decisionFacts?: DecisionFacts): void {
   db.insert(evaluations)
-    .values({ ...EvaluationSchema.parse(e), cacheContext: cacheContext ?? null, provenance: e.provenance ?? null, error: e.error ?? null, createdAt: new Date().toISOString() })
+    .values({ ...EvaluationSchema.parse(e), cacheContext: cacheContext ?? null, decisionFacts: decisionFacts ?? null, provenance: e.provenance ?? null, error: e.error ?? null, createdAt: new Date().toISOString() })
     .run();
 }
 
