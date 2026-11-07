@@ -44,13 +44,14 @@ const EXPLAIN: Record<Language, (g: string, i: string) => string> = {
 export const greetingIntroDetector: Detector = {
   name: 'greeting-intro',
   description: "Yes when the operator's first turn contains a greeting in the client's language and a self-introduction. Never decides No.",
-  run({ conversation, criterion }) {
+  run({ conversation, criterion, facts }) {
     if (!isBooleanYesNo(criterion)) return null;
     const lang = conversation.language;
     const turn = firstOperatorTurn(conversation);
     let greeting: { index: number; text: string } | undefined;
     let intro: { index: number; text: string } | undefined;
     for (const m of turn) {
+      if (facts.operatorMessagesDuringHold.includes(m.index)) continue;
       const g = GREETING[lang].exec(m.text);
       if (g && !greeting) greeting = { index: m.index, text: g[0] };
       const i = findIntro(m.text, lang);

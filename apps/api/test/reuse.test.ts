@@ -158,6 +158,53 @@ describe('detector names and seeding', () => {
   });
 });
 
+describe('cache context and fresh evaluation', () => {
+  it('explicit force bypasses reuse while unchanged default runs reuse results', async () => {
+    const p = provider();
+    const {app} = await setup(p);
+    await evaluate(app, ORIGINAL_CHECKLIST.id);
+    const count = p.calls.length;
+    await evaluate(app, ORIGINAL_CHECKLIST.id);
+    expect(p.calls.length).toBe(count);
+    const res = await app.inject({method:'POST',url:'/api/evaluations',payload:{conversationIds:[conv.id],checklistVersionId:ORIGINAL_CHECKLIST.id,force:true}});
+    expect(res.statusCode).toBe(202);
+    await app.runner.idle();
+    expect(p.calls.length).toBe(count+1);
+    expect(JSON.parse(p.calls.at(-1)!.user).checklist.criteria.map((c:{id:string})=>c.id)).toContain('04');
+  });
+
+  it('does not reuse another model or changed transcript content', async () => {
+    const p = provider();
+    const {app, db} = await setup(p);
+    await evaluate(app, ORIGINAL_CHECKLIST.id);
+    const other = {...p, model:'different-model'};
+    const app2 = buildApp({db, provider:other});
+    await evaluate(app2, ORIGINAL_CHECKLIST.id);
+    expect(p.calls).toHaveLength(2);
+    // Direct DB mutation simulates a legacy/external writer; HTTP imports forbid this.
+    const {eq} = await import('drizzle-orm');
+    await import('../src/db/schema.js').then(({conversations}) =>
+      db.update(conversations).set({transcript:conv.transcript.map(m=>m.index===0?{...m,text:'changed fictional input'}:m)}).where(eq(conversations.id,conv.id)).run());
+    await evaluate(app2, ORIGINAL_CHECKLIST.id);
+    expect(p.calls).toHaveLength(3);
+  });
+
+  it('rejects legacy or obsolete evaluator/prompt cache contexts', async () => {
+    const {eq} = await import('drizzle-orm');
+    const {evaluations} = await import('../src/db/schema.js');
+    const p = provider();
+    const {app,db} = await setup(p);
+    const first = (await evaluate(app, ORIGINAL_CHECKLIST.id)).ev;
+    const current = JSON.parse(db.select().from(evaluations).where(eq(evaluations.id, first.id)).get()!.cacheContext!);
+    for (const context of [null, JSON.stringify({...current,promptVersion:'old'}), JSON.stringify({...current,evaluatorVersion:'old'})]) {
+      db.update(evaluations).set({cacheContext:context}).where(eq(evaluations.id, first.id)).run();
+      const {makeReuseLookup} = await import('../src/services/evaluation/reuse.js');
+      const {criterionSignature} = await import('@cqa/contracts');
+      expect(makeReuseLookup(db,conv.id,p)(criterionSignature(ORIGINAL_CHECKLIST.criteria[3]!))).toBeUndefined();
+    }
+  });
+});
+
 describe('fresh jobs', () => {
   it('ask the model again for criteria that would otherwise be reused, and are persisted across resume', async () => {
     const p = provider();
@@ -171,7 +218,16 @@ describe('fresh jobs', () => {
     expect(res.statusCode).toBe(202);
     await app.runner.idle();
     expect(p.calls.length).toBe(after1 + 1);
-    const row = db.select().from((await import('../src/db/schema.js')).jobs).all().find((j) => j.fresh);
+    const row = db.select().from((await import('../src/db/schema.js')).jobs).all().find((j) => j.force);
     expect(row).toBeTruthy();
   });
+});
+
+it('invalidates reused results when model effort changes', async () => {
+  const p = {...provider(),effort:'medium'};
+  const {app,db} = await setup(p);
+  await evaluate(app,ORIGINAL_CHECKLIST.id);
+  const next = buildApp({db,provider:{...p,effort:'high'}});
+  await evaluate(next,ORIGINAL_CHECKLIST.id);
+  expect(p.calls).toHaveLength(2);
 });

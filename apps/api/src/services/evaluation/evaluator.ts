@@ -1,5 +1,6 @@
 import { CriterionResultSchema, criterionSignature, findEvidenceProblems, scoreEvaluation, type ChecklistVersion, type Criterion, type Conversation, type CriterionResult, type Provenance } from '@cqa/contracts';
 import { z } from 'zod';
+import original from '../../checklists/original.json';
 import { ASSISTED_DETECTORS, DETECTORS } from './detectors/index.js';
 import type { AssistedDetector } from './detectors/types.js';
 import { deriveFacts } from './facts.js';
@@ -38,9 +39,14 @@ export function validateModelOutput(output: unknown, conversation: Conversation,
   if (!raw.success) return { problems: ['output must be { results: [...] }'] };
   const problems: string[] = [];
   const parsed: CriterionResult[] = [];
+  const facts = deriveFacts(conversation);
+  const enumBasis = new Map<string, unknown>();
   raw.data.results.forEach((r, i) => {
     const p = CriterionResultSchema.safeParse(r);
-    if (p.success) parsed.push(p.data);
+    if (p.success) {
+      parsed.push(p.data);
+      enumBasis.set(p.data.criterionId, (r as Record<string, unknown>).decisionBasis);
+    }
     else problems.push(`results[${i}]: ${p.error.issues[0]?.message ?? 'invalid'}`);
   });
 
@@ -62,6 +68,19 @@ export function validateModelOutput(output: unknown, conversation: Conversation,
     } else if (!c.allowedValues.includes(r.value as never)) {
       problems.push(`${c.id}: value ${JSON.stringify(r.value)} is not one of ${JSON.stringify(c.allowedValues)}`);
     }
+    // Context from clients/bots/system events is valid, but cannot prove an operator action.
+    const basis = enumBasis.get(c.id);
+    if (c.kind === 'enum' && !r.isNA) {
+      if (basis !== 'operator_action' && basis !== 'absence') problems.push(`${c.id}: enum needs decisionBasis operator_action or absence`);
+      if (basis === 'absence' && !r.checkedRange) problems.push(`${c.id}: absence needs checkedRange`);
+    }
+    const positiveNumeric = typeof r.value === 'number' && r.value > Math.min(...c.allowedValues.filter((v): v is number => typeof v === 'number'));
+    const needsAction = !r.isNA && (r.value === true || positiveNumeric || (c.kind === 'enum' && basis === 'operator_action'));
+    if (needsAction && !r.evidence.some((e) => {
+      const m = conversation.transcript[e.messageIndex];
+      return m?.speaker === 'operator' && !facts.operatorMessagesDuringHold.includes(e.messageIndex)
+        && !!e.quote?.trim() && m.text.includes(e.quote);
+    })) problems.push(`${c.id}: positive action needs verbatim client-facing operator evidence; bot/system/client evidence is context only`);
     if (r.evidence.length === 0 && !r.checkedRange) problems.push(`${c.id}: needs evidence or checkedRange`);
     // A raised flag (serious violation) is an accusation about the operator: it must point at something the operator said.
     if (c.criticalFlag && r.value === true && !r.evidence.some((x) => x.quote && conversation.transcript[x.messageIndex]?.speaker === 'operator')) {
@@ -119,7 +138,10 @@ export function planCriteria(conversation: Conversation, checklist: ChecklistVer
   const undecided: Criterion[] = [];
   const assisted: AssistedItem[] = [];
   for (const criterion of checklist.criteria) {
-    const detected = criterion.detector ? DETECTORS[criterion.detector]?.run({ conversation, facts, criterion }) : null;
+    // A retained detector name must never override edited instructions or N/A semantics.
+    const supported = original.criteria.some((c) => c.detector === criterion.detector && criterionSignature(c as Criterion) === criterionSignature(criterion));
+    const detectorName = supported ? criterion.detector : undefined;
+    const detected = detectorName ? DETECTORS[detectorName]?.run({ conversation, facts, criterion }) : null;
     if (detected) {
       decided.set(criterion.id, detected);
       continue;
@@ -129,7 +151,7 @@ export function planCriteria(conversation: Conversation, checklist: ChecklistVer
       decided.set(criterion.id, { ...structuredClone(prior.result), criterionId: criterion.id, reusedFrom: prior.evaluationId });
       continue;
     }
-    const helper = criterion.detector ? ASSISTED_DETECTORS[criterion.detector] : undefined;
+    const helper = detectorName ? ASSISTED_DETECTORS[detectorName] : undefined;
     if (helper?.appliesTo(criterion)) assisted.push({ criterion, detector: helper });
     else undecided.push(criterion);
   }

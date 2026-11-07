@@ -66,12 +66,13 @@ export function openDb(path: string) {
       status TEXT NOT NULL,
       total INTEGER NOT NULL,
       completed INTEGER NOT NULL,
-      created_at TEXT NOT NULL,
-      fresh INTEGER NOT NULL DEFAULT 0
+      created_at TEXT NOT NULL
     );
   `);
-  // Databases created before the column existed (DDL above is create-if-missing only).
-  if (!(sqlite.prepare("PRAGMA table_info(jobs)").all() as { name: string }[]).some((c) => c.name === 'fresh')) sqlite.exec('ALTER TABLE jobs ADD COLUMN fresh INTEGER NOT NULL DEFAULT 0');
+  // Additive migrations: legacy evaluations intentionally have no reusable cache context.
+  const columns = (table: string) => sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!columns('evaluations').some((c) => c.name === 'cache_context')) sqlite.exec('ALTER TABLE evaluations ADD COLUMN cache_context TEXT');
+  if (!columns('jobs').some((c) => c.name === 'force')) sqlite.exec('ALTER TABLE jobs ADD COLUMN force INTEGER NOT NULL DEFAULT 0');
   return drizzle(sqlite, { schema });
 }
 

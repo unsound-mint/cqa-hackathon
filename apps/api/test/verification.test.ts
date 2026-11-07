@@ -72,6 +72,12 @@ describe('verification: the verdict comes from code and system events', () => {
       expect(det.validate({ conversation: unk, facts: deriveFacts(unk) }, ans({ unrecognizedVerificationEvent: ev })).problems.join()).toMatch(re);
     });
 
+    it.each(['Customer identity verified: false', 'Customer identity verified?', 'Личность клиента подтверждена: нет', 'Жеке басы расталды: жоқ'])('rejects a model-spotted negative/interrogative event: %s', (text) => {
+      const c = conv([['client','q'],['system',text],['operator','Ваш заказ']]);
+      const output = ans({firstProtectedDisclosure:{messageIndex:2,quote:'Ваш заказ'},unrecognizedVerificationEvent:{messageIndex:1,quote:text}});
+      expect(det.validate({conversation:c,facts:deriveFacts(c)},output).problems.join()).toMatch(/negative or interrogative/);
+    });
+
     it('rejects naming an event the code already recognised', () => {
       const known = conv([['client', 'q'], ['system', VERIFIED], ['operator', 'Ваш заказ']]);
       const v = det.validate({ conversation: known, facts: deriveFacts(known) }, ans({ firstProtectedDisclosure: { messageIndex: 2, quote: 'Ваш заказ' }, unrecognizedVerificationEvent: { messageIndex: 1, quote: 'Личность' } }));

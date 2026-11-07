@@ -80,6 +80,7 @@ export const verificationDetector: AssistedDetector<Answers> = {
       else {
         if (m.speaker !== 'system') problems.push(`unrecognizedVerificationEvent must be a system message (message ${u.messageIndex} is ${m.speaker})`);
         if (!m.text.includes(u.quote)) problems.push(`unrecognizedVerificationEvent quote not found verbatim in message ${u.messageIndex}`);
+        if (/[?]|\b(?:false|unsuccessfully|not verified)\b|(?:не подтвержд|расталма)|(?:^|[\s:])(?:нет|жоқ)(?:[.!]?\s*)$/iu.test(m.text)) problems.push('unrecognizedVerificationEvent cannot be a negative or interrogative event');
         if (facts.identityVerificationEvents.includes(u.messageIndex)) problems.push(`message ${u.messageIndex} is already a recognised verification event`);
       }
     }
@@ -109,7 +110,7 @@ export const verificationDetector: AssistedDetector<Answers> = {
       const ev = t[before[before.length - 1]!]!;
       const phrase = found && ev.index === found.messageIndex ? found.quote : IDENTITY_VERIFIED_PATTERNS.map((re) => re.exec(ev.text)?.[0]).find(Boolean) ?? ev.text;
       const confidence = found && ev.index === found.messageIndex && a.confidence === 'high' ? 'medium' : a.confidence;
-      return { ...base, value: true, explanation: EXPLAIN[lang].yes(phrase), confidence, evidence: [{ messageIndex: ev.index, quote: phrase }, ...disclosureEvidence], checkedRange } satisfies CriterionResult;
+      return { ...base, value: true, explanation: EXPLAIN[lang].yes(phrase), confidence, evidence: [{ messageIndex: ev.index, quote: phrase.replace(/[.!]\s*$/, '') }, ...disclosureEvidence], checkedRange } satisfies CriterionResult;
     }
 
     const late = events.length > 0;

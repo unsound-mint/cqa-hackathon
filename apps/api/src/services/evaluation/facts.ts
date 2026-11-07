@@ -7,7 +7,11 @@ import type { Conversation, TranscriptMessage } from '@cqa/contracts';
  */
 
 /** System events confirming identity verification. */
-export const IDENTITY_VERIFIED_PATTERNS = [/личност\p{L}*\s+клиента\s+подтвержд\p{L}*/iu, /жеке\s+басы\s+расталды/iu, /identity\s+(?:was\s+|has\s+been\s+)?verified/iu];
+export const IDENTITY_VERIFIED_PATTERNS = [
+  /^\s*Личность клиента подтверждена[.!]?\s*$/iu,
+  /^\s*(?:Клиенттің\s+)?жеке басы расталды[.!]?\s*$/iu,
+  /^\s*(?:(?:Customer|Client)\s+)?identity\s+(?:was\s+|has\s+been\s+)?verified[.!]?\s*$/iu,
+];
 /** System events showing the chat/call reached a human operator. */
 const OPERATOR_JOIN_PATTERNS = [/эскалаци\p{L}*\s+на\s+оператора/iu, /чат\s+операторға\s+жіберілді/iu, /transferred\s+to\s+an?\s+agent/iu, /агент\s+присоединил\p{L}*/iu];
 /** Hold / internal consultation: the client cannot hear the operator while it lasts. */
@@ -46,7 +50,7 @@ function rangesBetween(t: TranscriptMessage[], open: RegExp[], close: RegExp[]):
   return out;
 }
 
-const inAny = (i: number, ranges: IndexRange[]) => ranges.some((r) => i > r.from && i < r.to);
+const inAny = (i: number, ranges: IndexRange[]) => ranges.some((r) => i > r.from && i <= r.to);
 
 export function deriveFacts(c: Conversation) {
   const t = c.transcript;

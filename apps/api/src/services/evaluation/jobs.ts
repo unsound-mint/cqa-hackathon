@@ -7,7 +7,7 @@ import { getChecklist } from '../checklists.js';
 import { getConversation } from '../conversations.js';
 import { insertEvaluation } from '../evaluations.js';
 import { evaluateConversation, planCriteria } from './evaluator.js';
-import { makeReuseLookup } from './reuse.js';
+import { evaluationCacheContext, makeReuseLookup } from './reuse.js';
 import type { LlmProvider } from './provider.js';
 
 export class JobError extends Error {
@@ -47,11 +47,11 @@ export class JobRunner {
     if (missing.length) throw new JobError(`conversations not found: ${missing.slice(0, 5).join(', ')}`, 404);
     // A model is needed only if rules + reuse cannot settle every criterion (e.g. switching a criterion off needs none).
     if (!this.provider) {
-      const needing = ids.filter((id) => ((pl) => pl.undecided.length + pl.assisted.length > 0)(planCriteria(getConversation(this.db, id)!, checklist, input.fresh ? undefined : makeReuseLookup(this.db, id))));
+      const needing = ids.filter((id) => ((pl) => pl.undecided.length + pl.assisted.length > 0)(planCriteria(getConversation(this.db, id)!, checklist, (input.force || input.fresh) ? undefined : makeReuseLookup(this.db, id, this.provider))));
       if (needing.length) throw new JobError(`no model provider configured (set ANTHROPIC_API_KEY); ${needing.length} conversation(s) have criteria that need a model`, 503);
     }
 
-    const row = { id: `job-${randomUUID()}`, checklistVersionId: input.checklistVersionId, conversationIds: ids, evaluationIds: [] as string[], status: 'running', total: ids.length, completed: 0, createdAt: new Date().toISOString(), fresh: input.fresh === true };
+    const row = { id: `job-${randomUUID()}`, checklistVersionId: input.checklistVersionId, conversationIds: ids, evaluationIds: [] as string[], force: (input.force || input.fresh) ?? false, status: 'running', total: ids.length, completed: 0, createdAt: new Date().toISOString() };
     this.db.insert(jobs).values(row).run();
     this.launch(row.id);
     return toJob(row);
@@ -95,8 +95,8 @@ export class JobRunner {
         const base = { id: `eval-${randomUUID()}`, conversationId: id, checklistVersionId: checklist.id };
         let ev: Evaluation;
         try {
-          const r = await evaluateConversation(provider, conversation, checklist, job.fresh ? undefined : makeReuseLookup(this.db, id));
-          this.log.info({ conversationId: id, provider: r.provenance.provider, model: r.provenance.model, modelCriteria: r.modelCriteria.length, latencyMs: r.latencyMs, ...r.usage }, 'evaluation cost');
+          const r = await evaluateConversation(provider, conversation, checklist, job.force ? undefined : makeReuseLookup(this.db, id, provider));
+          this.log.info({ conversationId: id, provider: r.provenance.provider, model: r.provenance.model, modelCriteria: r.modelCriteria.length, ...r.usage }, 'evaluation cost');
           ev = { ...base, status: 'completed', originalResults: r.results, originalTotal: r.total, finalResults: structuredClone(r.results), finalTotal: r.total, seriousViolation: r.seriousViolation, provenance: r.provenance };
         } catch (e) {
           const message = e instanceof Error ? e.message : 'evaluation failed';
@@ -105,7 +105,7 @@ export class JobRunner {
         }
         // Evaluation row and job progress commit together, so a crash never loses or duplicates one.
         this.db.transaction((tx) => {
-          insertEvaluation(tx as unknown as Db, ev);
+          insertEvaluation(tx as unknown as Db, ev, evaluationCacheContext(conversation, provider));
           const cur = tx.select().from(jobs).where(eq(jobs.id, jobId)).get()!;
           tx.update(jobs).set({ evaluationIds: [...cur.evaluationIds, ev.id], completed: cur.completed + 1 }).where(eq(jobs.id, jobId)).run();
         });
