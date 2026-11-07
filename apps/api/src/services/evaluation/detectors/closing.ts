@@ -14,9 +14,9 @@ const GOODBYE: Record<Language, RegExp> = {
 };
 
 /**
- * Context-dependent social closings (e.g. "Happy to help") go to the model; a phrase alone is not proof.
- * An offer of further help, the second half of rubric 07 ("summarizes OR offers further help, AND says goodbye").
- * A "summary" is semantic and is left to the model; only the offer is provable by phrase.
+ * Rubric 07 is an OR: any one wrap-up element in the operator's last turn is enough (confirmed by Denis, 2026-11-08).
+ * Elements provable by phrase: an offer of further help, a farewell, or a courteous reply to thanks / "happy to help".
+ * A "summary" is semantic and is left to the model.
  */
 const OFFER: Record<Language, RegExp> = {
   RU: new RegExp(
@@ -33,41 +33,43 @@ const OFFER: Record<Language, RegExp> = {
   ),
 };
 
-const EXPLAIN_YES: Record<Language, (offer: string, bye: string) => string> = {
-  RU: (o, b) => `Правило: в последней реплике оператора есть предложение помощи («${o}») и прощание («${b}»).`,
-  KZ: (o, b) => `Ереже: оператордың соңғы жауабында көмек ұсынысы («${o}») және қоштасу («${b}») бар.`,
-  EN: (o, b) => `Rule: the operator's last turn offers further help ("${o}") and says goodbye ("${b}").`,
+const COURTESY: Record<Language, RegExp> = {
+  RU: new RegExp(`${L}(?:пожалуйста|не\\s+за\\s+что|рад[аы]?\\s+(?:был[аи]?\\s+)?помочь|рад[аы]?,?\\s+что\\s+(?:смог\\p{L}*|помог\\p{L}*)|всегда\\s+рады|к\\s+вашим\\s+услугам)${R}`, 'iu'),
+  KZ: new RegExp(`${L}(?:өтінемін|оқасы\\s+жоқ|көмектескеніме\\s+қуаныштымын|қуана\\s+көмектесем\\p{L}*|әрдайым\\s+қуаныштымыз)${R}`, 'iu'),
+  EN: new RegExp(`${L}(?:you(?:'|’)?re\\s+welcome|you\\s+are\\s+welcome|no\\s+problem|no\\s+worries|my\\s+pleasure|(?:happy|glad|pleased)\\s+to\\s+help|glad\\s+(?:i\\s+could|that\\s+(?:helped|worked))|any\\s*time|not\\s+at\\s+all)${R}`, 'iu'),
+};
+
+const EXPLAIN_YES: Record<Language, (quotes: string) => string> = {
+  RU: (q) => `Правило: в последней реплике оператора есть завершающая фраза («${q}»).`,
+  KZ: (q) => `Ереже: оператордың соңғы жауабында қорытынды сөз («${q}») бар.`,
+  EN: (q) => `Rule: the operator's last turn wraps up the conversation ("${q}").`,
 };
 export const closingDetector: Detector = {
   name: 'closing',
-  description: 'Yes when the last operator turn offers further help AND says goodbye. Applicability and bare goodbyes are left to the model.',
+  description: 'Yes when the last operator turn offers further help, says goodbye, or courteously acknowledges the outcome (any one). Summaries and applicability are left to the model.',
   run({ conversation, criterion, facts }) {
     if (!isBooleanYesNo(criterion)) return null;
     const lang = conversation.language;
     const turn = lastOperatorTurn(conversation);
 
-    // Strict "AND": an offer of help and a goodbye, both in the last operator turn. A bare goodbye proves nothing.
-    let bye: { index: number; text: string } | undefined;
-    let offer: { index: number; text: string } | undefined;
+    // OR: one wrap-up element is enough. Collect every distinct match so the evidence shows what was found.
+    const found: { index: number; text: string }[] = [];
     for (const m of turn) {
       if (facts.operatorMessagesDuringHold.includes(m.index)) continue;
-      const g = GOODBYE[lang].exec(m.text);
-      if (g) bye = { index: m.index, text: g[0] };
-      const o = OFFER[lang].exec(m.text);
-      if (o && !offer) offer = { index: m.index, text: o[0] };
+      for (const re of [OFFER[lang], GOODBYE[lang], COURTESY[lang]]) {
+        const x = re.exec(m.text);
+        if (x && !found.some((f) => f.index === m.index && f.text === x[0])) found.push({ index: m.index, text: x[0] });
+      }
     }
-    if (bye && offer) {
+    if (found.length) {
       return {
         criterionId: criterion.id,
         value: true,
         isNA: false,
-        explanation: EXPLAIN_YES[lang](offer.text, bye.text),
+        explanation: EXPLAIN_YES[lang](found.map((f) => f.text).join(lang === 'EN' ? '" + "' : '» + «')),
         confidence: conversation.channel === 'voice call' ? 'medium' : 'high',
         source: 'rule',
-        evidence: [
-          { messageIndex: offer.index, quote: offer.text },
-          { messageIndex: bye.index, quote: bye.text },
-        ],
+        evidence: found.map((f) => ({ messageIndex: f.index, quote: f.text })),
         checkedRange: { from: turn[0]!.index, to: turn[turn.length - 1]!.index },
       };
     }
