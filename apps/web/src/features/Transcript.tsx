@@ -35,9 +35,9 @@ const TAG_ACTIVE = { neutral: 'bg-ink text-canvas', success: 'bg-brand text-[#0e
 
 /** Client on the left, operator (the graded party) on the right, bot dimmed, system as small centered notes. */
 const BUBBLE: Record<Speaker, string> = {
-  operator: 'glass-inset rounded-2xl rounded-tr-sm bg-brand-soft',
-  client: 'glass-inset rounded-2xl rounded-tl-sm bg-surface/40',
-  bot: 'glass-inset rounded-2xl rounded-tl-sm bg-fill/40 text-muted',
+  operator: 'chat-bubble chat-bubble-operator rounded-2xl rounded-tr-sm',
+  client: 'chat-bubble chat-bubble-client rounded-2xl rounded-tl-sm',
+  bot: 'chat-bubble chat-bubble-bot rounded-2xl rounded-tl-sm',
   system: 'rounded-full bg-fill px-4 py-1 text-sm italic text-muted',
 };
 const NAME: Record<Speaker, string> = { operator: 'text-accent', client: 'text-ink', bot: 'text-muted', system: 'text-muted' };
@@ -144,6 +144,7 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
                 else refs.current.delete(m.index);
               }}
               tabIndex={-1}
+              data-speaker={m.speaker}
               data-cited={isCited || undefined}
               className={cn('relative flex flex-col outline-none transition-opacity duration-300', right ? 'items-end' : system ? 'items-center' : 'items-start', dimmed(m.index) && 'opacity-80 hover:opacity-100 focus-within:opacity-100')}
             >
