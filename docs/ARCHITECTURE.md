@@ -66,6 +66,7 @@ Implemented in `packages/contracts` (Zod). v0 in `docs/INTERFACES.md` is unchang
 | `listEvaluations({conversationId?})` | `GET /api/evaluations?conversationId=` | open a conversation's existing evaluation(s) |
 | `listAppeals({evaluationId})` | `GET /api/evaluations/:id/appeals` | show appeals and decisions |
 | `Appeal.createdAt/decidedAt` | | audit trail |
+| `CriterionResult.confidence` (`high`/`medium`/`low`, optional) | | model certainty; `low` (noisy speech recognition, recording gap) should be routed to human review in the UI |
 | `Evaluation.provenance {provider, model, promptVersion}` | | per-evaluation provenance; `provider: 'mock'` marks fictional output, the UI must label it |
 
 Rules fixed in the schemas: `CriterionResult` has exactly one of `isNA` / a value; `boolean` allows `[true,false]`; `discrete-scale` needs >=2 non-negative numeric tiers (top tier = full weight); `enum` criteria must have weight 0 (no numeric meaning defined); `criticalFlag` criteria are boolean with weight 0; criterion ids unique per checklist; `Conversation.transcript[i].index === i`.
