@@ -349,7 +349,7 @@ export function App() {
               ))}
             </nav>
 
-            <main id="content" tabIndex={-1} className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[280px_minmax(0,1fr)_480px]' : 'xl:grid-cols-[minmax(0,1fr)_480px]')}>
+            <main id="content" tabIndex={-1} className={cn('grid min-h-0 flex-1 gap-4 bg-canvas p-0 outline-none xl:p-4', wide ? 'xl:grid-cols-[17.5rem_minmax(0,1fr)_30rem]' : 'xl:grid-cols-[minmax(0,1fr)_30rem]')}>
               {wide && (
                 <div className="min-h-0 overflow-hidden rounded-card bg-surface shadow-card">
                   <QueueRail conversations={data.conversations} latest={latest} ids={queue} selectedId={conversation.id} filterLabel={filterLabel} query={filters.query} onQuery={(q) => setFilters((f) => ({ ...f, query: q }))} focusSignal={searchFocus} nextAttentionId={nextAttention} onSelect={(id) => go({ name: 'dialog', id })} />

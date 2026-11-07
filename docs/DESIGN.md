@@ -35,3 +35,10 @@ Read before changing UI. A test (`apps/web/test/grid.test.ts`) fails on off-grid
 - The score banner states the score and what it is made of ("earned X of Y possible points", which criteria were not counted). Per-criterion detail lives in the rows: a points bar appears only where points were lost.
 - No overview that repeats the list below it. Quiet by default: tags on messages are tints, solid only for the open criterion; export sits in the panel footer.- One transcript view: a chat (client left, operator right, system centered). No view toggle and no conversation map: evidence is reached through the numbered tags on messages and the chips in the verdict rows.
 
+## Reading on every screen
+- **Measure:** 50-75 characters per line (Baymard); WCAG 1.4.8 (AAA) asks for 80 or fewer on average. The chat column is capped at 44rem and bubbles at 80% of it, which gives about 54 `ch` (roughly 60 letters) at every width we measured (1280 to 3840 CSS px). Long paragraphs use `max-w-[65ch]` or `max-w-prose`.
+- **Scale:** the root size is the user's own setting (100%) and grows from 1600 CSS px up to a 125% cap (a 27-inch QHD monitor at 100% is about 118%; a 4K screen at 100% hits the cap). Laptops with OS scaling already report a smaller CSS width and stay at 100%. Sizes are rem or ch, never fixed px for layout widths, so the UI follows both the browser font setting and zoom.
+- **Reflow:** no horizontal scroll from 320 CSS px (WCAG 1.4.10); below 1280 the two panes become tabs, below 768 the sidebar becomes a top bar.
+- **Text:** body 16/24, explanations 16/24, secondary 14/20, meta 12/16; `text-wrap: pretty` on paragraphs and `balance` on headings.
+- **Calls:** evidence moves the audio player to the message (MM:SS timestamps only) without starting playback; each message has a play-from-here button.
+

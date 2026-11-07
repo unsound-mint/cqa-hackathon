@@ -126,7 +126,7 @@ export function ChecklistEditor({ checklists, conversationCount, onSave, onEvalu
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-full">
             <h1 className="text-2xl font-semibold leading-8">Чек-лист</h1>
-            <p className="text-sm text-muted">Сохранение создаёт новую версию: старые версии и оценки по ним не меняются.</p>
+            <p className="max-w-prose text-sm text-muted">Сохранение создаёт новую версию: старые версии и оценки по ним не меняются.</p>
           </div>
           <Field id="cl-title" label="Название чек-листа" className="min-w-60 flex-1">
             <Input id="cl-title" value={title} onChange={(e) => setTitle(e.target.value)} />

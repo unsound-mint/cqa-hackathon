@@ -94,7 +94,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
           <h1 className="text-2xl font-semibold leading-8">Диалоги</h1>
           {demo && <Badge tone="warn">Демо: вымышленные данные</Badge>}
         </div>
-        <p className="text-sm text-muted">Очередь проверки: откройте диалог, чтобы увидеть оценку и её обоснование.</p>
+        <p className="max-w-prose text-sm text-muted">Очередь проверки: откройте диалог, чтобы увидеть оценку и её обоснование.</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

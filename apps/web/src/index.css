@@ -76,6 +76,24 @@
 }
 
 @layer base {
+  /*
+   * Reading comfort on every screen. The root size is the user's own setting (100%) and grows gently from 1600 px
+   * of CSS width (a 27-inch QHD monitor at 100% gets about 118%, a 4K screen at 100% gets the 125% cap), so text
+   * stays comfortable on large monitors; laptops with scaling already report a smaller CSS width and stay at 100%.
+   * All widths are rem or ch, so they follow both the user's font setting and this growth. Measure: bubbles and
+   * paragraphs stay near 55-70 characters (research: 50-75; WCAG 1.4.8 asks for at most 80 on average).
+   */
+  html {
+    font-size: clamp(100%, calc(100% + (100vw - 1600px) * 0.003), 125%);
+  }
+  p {
+    text-wrap: pretty;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
   html,
   body,
   #root {

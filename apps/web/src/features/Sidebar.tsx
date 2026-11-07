@@ -28,7 +28,7 @@ export function Sidebar({ active, onNavigate, theme, onToggleTheme, demo }: Prop
   );
   const tool = 'grid size-12 place-items-center rounded-xl text-muted transition-colors hover:bg-fill hover:text-ink';
   return (
-    <aside className="flex shrink-0 flex-row items-center gap-4 border-b border-line bg-surface px-4 py-2 md:h-full md:w-[72px] md:flex-col md:items-stretch md:gap-0 md:border-b-0 md:border-r md:px-2 md:py-4">
+    <aside className="flex shrink-0 flex-row items-center gap-4 border-b border-line bg-surface px-4 py-2 md:h-full md:w-[4.5rem] md:flex-col md:items-stretch md:gap-0 md:border-b-0 md:border-r md:px-2 md:py-4">
       <div className="flex items-center justify-center gap-1 md:mb-4" aria-label="CQA">
         <span className="text-base font-semibold tracking-wide">CQA</span>
         <span aria-hidden className="size-2 rounded-full bg-brand" />

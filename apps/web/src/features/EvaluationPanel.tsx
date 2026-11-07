@@ -113,7 +113,7 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
       {open && (
         <div id={panelId} className="space-y-4 px-4 pb-4">
           {result.isNA && result.naReason && <p className="text-sm"><span className="font-medium">Причина N/A:</span> {result.naReason}</p>}
-          <p className="text-sm leading-5">{result.explanation}</p>
+          <p className="max-w-[65ch] text-base leading-6">{result.explanation}</p>
 
           {result.evidence.length > 0 && (
             <div className="flex flex-wrap gap-2" aria-label="Доказательства">
@@ -232,7 +232,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
             <p className="flex items-center gap-2 text-base font-semibold"><ShieldAlert aria-hidden className="size-4" />Грубое нарушение</p>
             {reasons.length === 0 && <p className="mt-1 text-sm">Флаг поднят.</p>}
             {reasons.map((r) => (
-              <p key={r.criterionId} className="mt-1 text-sm leading-5">{reasons.length > 1 && <span className="font-medium">{r.title}: </span>}{r.explanation}</p>
+              <p key={r.criterionId} className="mt-1 text-base leading-6">{reasons.length > 1 && <span className="font-medium">{r.title}: </span>}{r.explanation}</p>
             ))}
           </div>
         ) : (

@@ -63,3 +63,9 @@ export function gapLabel(prev: string | undefined, cur: string): { text: string 
   const m = Math.floor(s / 60);
   return { text: `пауза ${m ? `${m} мин${s % 60 ? ` ${s % 60} с` : ''}` : `${s} с`}` };
 }
+
+/** Position in a call recording for a message: only "MM:SS" timestamps (offset from the start of the call) are trusted. */
+export function offsetSeconds(ts: string | undefined): number | null {
+  const m = ts ? /^(\d+):(\d{2})$/.exec(ts) : null;
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}

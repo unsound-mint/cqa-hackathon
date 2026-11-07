@@ -363,3 +363,26 @@ it('exports the evaluation: CSV download and print for PDF', async () => {
   expect(print).toHaveBeenCalled();
   expect(document.querySelector('article')!.textContent).toContain('Оценка диалога demo-ru-001');
 });
+
+it('on a call with a recording, opening evidence moves the player to that message and each message can be played from', async () => {
+  const set = vi.fn();
+  const play = vi.fn(() => Promise.resolve());
+  vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'set').mockImplementation(set);
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(play);
+  renderApp(bundle((b) => { b.conversations[0].channel = 'voice call'; b.conversations[0].audioUrl = 'https://example.invalid/fictional.mp3'; }));
+  await transcriptReady();
+  fireEvent.click(row(/Идентификация/));
+  fireEvent.click(screen.getAllByRole('button', { name: /^Перейти к сообщению 6/ })[0]!);
+  expect(set).toHaveBeenLastCalledWith(64); // message 6 is at 01:04
+  expect(play).not.toHaveBeenCalled(); // moving to the fragment does not start playback
+  fireEvent.click(within(document.getElementById('msg-8')!).getByRole('button', { name: 'Слушать с 01:25' }));
+  expect(set).toHaveBeenLastCalledWith(85);
+  expect(play).toHaveBeenCalled();
+  expect(within(document.getElementById('msg-6')!).queryByRole('button', { name: /Слушать/ })).toBeNull(); // system events have no speech to play
+});
+
+it('offers no player controls for a chat or for a call without a recording', async () => {
+  renderApp();
+  await transcriptReady();
+  expect(screen.queryByRole('button', { name: /Слушать/ })).toBeNull();
+});
