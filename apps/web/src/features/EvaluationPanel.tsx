@@ -356,7 +356,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         One fixed place for "which checklist graded this": always this slim bar, never the footer. Text for a single
         evaluation, a picker when the dialog was evaluated under several versions; recalculation on the right.
       */}
-      <div className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-line bg-surface px-4 py-2 text-xs">
+      <div className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-line bg-transparent px-4 py-2 text-xs">
         {versions.length > 1 ? (
           <Select aria-label="Оценка по версии чек-листа" value={evaluation.id} onChange={(e) => onPickEvaluation(e.target.value)} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-xs">
             {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
@@ -370,9 +370,9 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         {!!startError && <ErrorNote error={startError} className="w-full text-xs" />}
       </div>
 
-      <div className="flex-1 space-y-2 bg-surface p-2 md:min-h-0 md:overflow-y-auto">
+      <div className="flex-1 space-y-2 bg-transparent p-2 md:min-h-0 md:overflow-y-auto">
         {groups.map((g) => (
-          <div key={g.id}>
+          <div key={g.id} className="glass-inset rounded-card p-1">
             {g.title && <h3 className="px-4 pb-1 pt-2 text-xs font-medium text-muted">{g.title}</h3>}
             <ul>
               {g.rows.map((r) => (
@@ -399,7 +399,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         {groups.length === 0 && <p className="p-4 text-sm text-muted">Ничего не требует внимания.</p>}
       </div>
 
-      <footer className="flex shrink-0 items-center gap-2 whitespace-nowrap border-t border-line bg-surface px-4 py-2 text-sm text-muted sm:px-6">
+      <footer className="flex shrink-0 items-center gap-2 whitespace-nowrap border-t border-line bg-transparent px-4 py-2 text-sm text-muted sm:px-6">
         {flaggedCount > 0 && (
           <label className="flex min-h-8 items-center gap-2 text-xs text-ink">
             <input type="checkbox" checked={onlyFlagged} onChange={(e) => onOnlyFlagged(e.target.checked)} className="size-4 accent-brand" />
