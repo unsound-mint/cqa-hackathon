@@ -374,7 +374,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
         {groups.map((g) => (
           <div key={g.id}>
             {g.title && <h3 className="px-4 pb-1 pt-2 text-xs font-medium text-muted">{g.title}</h3>}
-            <ul>
+            <ul className="space-y-1">
               {g.rows.map((r) => (
                 <CriterionRow
                   key={r.criterionId}
