@@ -30,6 +30,12 @@ export function listAppeals(db: Db, evaluationId: string): Appeal[] {
   return db.select().from(appeals).where(eq(appeals.evaluationId, evaluationId)).orderBy(asc(appeals.createdAt), asc(appeals.id)).all().map(toAppeal);
 }
 
+/** Appeals across all dialogs, oldest first (the approver's queue), optionally only one status. */
+export function listAllAppeals(db: Db, status?: Appeal['status']): Appeal[] {
+  const rows = db.select().from(appeals).where(status ? eq(appeals.status, status) : undefined).orderBy(asc(appeals.createdAt), asc(appeals.id)).all();
+  return rows.map(toAppeal);
+}
+
 export function createAppeal(db: Db, input: CreateAppealInput): Appeal {
   return db.transaction((tx) => {
     const ev = tx.select().from(evaluations).where(eq(evaluations.id, input.evaluationId)).get();

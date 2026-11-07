@@ -46,14 +46,15 @@ export class MockCqaApi implements CqaApi {
   private checklists: ChecklistVersion[];
   private evaluations: Evaluation[];
   private jobs = new Map<string, Job>();
-  private appeals: Appeal[] = [];
+  private appeals: Appeal[];
   private seq = 0;
 
-  constructor(bundle: unknown = demoJson) {
+  constructor(bundle: unknown = demoJson, seedAppeals: Appeal[] = []) {
     const b = DemoBundleSchema.parse(bundle);
     this.conversations = clone(b.conversations);
     this.checklists = clone(b.checklists);
     this.evaluations = clone(b.evaluations);
+    this.appeals = clone(seedAppeals);
   }
 
   private nextId(prefix: string) {
@@ -133,8 +134,8 @@ export class MockCqaApi implements CqaApi {
     return later(j);
   }
 
-  async listAppeals(query: { evaluationId: string }) {
-    return later(this.appeals.filter((a) => a.evaluationId === query.evaluationId));
+  async listAppeals(query: { evaluationId?: string; status?: Appeal['status'] } = {}) {
+    return later(this.appeals.filter((a) => (!query.evaluationId || a.evaluationId === query.evaluationId) && (!query.status || a.status === query.status)));
   }
 
   async createAppeal(input: unknown) {

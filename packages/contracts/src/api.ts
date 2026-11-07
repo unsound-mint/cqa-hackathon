@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ChannelSchema, CriterionValueSchema, EvaluationStatusSchema, LanguageSchema } from './domain.js';
+import { AppealStatusSchema, ChannelSchema, CriterionValueSchema, EvaluationStatusSchema, LanguageSchema } from './domain.js';
 
 /** Request/response shapes shared by MockCqaApi, HttpCqaApi and the Fastify routes. */
 
@@ -24,6 +24,10 @@ export const JobSchema = z.object({
   evaluationIds: z.array(z.string()),
 });
 export type Job = z.infer<typeof JobSchema>;
+
+/** Appeals of one evaluation, and/or only those in a status. Without `evaluationId` it lists across all dialogs (the approver's queue). */
+export const ListAppealsQuerySchema = z.object({ evaluationId: z.string().min(1).optional(), status: AppealStatusSchema.optional() });
+export type ListAppealsQuery = z.infer<typeof ListAppealsQuerySchema>;
 
 export const ListEvaluationsQuerySchema = z.object({ conversationId: z.string().optional() });
 export type ListEvaluationsQuery = z.infer<typeof ListEvaluationsQuerySchema>;

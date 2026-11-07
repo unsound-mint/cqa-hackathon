@@ -100,4 +100,42 @@ describe('evaluations + appeals', () => {
     await decide(app, a.id, { action: 'override', reason: 'r', value: 10 });
     expect((await evaluation(app)).finalTotal).toBe(88.24); // v1 weights (v2 would give 78.26)
   });
+
+  it('lists appeals across evaluations for the approver, oldest first, filtered by status', async () => {
+    const app = setup();
+    const a = (await appeal(app, '04', 'первое')).json();
+    const b = (await appeal(app, '05', 'второе')).json();
+    await decide(app, a.id, { action: 'uphold', reason: 'ИИ прав' });
+    const all = (await app.inject({ url: '/api/appeals' })).json();
+    expect(all.map((x: { id: string }) => x.id)).toEqual([a.id, b.id]);
+    const pending = (await app.inject({ url: '/api/appeals?status=pending' })).json();
+    expect(pending.map((x: { id: string }) => x.id)).toEqual([b.id]);
+    const decided = (await app.inject({ url: '/api/appeals?status=upheld' })).json();
+    expect(decided[0]).toMatchObject({ id: a.id, status: 'upheld', reviewerReason: 'ИИ прав' });
+    expect((await app.inject({ url: '/api/appeals?status=nonsense' })).statusCode).toBe(400);
+  });
+
+  it('a criterion can be appealed again after a decision, and two overrides in a row keep the originals and both decisions', async () => {
+    const app = setup();
+    const first = (await appeal(app, '04')).json();
+    await decide(app, first.id, { action: 'override', reason: 'первое решение', value: 20 });
+    const second = (await appeal(app, '04', 'снова')).json();
+    expect(second.status).toBe('pending');
+    await decide(app, second.id, { action: 'override', reason: 'второе решение', value: 10 });
+    const ev = await evaluation(app);
+    expect(ev.finalResults.find((r: { criterionId: string }) => r.criterionId === '04')).toMatchObject({ value: 10 });
+    expect(ev.finalTotal).toBe(computeTotal(ORIGINAL_CHECKLIST.criteria, ev.finalResults));
+    expect(ev.originalResults).toEqual(base.originalResults);
+    expect(ev.originalTotal).toBe(base.originalTotal);
+    const history = (await app.inject({ url: `/api/evaluations/${base.id}/appeals` })).json();
+    expect(history.map((x: { reviewerReason: string }) => x.reviewerReason)).toEqual(['первое решение', 'второе решение']);
+  });
+
+  it('an appeal on an evaluation that is not completed is refused', async () => {
+    const db = openDb(':memory:');
+    const app = buildApp({ db });
+    insertEvaluation(db, { ...base, id: 'eval-failed', status: 'failed', originalResults: [], originalTotal: null, finalResults: [], finalTotal: null, error: 'x' });
+    const res = await app.inject({ method: 'POST', url: '/api/evaluations/eval-failed/appeals', payload: { criterionId: '04', comment: 'c' } });
+    expect(res.statusCode).toBe(409);
+  });
 });

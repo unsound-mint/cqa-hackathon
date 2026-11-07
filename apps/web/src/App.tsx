@@ -7,6 +7,7 @@ import { DEFAULT_FILTERS, hasViolation, matches, needsAttention, reviewCount, ty
 import { formatScore, outcome, type Tone } from '@/lib/present';
 import { useWide } from '@/lib/media';
 import { useTheme } from '@/lib/theme';
+import { AppealsPage } from './features/AppealsPage';
 import { ChecklistEditor } from './features/ChecklistEditor';
 import { DialogsPage } from './features/DialogsPage';
 import { LoadingShell } from './features/LoadingShell';
@@ -19,27 +20,28 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/field';
 
-type Data = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: ChecklistVersion[] };
+type Data = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: ChecklistVersion[]; appeals: Appeal[] };
 type Load = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: Data };
 type Pane = 'transcript' | 'evaluation';
-type Route = { name: 'list' } | { name: 'checklist' } | { name: 'dialog'; id: string };
+type Route = { name: 'list' } | { name: 'checklist' } | { name: 'appeals' } | { name: 'dialog'; id: string; criterion?: string };
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function parseHash(): Route {
   const h = window.location.hash;
   if (h === '#/checklist') return { name: 'checklist' };
-  const m = /^#\/dialog\/(.+)$/.exec(h);
+  if (h === '#/appeals') return { name: 'appeals' };
+  const m = /^#\/dialog\/([^?]+)(?:\?criterion=(.+))?$/.exec(h);
   if (m) {
     try {
-      return { name: 'dialog', id: decodeURIComponent(m[1]!) };
+      return { name: 'dialog', id: decodeURIComponent(m[1]!), ...(m[2] ? { criterion: decodeURIComponent(m[2]) } : {}) };
     } catch {
       return { name: 'list' };
     }
   }
   return { name: 'list' };
 }
-const hashFor = (r: Route) => (r.name === 'checklist' ? '#/checklist' : r.name === 'dialog' ? `#/dialog/${encodeURIComponent(r.id)}` : '#/');
+const hashFor = (r: Route) => (r.name === 'checklist' ? '#/checklist' : r.name === 'appeals' ? '#/appeals' : r.name === 'dialog' ? `#/dialog/${encodeURIComponent(r.id)}${r.criterion ? `?criterion=${encodeURIComponent(r.criterion)}` : ''}` : '#/');
 
 export function App() {
   const api = useApi();
@@ -54,7 +56,6 @@ export function App() {
   const [pane, setPane] = useState<Pane>('evaluation');
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
-  const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [searchFocus, setSearchFocus] = useState(0);
   const wide = useWide();
 
@@ -73,15 +74,15 @@ export function App() {
     if (selectedId) {
       setLastDialogId(selectedId);
       setPickedEvaluationId(null);
-      setCriterionId(null);
+      setCriterionId(route.name === 'dialog' ? route.criterion ?? null : null);
       setFocus(null);
       setStartError(null);
     }
-  }, [selectedId]);
+  }, [selectedId, route.name === 'dialog' ? route.criterion : undefined]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchAll = useCallback(async (): Promise<Data> => {
-    const [conversations, evaluations, checklists] = await Promise.all([api.listConversations(), api.listEvaluations(), api.listChecklists()]);
-    return { conversations, evaluations, checklists };
+    const [conversations, evaluations, checklists, appeals] = await Promise.all([api.listConversations(), api.listEvaluations(), api.listChecklists(), api.listAppeals()]);
+    return { conversations, evaluations, checklists, appeals };
   }, [api]);
   const reload = useCallback(async () => setLoad({ status: 'ready', data: await fetchAll() }), [fetchAll]);
 
@@ -143,7 +144,7 @@ export function App() {
   const firstRoute = useRef(true);
   const keepFocus = useRef(false); // set when navigation was started by the search shortcut, which focuses the search field itself
   useEffect(() => {
-    document.title = route.name === 'dialog' ? `${route.id} · CQA` : route.name === 'checklist' ? 'Чек-лист · CQA' : 'Диалоги · CQA';
+    document.title = route.name === 'dialog' ? `${route.id} · CQA` : route.name === 'checklist' ? 'Чек-лист · CQA' : route.name === 'appeals' ? 'Апелляции · CQA' : 'Диалоги · CQA';
     if (firstRoute.current) {
       firstRoute.current = false;
       return;
@@ -191,15 +192,6 @@ export function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [route.name, step, nextAttention, go, shortcutResults]);
-
-  useEffect(() => {
-    if (!evaluationId) return setAppeals([]);
-    let live = true;
-    api.listAppeals({ evaluationId }).then((a) => live && setAppeals(a), () => live && setAppeals([]));
-    return () => {
-      live = false;
-    };
-  }, [api, evaluationId]);
 
   if (load.status === 'loading') return <LoadingShell />;
   if (load.status === 'error') {
@@ -319,8 +311,9 @@ export function App() {
     <div className="flex h-full flex-col md:flex-row print:hidden">
       <a href="#content" onClick={(e) => { e.preventDefault(); document.getElementById('content')?.focus(); }} className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-4 focus:py-2 focus:text-sm focus:text-canvas">Перейти к содержимому</a>
       <Sidebar
-        active={route.name === 'checklist' ? 'checklist' : 'dialogs'}
-        onNavigate={(to) => go(to === 'checklist' ? { name: 'checklist' } : { name: 'list' })}
+        active={route.name === 'checklist' ? 'checklist' : route.name === 'appeals' ? 'appeals' : 'dialogs'}
+        pendingAppeals={data.appeals.filter((a) => a.status === 'pending').length}
+        onNavigate={(to) => go(to === 'checklist' ? { name: 'checklist' } : to === 'appeals' ? { name: 'appeals' } : { name: 'list' })}
         theme={theme}
         onToggleTheme={toggleTheme}
         demo={mode === 'mock'}
@@ -329,6 +322,10 @@ export function App() {
         {route.name === 'checklist' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
             <ChecklistEditor checklists={data.checklists} conversationCount={data.conversations.length} onSave={saveChecklist} onEvaluate={evaluateWith} hasCurrentConversation={!!lastDialogId} />
+          </main>
+        ) : route.name === 'appeals' ? (
+          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
+            <AppealsPage appeals={data.appeals} evaluations={data.evaluations} checklists={data.checklists} conversations={data.conversations} onOpen={(id, criterion) => go({ name: 'dialog', id, criterion })} />
           </main>
         ) : route.name === 'list' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
@@ -369,16 +366,15 @@ export function App() {
                   onStart={start}
                   starting={starting}
                   startError={startError}
-                  appeals={appeals}
+                  appeals={data.appeals.filter((a) => a.evaluationId === evaluationId)}
                   onCreateAppeal={async (cid, comment) => {
                     if (!evaluation) return;
-                    const a = await api.createAppeal({ evaluationId: evaluation.id, criterionId: cid, comment });
-                    setAppeals((cur) => [...cur, a]);
+                    await api.createAppeal({ evaluationId: evaluation.id, criterionId: cid, comment });
+                    await reload();
                   }}
                   onDecideAppeal={async (input: DecideAppealInput) => {
-                    const a = await api.decideAppeal(input);
-                    setAppeals((cur) => cur.map((x) => (x.id === a.id ? a : x)));
-                    await reload(); // an override changes finalResults, the total and the violation flag
+                    await api.decideAppeal(input);
+                    await reload(); // an override changes finalResults, the total and the violation flag; appeals are reloaded with it
                   }}
                   versions={list.map((ev, i) => ({ id: ev.id, label: `Версия ${versionOf(ev) ?? '?'}${i === list.length - 1 ? ' (последняя)' : ''}` }))}
                   onPickEvaluation={(id) => {

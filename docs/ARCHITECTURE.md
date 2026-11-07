@@ -44,6 +44,7 @@ GET  /api/jobs/:id
 GET  /api/evaluations/:id
 POST /api/evaluations/:id/appeals
 POST /api/appeals/:id/decision
+GET  /api/appeals                  ?status=pending|upheld|overridden  (approver's queue across all dialogs)
 ```
 
 ## Operational requirements

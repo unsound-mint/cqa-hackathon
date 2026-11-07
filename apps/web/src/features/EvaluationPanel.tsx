@@ -90,8 +90,14 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
             </span>
             <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
               {criterion?.criticalFlag ? 'флаг, без баллов' : result.isNA ? `вес ${weight}: не считается` : `вес ${weight}`}
+              {pts !== null && weight > 0 && pts < weight && (
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-1 w-16 rounded-full bg-line"><span className={cn('block h-1 rounded-full', BAR[o.tone])} style={{ width: `${Math.round((pts / weight) * 100)}%` }} /></span>
+                  <span className="tabular-nums">{formatScore(pts)} / {weight} <span className="text-warn">(−{formatScore(weight - pts)})</span></span>
+                </span>
+              )}
               {needsReview(result) && <Badge tone="warn">Проверить</Badge>}
-              {changed && <Badge tone="warn">Изменено ревьюером</Badge>}
+              {changed && <Badge tone="warn">Изменено проверяющим</Badge>}
               {pending && <Badge tone="warn">Апелляция</Badge>}
               {result.reusedFrom && <Badge>Из прошлой оценки</Badge>}
             </span>
@@ -102,12 +108,6 @@ function CriterionRow({ criterion, result, original, conversation, open, onToggl
             <ChevronDown aria-hidden className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} />
           </span>
         </span>
-        {pts !== null && weight > 0 && pts < weight && (
-          <span className="mt-3 flex items-center gap-4">
-            <span className="h-1 flex-1 rounded-full bg-line"><span className={cn('block h-1 rounded-full', BAR[o.tone])} style={{ width: `${Math.round((pts / weight) * 100)}%` }} /></span>
-            <span className="min-w-24 text-right text-xs tabular-nums text-muted">{formatScore(pts)} / {weight} <span className="text-warn">(−{formatScore(weight - pts)})</span></span>
-          </span>
-        )}
       </button>
 
       {open && (
@@ -214,7 +214,7 @@ export function EvaluationPanel({ conversation, evaluation, checklist, selectedC
           </h2>
           <div className="flex flex-wrap gap-2">
             {pendingIds.size > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Апелляция: {pendingIds.size}</span>}
-            {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Изменено ревьюером: {changedCount}</span>}
+            {changedCount > 0 && <span className="inline-flex h-6 items-center rounded-full bg-white/10 px-2 text-xs">Изменено проверяющим: {changedCount}</span>}
           </div>
         </div>
         <p className="mt-1 flex items-baseline gap-2">

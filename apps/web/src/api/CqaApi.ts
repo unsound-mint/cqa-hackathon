@@ -6,6 +6,7 @@ import type {
   DecideAppealInput,
   Evaluation,
   Job,
+  ListAppealsQuery,
   ListConversationsQuery,
   ListEvaluationsQuery,
   SaveChecklistInput,
@@ -25,7 +26,8 @@ export interface CqaApi {
   saveChecklistVersion(input: SaveChecklistInput): Promise<ChecklistVersion>;
   startEvaluation(input: StartEvaluationInput): Promise<{ jobId: string }>;
   getJob(id: string): Promise<Job>;
-  listAppeals(query: { evaluationId: string }): Promise<Appeal[]>;
+  /** One evaluation's appeals, or (no evaluationId) all appeals across dialogs, optionally only one status. */
+  listAppeals(query?: ListAppealsQuery): Promise<Appeal[]>;
   createAppeal(input: CreateAppealInput): Promise<Appeal>;
   decideAppeal(input: DecideAppealInput): Promise<Appeal>;
 }

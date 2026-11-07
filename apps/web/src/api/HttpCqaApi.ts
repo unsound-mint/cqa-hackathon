@@ -13,6 +13,7 @@ import type {
   DecideAppealInput,
   Evaluation,
   Job,
+  ListAppealsQuery,
   ListConversationsQuery,
   ListEvaluationsQuery,
   SaveChecklistInput,
@@ -80,8 +81,11 @@ export class HttpCqaApi implements CqaApi {
     return this.request('GET', `/api/jobs/${enc(id)}`, undefined, JobSchema);
   }
 
-  listAppeals(query: { evaluationId: string }): Promise<Appeal[]> {
-    return this.request('GET', `/api/evaluations/${enc(query.evaluationId)}/appeals`, undefined, AppealSchema.array());
+  listAppeals(query: ListAppealsQuery = {}): Promise<Appeal[]> {
+    if (query.evaluationId) {
+      return this.request('GET', `/api/evaluations/${enc(query.evaluationId)}/appeals${qs({ status: query.status })}`, undefined, AppealSchema.array()).then((list) => (query.status ? list.filter((a) => a.status === query.status) : list));
+    }
+    return this.request('GET', `/api/appeals${qs({ status: query.status })}`, undefined, AppealSchema.array());
   }
 
   createAppeal(input: CreateAppealInput): Promise<Appeal> {

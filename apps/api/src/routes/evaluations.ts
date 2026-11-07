@@ -1,7 +1,7 @@
-import { CreateAppealInputSchema, DecideAppealInputSchema, ListEvaluationsQuerySchema, StartEvaluationInputSchema } from '@cqa/contracts';
+import { CreateAppealInputSchema, DecideAppealInputSchema, ListAppealsQuerySchema, ListEvaluationsQuerySchema, StartEvaluationInputSchema } from '@cqa/contracts';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { Db } from '../db/index.js';
-import { AppealError, createAppeal, decideAppeal, listAppeals } from '../services/appeals.js';
+import { AppealError, createAppeal, decideAppeal, listAllAppeals, listAppeals } from '../services/appeals.js';
 import { getEvaluation, listEvaluations } from '../services/evaluations.js';
 import { JobError, type JobRunner } from '../services/evaluation/jobs.js';
 
@@ -44,6 +44,13 @@ export function evaluationRoutes(app: FastifyInstance, db: Db, runner: JobRunner
     } catch (e) {
       return fail(reply, e);
     }
+  });
+
+  /** Approver's queue: appeals across all dialogs, e.g. `?status=pending`. */
+  app.get('/api/appeals', async (req, reply) => {
+    const q = ListAppealsQuerySchema.omit({ evaluationId: true }).safeParse(req.query);
+    if (!q.success) return reply.code(400).send({ error: 'status must be pending, upheld or overridden' });
+    return listAllAppeals(db, q.data.status);
   });
 
   app.post<{ Params: { id: string } }>('/api/appeals/:id/decision', async (req, reply) => {

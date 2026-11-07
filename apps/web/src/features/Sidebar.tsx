@@ -1,18 +1,20 @@
-import { ListChecks, MessagesSquare, Moon, Sun } from 'lucide-react';
+import { Gavel, ListChecks, MessagesSquare, Moon, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Props = {
-  active: 'dialogs' | 'checklist';
-  onNavigate: (to: 'dialogs' | 'checklist') => void;
+  active: 'dialogs' | 'appeals' | 'checklist';
+  /** Appeals waiting for a decision: shown as a count on the Апелляции item. */
+  pendingAppeals: number;
+  onNavigate: (to: 'dialogs' | 'appeals' | 'checklist') => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   demo: boolean;
 };
 
 /** Slim navigation rail: tabs on top, global tools (theme, demo label) at the bottom. A top bar on narrow screens. */
-export function Sidebar({ active, onNavigate, theme, onToggleTheme, demo }: Props) {
+export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleTheme, demo }: Props) {
   const ThemeIcon = theme === 'dark' ? Sun : Moon;
-  const item = (id: 'dialogs' | 'checklist', label: string, Icon: typeof MessagesSquare, href: string) => (
+  const item = (id: 'dialogs' | 'appeals' | 'checklist', label: string, Icon: typeof MessagesSquare, href: string, count = 0) => (
     <a
       href={href}
       onClick={(e) => {
@@ -22,7 +24,10 @@ export function Sidebar({ active, onNavigate, theme, onToggleTheme, demo }: Prop
       aria-current={active === id ? 'page' : undefined}
       className={cn('flex min-h-12 min-w-16 flex-col items-center justify-center gap-1 rounded-xl px-1 text-xs transition-colors', active === id ? 'bg-brand-soft font-medium text-accent' : 'text-muted hover:bg-fill hover:text-ink')}
     >
-      <Icon aria-hidden className="size-5" />
+      <span className="relative">
+        <Icon aria-hidden className="size-5" />
+        {count > 0 && <span aria-label={`${count} ждут решения`} className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-warn px-1 text-xs font-semibold leading-4 text-canvas">{count}</span>}
+      </span>
       {label}
     </a>
   );
@@ -35,6 +40,7 @@ export function Sidebar({ active, onNavigate, theme, onToggleTheme, demo }: Prop
       </div>
       <nav aria-label="Разделы" className="flex flex-1 flex-row gap-1 md:flex-none md:flex-col md:items-center">
         {item('dialogs', 'Диалоги', MessagesSquare, '#/')}
+        {item('appeals', 'Апелляции', Gavel, '#/appeals', pendingAppeals)}
         {item('checklist', 'Чек-лист', ListChecks, '#/checklist')}
       </nav>
       <div className="flex flex-row items-center gap-1 md:mt-auto md:flex-col">

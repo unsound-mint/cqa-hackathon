@@ -8,7 +8,7 @@ import { Field, Select, Textarea } from '@/components/ui/field';
 const STATUS = {
   pending: { label: 'На рассмотрении', tone: 'warn' },
   upheld: { label: 'Оценка ИИ оставлена', tone: 'neutral' },
-  overridden: { label: 'Оценка изменена ревьюером', tone: 'success' },
+  overridden: { label: 'Оценка изменена проверяющим', tone: 'success' },
 } as const;
 
 const fmt = (iso: string) => new Date(iso).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
@@ -64,7 +64,7 @@ export function AppealBox({ evaluationId, criterionId, criterion, appeals, onCre
             <span className="text-xs text-muted">Подана {fmt(a.createdAt)}{a.decidedAt ? ` · решение ${fmt(a.decidedAt)}` : ''}</span>
           </div>
           <p className="mt-1"><span className="font-medium">Возражение:</span> {a.comment}</p>
-          {a.reviewerReason && <p className="mt-1"><span className="font-medium">Решение ревьюера:</span> {a.reviewerReason}</p>}
+          {a.reviewerReason && <p className="mt-1"><span className="font-medium">Решение проверяющего:</span> {a.reviewerReason}</p>}
         </div>
       ))}
 
@@ -79,7 +79,7 @@ export function AppealBox({ evaluationId, criterionId, criterion, appeals, onCre
             void run(() => onDecide({ appealId: pending.id, action, reason: reason.trim(), ...(action === 'override' && o ? { value: o.value, isNA: o.isNA } : {}) }));
           }}
         >
-          <p className="flex items-center gap-2 text-sm font-medium"><Gavel aria-hidden className="size-4 text-accent" />Решение ревьюера</p>
+          <p className="flex items-center gap-2 text-sm font-medium"><Gavel aria-hidden className="size-4 text-accent" />Решение проверяющего</p>
           <p className="text-xs text-muted">Вход в систему и роли в демо не реализованы: решение принимает любой пользователь. Исходный ответ ИИ сохраняется всегда.</p>
           <div role="radiogroup" aria-label="Решение" className="flex gap-4 text-sm">
             <label className="flex items-center gap-2"><input type="radio" name={`act-${id}`} checked={action === 'uphold'} onChange={() => setAction('uphold')} className="accent-brand" />Оставить оценку ИИ</label>

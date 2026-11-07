@@ -2,7 +2,7 @@ import type { Conversation, Speaker } from '@cqa/contracts';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Play } from 'lucide-react';
+import { Bot, Headset, Play, User } from 'lucide-react';
 import { SPEAKER_LABEL, gapLabel, offsetSeconds, type Tone } from '@/lib/present';
 
 export type Focus = { index: number; nonce: number } | null;
@@ -32,11 +32,13 @@ const TAG_ACTIVE = { neutral: 'bg-ink text-canvas', success: 'bg-brand text-[#0e
 /** Client on the left, operator (the graded party) on the right, bot dimmed, system as small centered notes. */
 const BUBBLE: Record<Speaker, string> = {
   operator: 'rounded-2xl rounded-tr-sm bg-brand-soft',
-  client: 'rounded-2xl rounded-tl-sm border border-line bg-surface',
-  bot: 'rounded-2xl rounded-tl-sm border border-dashed border-line-strong text-muted',
+  client: 'rounded-2xl rounded-tl-sm border border-line-strong bg-surface',
+  bot: 'rounded-2xl rounded-tl-sm bg-fill text-muted',
   system: 'rounded-full bg-fill px-4 py-1 text-sm italic text-muted',
 };
 const NAME: Record<Speaker, string> = { operator: 'text-accent', client: 'text-ink', bot: 'text-muted', system: 'text-muted' };
+/** An icon next to the name so the four voices differ by more than a word: the bot is an automatic voice, not the client. */
+const ICON = { operator: Headset, client: User, bot: Bot } as const;
 
 export function Transcript({ conversation, cited, checkedRange, focus, tags, onTag, activeId, toolbar }: Props) {
   const refs = useRef(new Map<number, HTMLLIElement>());
@@ -97,7 +99,15 @@ export function Transcript({ conversation, cited, checkedRange, focus, tags, onT
               className={cn('flex flex-col outline-none', right ? 'items-end' : system ? 'items-center' : 'items-start')}
             >
               <span className={cn('mb-1 flex gap-2 text-xs tabular-nums text-muted', right && 'flex-row-reverse')}>
-                {!system && <span className={cn('font-medium', NAME[m.speaker])}>{SPEAKER_LABEL[m.speaker]}</span>}
+                {!system && (
+                  <span className={cn('inline-flex items-center gap-1 font-medium', NAME[m.speaker])}>
+                    {(() => {
+                      const Icon = ICON[m.speaker as keyof typeof ICON];
+                      return <Icon aria-hidden className="size-4" />;
+                    })()}
+                    {SPEAKER_LABEL[m.speaker]}
+                  </span>
+                )}
                 <span>
                   {m.timestamp} · #{m.index}
                   {gap && <span className="ml-2">· {gap.text}</span>}

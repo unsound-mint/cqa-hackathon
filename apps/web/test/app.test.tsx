@@ -5,6 +5,7 @@ import demo from '../../../fixtures/demo.json';
 import { ApiProvider } from '../src/ApiContext';
 import { App } from '../src/App';
 import { MockCqaApi } from '../src/api';
+import { richDemo, richDemoAppeals } from '../src/api/demoExtras';
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
@@ -135,7 +136,7 @@ it('marks a reviewer-changed criterion and shows the AI answer struck next to th
     e.finalTotal = 100;
   }));
   await transcriptReady();
-  expect(panel().getAllByText(/Изменено ревьюером/).length).toBeGreaterThan(0);
+  expect(panel().getAllByText(/Изменено проверяющим/).length).toBeGreaterThan(0);
   expect(panel().getByText(/Исходная оценка ИИ: 94,12/)).toBeTruthy();
   expect(panel().getByLabelText(/Ответ ИИ был: 15 из 20/)).toBeTruthy();
 });
@@ -155,7 +156,7 @@ it('files an appeal, then a reviewer overrides it: total changes, original AI an
   fireEvent.change(panel().getByLabelText('Обоснование решения'), { target: { value: 'Второстепенная деталь не требовалась' } });
   fireEvent.click(panel().getByRole('button', { name: 'Принять решение' }));
 
-  expect(await panel().findByText('Оценка изменена ревьюером')).toBeTruthy();
+  expect(await panel().findByText('Оценка изменена проверяющим')).toBeTruthy();
   expect(await panel().findByText('100')).toBeTruthy();
   expect(panel().getByText(/Исходная оценка ИИ: 94,12/)).toBeTruthy();
   expect(panel().getByLabelText(/Ответ ИИ был: 15 из 20/)).toBeTruthy();
@@ -385,4 +386,48 @@ it('offers no player controls for a chat or for a call without a recording', asy
   renderApp();
   await transcriptReady();
   expect(screen.queryByRole('button', { name: /Слушать/ })).toBeNull();
+});
+
+const renderApprover = (hash = '#/appeals') => {
+  window.location.hash = hash;
+  return render(
+    <ApiProvider api={new MockCqaApi(richDemo(), richDemoAppeals())}>
+      <App />
+    </ApiProvider>,
+  );
+};
+
+it('shows the approver a queue of appeals across dialogs, with a count on the sidebar item', async () => {
+  renderApprover();
+  const page = within(await screen.findByRole('region', { name: 'Апелляции' }));
+  expect(page.getByRole('button', { name: /^На рассмотрении/ }).textContent).toContain('1');
+  const link = page.getByRole('link', { name: 'demo-en-007' });
+  expect(link.closest('tr')!.textContent).toContain('04 Корректная и полная консультация');
+  expect(page.queryByRole('link', { name: 'demo-ru-023' })).toBeNull(); // decided: hidden under "На рассмотрении"
+  expect(screen.getByLabelText('1 ждут решения')).toBeTruthy();
+  fireEvent.click(page.getByRole('button', { name: /^Решённые/ }));
+  const decided = page.getByRole('link', { name: 'demo-ru-023' }).closest('tr')!;
+  expect(decided.textContent).toContain('Оценка ИИ оставлена');
+});
+
+it('opening an appeal lands on the dialog with that criterion open and the decision form ready; deciding clears the queue', async () => {
+  renderApprover();
+  const page = within(await screen.findByRole('region', { name: 'Апелляции' }));
+  fireEvent.click(page.getByRole('link', { name: 'demo-en-007' }));
+  const form = await screen.findByRole('form', { name: /Решение по апелляции, критерий 04/ });
+  expect(window.location.hash).toBe('#/dialog/demo-en-007?criterion=04');
+  fireEvent.click(within(form).getByLabelText('Изменить оценку'));
+  fireEvent.change(within(form).getByLabelText('Новое значение'), { target: { value: 'v3' } }); // tier 15
+  fireEvent.change(within(form).getByLabelText('Обоснование решения'), { target: { value: 'Совет открыть трекинг считается подсказкой' } });
+  fireEvent.click(within(form).getByRole('button', { name: 'Принять решение' }));
+  expect(await screen.findByText('Оценка изменена проверяющим')).toBeTruthy();
+  expect(screen.queryByLabelText(/ждут решения/)).toBeNull(); // nothing waiting any more
+  fireEvent.click(screen.getByRole('link', { name: /Апелляции/ }));
+  const list = within(await screen.findByRole('region', { name: 'Апелляции' }));
+  expect(list.getByText(/Нет обращений, ожидающих решения/)).toBeTruthy();
+});
+
+it('explains an empty approver queue', async () => {
+  renderApp(demo, '#/appeals');
+  expect(await screen.findByText(/Апелляций пока нет/)).toBeTruthy();
 });

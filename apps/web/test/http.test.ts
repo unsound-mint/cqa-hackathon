@@ -114,4 +114,12 @@ describe('HttpCqaApi', () => {
     await expect(setup(200, [{ id: 1 }]).api.listConversations()).rejects.toMatchObject({ code: 'invalid' });
     await expect(setup(200, { nope: true }).api.getEvaluation('e')).rejects.toMatchObject({ code: 'invalid' });
   });
+
+  it('lists appeals across dialogs for the approver, with an optional status', async () => {
+    const { api, calls } = setup(200, []);
+    await api.listAppeals();
+    await api.listAppeals({ status: 'pending' });
+    expect(calls.map((c) => c.url)).toEqual(['/api/appeals', '/api/appeals?status=pending']);
+  });
 });
+
