@@ -11,6 +11,7 @@
     "test": "pnpm -r test",
     "build": "pnpm -r build",
     "seed": "node scripts/seed.mjs",
+    "prod": "node scripts/prod.mjs",
     "results:check": "node scripts/export-results.mjs --check",
     "start": "pnpm build && pnpm --filter @cqa/api start"
   },

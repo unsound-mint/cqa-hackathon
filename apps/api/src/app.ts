@@ -43,6 +43,17 @@ export function buildApp(opts: AppOptions = {}) {
   const runner = new JobRunner(db, provider ?? undefined, app.log);
   app.addHook('onClose', async () => runner.idle());
 
+  // Opt-in cross-origin access for the UI embedded elsewhere (Dynamics 365 web resource). CORS_ORIGIN: comma-separated origins.
+  const corsOrigins = (process.env.CORS_ORIGIN ?? '').split(',').map((o) => o.trim()).filter(Boolean);
+  if (corsOrigins.length) {
+    app.addHook('onRequest', async (req, reply) => {
+      const origin = req.headers.origin;
+      if (!origin || !corsOrigins.includes(origin)) return;
+      reply.header('access-control-allow-origin', origin).header('vary', 'Origin');
+      if (req.method === 'OPTIONS') return reply.header('access-control-allow-methods', 'GET,POST,OPTIONS').header('access-control-allow-headers', 'content-type').code(204).send();
+    });
+  }
+
   app.get('/health', async () => ({ status: 'ok', service: 'cqa-api' }));
   conversationRoutes(app, db, audio);
   checklistRoutes(app, db);

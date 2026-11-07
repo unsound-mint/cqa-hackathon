@@ -6,7 +6,7 @@
 // The submission format fixes eight criterion codes; our original checklist ids "01".."08" map onto them.
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -75,7 +75,9 @@ export function check(file, expect) {
 function exportGroup(group, out, team, expect) {
   const require = createRequire(join(root, 'apps/api/package.json'));
   const Database = require('better-sqlite3');
-  const db = new Database(process.env.DATABASE_PATH ?? join(root, 'data/cqa.sqlite'), { readonly: true });
+  try { process.loadEnvFile(join(root, '.env')); } catch { /* optional */ }
+  // DATABASE_PATH is relative to apps/api (see .env.example), like the server resolves it.
+  const db = new Database(process.env.DATABASE_PATH ? resolve(join(root, 'apps/api'), process.env.DATABASE_PATH) : join(root, 'data/cqa.sqlite'), { readonly: true });
   const convs = db.prepare('select id, transcript from conversations where dataset_group_id = ? order by rowid').all(group);
   const evals = db.prepare(`select e.* from evaluations e join checklist_versions v on v.id = e.checklist_version_id
     where e.conversation_id = ? and v.version = 1 order by e.created_at desc, e.rowid desc`);
@@ -108,7 +110,7 @@ if (opt('check')) {
 }
 const group = opt('group'), out = opt('out');
 if (!group || !out) { console.error('usage: --group <id> --out <file> [--team <name>] [--expect <n>] | --check <file>'); process.exit(2); }
-exportGroup(group, out, opt('team') ?? 'TEAM NAME', opt('expect'));
+exportGroup(group, out, opt('team') ?? 'abSuRd', opt('expect'));
 const problems = check(out, opt('expect') ? Number(opt('expect')) : undefined);
 console.log(problems.length ? problems.join('\n') : 'OK: format valid');
 process.exit(problems.length ? 1 : 0);
