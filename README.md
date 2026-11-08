@@ -47,6 +47,7 @@ Full local build, one process on one URL (what the demo uses):
 pnpm seed                # installs the committed DEV snapshot: 65 conversations, 66 evaluations, 5 recordings
 cp .env.example .env     # optional: ANTHROPIC_API_KEY to evaluate new conversations
 pnpm start               # builds, then serves web + API at http://127.0.0.1:8787
+pnpm stop                # stops that server (whatever listens on PORT)
 ```
 
 Checks: `pnpm typecheck && pnpm test && pnpm build` (no test needs a network or a model). Details, backup advice and troubleshooting: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
