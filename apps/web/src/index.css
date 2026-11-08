@@ -150,6 +150,18 @@
   #root {
     height: 100%;
   }
+  /*
+   * The app shell is exactly the viewport and every pane scrolls inside itself. scrollIntoView() (transcript jumps,
+   * criterion focus) also scrolls ancestors, and overflow:hidden still allows that, which shifted the whole app up and
+   * left an empty band below it. clip forbids any scrolling of these wrappers. Screen only: print flows normally.
+   */
+  @media screen {
+    html,
+    body,
+    #root {
+      overflow: clip;
+    }
+  }
   body {
     @apply bg-canvas font-sans text-ink antialiased;
     background-image:
