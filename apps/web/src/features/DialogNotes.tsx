@@ -25,7 +25,7 @@ export function CriterionTags({ identity, criterionId, tags, taxonomy, onAdd }: 
       {canTag && (
         <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); setError(null); onAdd(origin, label.trim() || undefined).then(() => setLabel(''), setError); }}>
           <Select aria-label="Где корень проблемы" value={origin} onChange={(e) => setOrigin(ErrorOriginSchema.parse(e.target.value))} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm">{ErrorOriginSchema.options.map((o) => <option key={o} value={o}>{ERROR_ORIGIN_LABELS[o]}</option>)}</Select>
-          <input aria-label="Категория ошибки" list={list} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Категория (необязательно)" className="h-8 w-48 rounded-full border border-transparent bg-fill px-3 text-sm placeholder:text-muted" />
+          <input aria-label="Категория ошибки" list={list} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Категория (необязательно)" title="Категория (необязательно)" className="h-8 min-w-56 flex-1 rounded-full border border-transparent bg-fill px-3 text-sm placeholder:text-muted" />
           <datalist id={list}>{options.map((t) => <option key={t.id} value={t.label} />)}</datalist>
           <Button type="submit" size="sm">Отметить</Button>
         </form>

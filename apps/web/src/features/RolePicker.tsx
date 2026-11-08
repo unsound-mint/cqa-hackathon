@@ -61,7 +61,7 @@ export function RolePicker({ identity, people, onChange }: Props) {
   };
 
   return (
-    <div ref={box} className="relative">
+    <div ref={box} className="relative md:w-full">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -72,7 +72,7 @@ export function RolePicker({ identity, people, onChange }: Props) {
         className="flex min-h-12 w-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-xs text-muted transition-colors hover:bg-fill hover:text-ink md:w-full"
       >
         <Icon aria-hidden className="size-5" />
-        <span className="w-full truncate text-center">{identity.name}</span>
+        <span className="line-clamp-2 w-full min-w-0 break-words text-center leading-tight">{identity.name}</span>
       </button>
       {open && (
         <form
