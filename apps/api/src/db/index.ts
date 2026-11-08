@@ -83,6 +83,42 @@ export function openDb(path: string) {
       by TEXT NOT NULL,
       at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS people (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL, team_id TEXT);
+    CREATE TABLE IF NOT EXISTS teams (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, manager_id TEXT);
+    CREATE TABLE IF NOT EXISTS events (
+      id TEXT PRIMARY KEY NOT NULL, at TEXT NOT NULL, actor_id TEXT, actor_name TEXT NOT NULL, actor_role TEXT,
+      type TEXT NOT NULL, conversation_id TEXT, summary TEXT NOT NULL, data TEXT
+    );
+    CREATE INDEX IF NOT EXISTS events_at_idx ON events (at);
+    CREATE INDEX IF NOT EXISTS events_conversation_idx ON events (conversation_id);
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY NOT NULL, at TEXT NOT NULL, recipient_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL,
+      body TEXT NOT NULL, conversation_id TEXT, criterion_id TEXT, read_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS notifications_recipient_idx ON notifications (recipient_id);
+    CREATE TABLE IF NOT EXISTS comments (
+      id TEXT PRIMARY KEY NOT NULL, conversation_id TEXT NOT NULL, criterion_id TEXT, author_id TEXT, author_name TEXT NOT NULL,
+      body TEXT NOT NULL, created_at TEXT NOT NULL, acked_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS comments_conversation_idx ON comments (conversation_id);
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY NOT NULL, conversation_id TEXT NOT NULL, assignee_id TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL,
+      auto INTEGER NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL, done_at TEXT, first_reviewer_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS tasks_assignee_idx ON tasks (assignee_id);
+    CREATE TABLE IF NOT EXISTS crosschecks (
+      id TEXT PRIMARY KEY NOT NULL, task_id TEXT NOT NULL, conversation_id TEXT NOT NULL, evaluation_id TEXT NOT NULL, reviewer_id TEXT,
+      reviewer_name TEXT NOT NULL, reviewer_role TEXT NOT NULL, results TEXT NOT NULL, submitted_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS taxonomy (id TEXT PRIMARY KEY NOT NULL, label TEXT NOT NULL, criterion_id TEXT);
+    CREATE TABLE IF NOT EXISTS tags (
+      id TEXT PRIMARY KEY NOT NULL, evaluation_id TEXT NOT NULL, conversation_id TEXT NOT NULL, criterion_id TEXT, origin TEXT NOT NULL,
+      label TEXT, by TEXT NOT NULL, at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS timeline_events (
+      id TEXT PRIMARY KEY NOT NULL, date TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL, note TEXT,
+      participant_ids TEXT NOT NULL, comparison_ids TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL
+    );
   `);
   // Additive migrations: CREATE TABLE IF NOT EXISTS does not add columns to an existing file. Legacy evaluations
   // intentionally have no reusable cache context; legacy appeal rows (no kind) read as 'appeal'.
@@ -93,6 +129,7 @@ export function openDb(path: string) {
   if (!columns('appeals').some((c) => c.name === 'kind')) sqlite.exec('ALTER TABLE appeals ADD COLUMN kind TEXT');
   if (!columns('appeals').some((c) => c.name === 'created_by')) sqlite.exec('ALTER TABLE appeals ADD COLUMN created_by TEXT');
   if (!columns('appeals').some((c) => c.name === 'decided_by')) sqlite.exec('ALTER TABLE appeals ADD COLUMN decided_by TEXT');
+  if (!columns('reviews').some((c) => c.name === 'by_id')) sqlite.exec('ALTER TABLE reviews ADD COLUMN by_id TEXT');
   return drizzle(sqlite, { schema });
 }
 

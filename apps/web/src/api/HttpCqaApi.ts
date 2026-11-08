@@ -1,6 +1,18 @@
 import {
   ACTOR_HEADER,
+  PERSON_HEADER,
   AppealSchema,
+  CommentSchema,
+  CrosscheckSchema,
+  DirectorySchema,
+  EventSchema,
+  NotificationSchema,
+  PersonSchema,
+  TagSchema,
+  TaskSchema,
+  TaxonomyItemSchema,
+  TeamSchema,
+  TimelineEventSchema,
   ROLE_HEADER,
   ChecklistVersionSchema,
   ConversationSchema,
@@ -8,6 +20,23 @@ import {
   JobSchema,
 } from '@cqa/contracts';
 import type {
+  AddCommentInput,
+  AddTagInput,
+  AuditEvent,
+  Comment,
+  CreateTasksInput,
+  Crosscheck,
+  Directory,
+  ListEventsQuery,
+  Notification,
+  Person,
+  SaveTimelineEventInput,
+  SubmitCrosscheckInput,
+  Tag,
+  Task,
+  TaxonomyItem,
+  Team,
+  TimelineEvent,
   Appeal,
   AssignOperatorInput,
   ChecklistVersion,
@@ -119,19 +148,82 @@ export class HttpCqaApi implements CqaApi {
   }
 
   async assignOperator(input: AssignOperatorInput): Promise<void> {
-    await this.request('POST', '/api/conversations/operator', input, { safeParse: () => ({ success: true, data: undefined }) });
+    await this.request('POST', '/api/conversations/operator', input, nothing);
   }
 
-  listOperators(): Promise<string[]> {
-    const parser: Parser<string[]> = { safeParse: (d) => (Array.isArray(d) && d.every((x) => typeof x === 'string') ? { success: true, data: d as string[] } : { success: false }) };
-    return this.request('GET', '/api/operators', undefined, parser);
+  getDirectory(): Promise<Directory> {
+    return this.request('GET', '/api/directory', undefined, DirectorySchema);
+  }
+  savePerson(person: Person): Promise<Person> {
+    return this.request('POST', '/api/people', person, PersonSchema);
+  }
+  saveTeam(team: Team): Promise<Team> {
+    return this.request('POST', '/api/teams', team, TeamSchema);
+  }
+  seedDemoOrg(): Promise<{ people: number; assigned: number }> {
+    const parser: Parser<{ people: number; assigned: number }> = { safeParse: (d) => (typeof d === 'object' && d !== null && typeof (d as { people?: unknown }).people === 'number' ? { success: true, data: d as { people: number; assigned: number } } : { success: false }) };
+    return this.request('POST', '/api/demo/org', {}, parser);
+  }
+  listEvents(query: ListEventsQuery = {}): Promise<AuditEvent[]> {
+    return this.request('GET', `/api/events${qs({ type: query.type, actorId: query.actorId, conversationId: query.conversationId, limit: query.limit?.toString() })}`, undefined, EventSchema.array());
+  }
+  listNotifications(): Promise<Notification[]> {
+    return this.request('GET', '/api/notifications', undefined, NotificationSchema.array());
+  }
+  async markNotificationsRead(ids?: string[]): Promise<void> {
+    await this.request('POST', '/api/notifications/read', ids ? { ids } : {}, nothing);
+  }
+  listComments(): Promise<Comment[]> {
+    return this.request('GET', '/api/comments', undefined, CommentSchema.array());
+  }
+  addComment(input: AddCommentInput): Promise<Comment> {
+    return this.request('POST', '/api/comments', input, CommentSchema);
+  }
+  acknowledgeComment(id: string): Promise<Comment> {
+    return this.request('POST', `/api/comments/${enc(id)}/ack`, {}, CommentSchema);
+  }
+  listTaxonomy(): Promise<TaxonomyItem[]> {
+    return this.request('GET', '/api/taxonomy', undefined, TaxonomyItemSchema.array());
+  }
+  addTaxonomyItem(input: { label: string; criterionId?: string }): Promise<TaxonomyItem> {
+    return this.request('POST', '/api/taxonomy', input, TaxonomyItemSchema);
+  }
+  listTags(): Promise<Tag[]> {
+    return this.request('GET', '/api/tags', undefined, TagSchema.array());
+  }
+  addTag(input: AddTagInput): Promise<Tag> {
+    return this.request('POST', '/api/tags', input, TagSchema);
+  }
+  listTimeline(): Promise<TimelineEvent[]> {
+    return this.request('GET', '/api/timeline', undefined, TimelineEventSchema.array());
+  }
+  addTimelineEvent(input: SaveTimelineEventInput): Promise<TimelineEvent> {
+    return this.request('POST', '/api/timeline', input, TimelineEventSchema);
+  }
+  listTasks(): Promise<Task[]> {
+    return this.request('GET', '/api/tasks', undefined, TaskSchema.array());
+  }
+  createTasks(input: CreateTasksInput): Promise<Task[]> {
+    return this.request('POST', '/api/tasks', input, TaskSchema.array());
+  }
+  sampleCrosschecks(percent: number): Promise<Task[]> {
+    return this.request('POST', '/api/tasks/sample', { percent }, TaskSchema.array());
+  }
+  cancelTask(id: string): Promise<Task> {
+    return this.request('POST', `/api/tasks/${enc(id)}/cancel`, {}, TaskSchema);
+  }
+  listCrosschecks(): Promise<Crosscheck[]> {
+    return this.request('GET', '/api/crosschecks', undefined, CrosscheckSchema.array());
+  }
+  submitCrosscheck(input: SubmitCrosscheckInput): Promise<Crosscheck> {
+    return this.request('POST', '/api/crosschecks', input, CrosscheckSchema);
   }
 
   private async request<T>(method: 'GET' | 'POST', path: string, body: unknown, parser: Parser<T>): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     // The demo role travels with every call (no login): the server decides what it may do and see.
     const who = getIdentity();
-    const headers: Record<string, string> = { accept: 'application/json', [ROLE_HEADER]: who.role, [ACTOR_HEADER]: encodeURIComponent(who.name) };
+    const headers: Record<string, string> = { accept: 'application/json', [ROLE_HEADER]: who.role, [ACTOR_HEADER]: encodeURIComponent(who.name), ...(who.id ? { [PERSON_HEADER]: who.id } : {}) };
     const init: RequestInit = { method, headers };
     if (body !== undefined) {
       headers['content-type'] = 'application/json';
@@ -162,6 +254,9 @@ export class HttpCqaApi implements CqaApi {
     return parsed.data;
   }
 }
+
+/** For endpoints that answer 204: nothing to validate. */
+const nothing: Parser<void> = { safeParse: () => ({ success: true, data: undefined }) };
 
 function enc(id: string): string {
   return encodeURIComponent(id);

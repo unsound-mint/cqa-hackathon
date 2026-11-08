@@ -1,4 +1,4 @@
-import { ACTOR_HEADER, ROLE_HEADER, ROLE_LABELS, can, parseActor, type Actor, type Permission } from '@cqa/contracts';
+import { ACTOR_HEADER, PERSON_HEADER, ROLE_HEADER, ROLE_LABELS, can, parseActor, type Actor, type Permission } from '@cqa/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 const header = (req: FastifyRequest, name: string) => {
@@ -7,7 +7,7 @@ const header = (req: FastifyRequest, name: string) => {
 };
 
 /** The demo role of the caller; undefined = unrestricted (scripts, exporter). See contracts/roles.ts: not authentication. */
-export const actorOf = (req: FastifyRequest): Actor | undefined => parseActor(header(req, ROLE_HEADER), header(req, ACTOR_HEADER));
+export const actorOf = (req: FastifyRequest): Actor | undefined => parseActor(header(req, ROLE_HEADER), header(req, ACTOR_HEADER), header(req, PERSON_HEADER));
 
 const WHAT: Record<Permission, string> = {
   review: 'отмечать проверку диалогов',
@@ -18,6 +18,14 @@ const WHAT: Record<Permission, string> = {
   evaluate: 'запускать оценку',
   assign: 'назначать операторов',
   import: 'импортировать данные',
+  manageTeams: 'менять сотрудников и группы',
+  comment: 'писать комментарии',
+  tag: 'отмечать причины ошибок',
+  task: 'назначать задачи проверяющим',
+  crosscheck: 'делать контрольную проверку',
+  audit: 'смотреть журнал действий',
+  timeline: 'добавлять события на шкалу',
+  editTaxonomy: 'менять категории ошибок',
 };
 
 /** Answers 403 and returns true when the caller's role lacks the permission. */
