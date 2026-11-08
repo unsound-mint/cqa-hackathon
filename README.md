@@ -2,6 +2,8 @@
 
 A working prototype that scores customer-support conversations (RU / KZ / EN, chat and voice) against a **changeable, versioned checklist**, shows the evidence for every score, and lets a reviewer correct or appeal any criterion without losing the original AI result. Built for the CQA hackathon.
 
+**Hackathon result:** 4th place out of 250 teams (top 1.6%).
+
 ## Start here as a reviewer
 
 **[Five-minute demo and proof guide →](docs/REVIEWER_GUIDE.md)** Start with a stored evaluation, follow its evidence, change the checklist, then review or appeal a result. The guide explains what each step demonstrates and how to test a genuinely new input.
