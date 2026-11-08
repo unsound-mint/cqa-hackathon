@@ -29,7 +29,7 @@ Everything lives in one SQLite file (`DATABASE_PATH`, default `data/cqa.sqlite`;
 | `better-sqlite3` install error on Windows | use Node 24 LTS; CI proves Windows install/test/build |
 | Evaluation answers 503 | no provider configured (`ANTHROPIC_API_KEY` unset) |
 | Import answers 502 | venue network or expired signed URL; use the copied database |
-| Port in use | `PORT=8788 pnpm start` |
+| Port in use | `pnpm stop` (frees the port), or `PORT=8788 pnpm start` |
 
 ## Submitting results (organizer appendix, JSON 1.0)
 Two files must be pushed to the public repo before the stop-code: `results/dev/results.json` (65 DEV records) and `results/prod/results.json` (exactly 10 control chats, errors included). The exporter writes the immutable initial AI result (never reviewer overrides) in the required format and validates it (eight criteria once each, allowed values, 1-based evidence turns, score recomputed from weights, unique IDs).
