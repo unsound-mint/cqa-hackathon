@@ -92,9 +92,24 @@ Standard API prices in **USD per million tokens**, checked **8 November 2026** a
 | Cache write (5 minutes) | $0.125 | $0.625 |
 | Cache read | $0.01 | $0.05 |
 
-For example, **10,000 uncached input + 2,000 output tokens cost $0.002** at the lower tier (one fifth of a US cent). This illustrates the rate, not a measured cost per conversation. A conversation can require multiple requests and a repair attempt; token counts, caching and retries determine the bill. Rules and compatible reused results avoid model calls. Viewing stored results incurs no model cost.
+### What our actual run cost
 
-Each evaluation records token usage and model provenance. The [comparison CLI](evaluation/README.md#3-compare-with-the-model) can estimate cost using supplied input/output rates; treat it as an estimate, not a provider invoice.
+Recovered from the stored **8 November 2026, `eval-v17`** job over **75 conversations (70 chats + five voice transcripts)**, using Haiku 5.5 at medium effort:
+
+| Measurement | Recorded result |
+|---|---:|
+| Completed / validation failures | **73 / 2** |
+| Token-priced cost of the 73 completed evaluations | **$0.23446** |
+| Mean cost per completed conversation | **$0.00321** (0.32 US cents) |
+| Mean / median evaluation time | **10.50 s / 8.83 s** |
+| p95 evaluation time | **27.33 s** |
+| Job start to last stored outcome | **4 min 33 s** |
+
+The successful evaluations recorded 659,072 uncached input, 285,021 output, 936,434 cache-read and 133,433 cache-write tokens. **Failed-evaluation usage was not saved, so the $0.23446 excludes the two failures and is not the full provider bill.** Repair responses returned to successful evaluations are included; earlier diagnostics and usage lost inside provider retries are outside these records.
+
+See the [measurement report](docs/MEASURED_RUN.md) and [aggregate JSON](docs/measurements/2026-11-08-eval-v17.json) for the exact run, rates, arithmetic and accounting boundary. These are actual stored usage measurements, not an illustrative token budget; no rerun was needed. They measure cost and completion, not scoring accuracy.
+
+Rules and compatible reused results avoid model calls; viewing stored results incurs no model cost. Transcript length, output, caching and repairs determine the cost of a new evaluation. The [comparison CLI](evaluation/README.md#3-compare-with-the-model) also estimates cost from provenance using supplied rates.
 
 ## Technical reading guide
 
