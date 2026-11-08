@@ -1,4 +1,4 @@
-import { EventTypeSchema, type AuditEvent } from '@cqa/contracts';
+import type { AuditEvent } from '@cqa/contracts';
 import { ShieldAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useApi } from '@/ApiContext';
@@ -12,6 +12,13 @@ const TYPE_LABEL: Record<string, string> = {
   'checklist.saved': 'Чек-лист', 'comment.added': 'Комментарий', 'comment.acknowledged': 'Ознакомление', 'task.created': 'Задача', 'task.done': 'Задача закрыта', 'crosscheck.submitted': 'Контрольная проверка',
   'tag.added': 'Причина ошибки', 'timeline.added': 'Событие шкалы', 'directory.changed': 'Справочник', 'taxonomy.changed': 'Категории', 'data.imported': 'Импорт', 'evaluation.started': 'Запуск оценки',
 };
+/** The native option list cannot be height-capped and ran off the screen at 17 rows, so the filter picks a group of event types instead. */
+const GROUPS: { id: string; label: string; types: readonly string[] }[] = [
+  { id: 'review', label: 'Проверки и правки оценок', types: ['review.set', 'result.corrected', 'crosscheck.submitted', 'evaluation.started'] },
+  { id: 'appeals', label: 'Апелляции', types: ['appeal.filed', 'appeal.decided'] },
+  { id: 'work', label: 'Задачи и комментарии', types: ['task.created', 'task.done', 'comment.added', 'comment.acknowledged', 'tag.added', 'timeline.added'] },
+  { id: 'setup', label: 'Чек-лист и справочники', types: ['checklist.saved', 'directory.changed', 'taxonomy.changed', 'operator.assigned', 'data.imported'] },
+];
 const KIND = { 'rubber-stamp': 'Пачка «Проверено»', 'one-direction': 'Правки в одну сторону', 'self-review': 'Решает по своей правке' } as const;
 const fmt = (iso: string) => new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -32,7 +39,7 @@ export function AuditPage({ onOpenDialog }: { onOpenDialog: (id: string) => void
   }, [api]);
   const findings = useMemo(() => suspicious(events ?? []), [events]);
   const actors = useMemo(() => [...new Set((events ?? []).map((e) => e.actorName))].sort((a, b) => a.localeCompare(b, 'ru')), [events]);
-  const rows = (events ?? []).filter((e) => (type === 'all' || e.type === type) && (actor === 'all' || e.actorName === actor));
+  const rows = (events ?? []).filter((e) => (type === 'all' || GROUPS.find((g) => g.id === type)?.types.includes(e.type)) && (actor === 'all' || e.actorName === actor));
   return (
     <section aria-label="Журнал" className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col gap-4 overflow-auto p-4 sm:p-6">
       <div>
@@ -48,7 +55,7 @@ export function AuditPage({ onOpenDialog }: { onOpenDialog: (id: string) => void
         <p className="text-xs text-muted">Это подсказки для человека, не выводы.</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Select aria-label="Тип действия" value={type} onChange={(e) => setType(e.target.value)} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm"><option value="all">Все действия</option>{EventTypeSchema.options.map((t) => <option key={t} value={t}>{TYPE_LABEL[t] ?? t}</option>)}</Select>
+        <Select aria-label="Тип действия" value={type} onChange={(e) => setType(e.target.value)} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm"><option value="all">Все действия</option>{GROUPS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}</Select>
         <Select aria-label="Кто" value={actor} onChange={(e) => setActor(e.target.value)} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm"><option value="all">Все люди</option>{actors.map((a) => <option key={a} value={a}>{a}</option>)}</Select>
       </div>
       {events === null && !error ? <p className="text-sm text-muted">Загрузка…</p> : (
