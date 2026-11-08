@@ -2,6 +2,7 @@ import { ROLE_LABELS, type Actor, type Person, type Role } from '@cqa/contracts'
 import { ClipboardCheck, Headset, Settings, ShieldCheck, UsersRound, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
+import { ErrorNote } from '@/components/ui/error-note';
 import { Select } from '@/components/ui/field';
 import { cn } from '@/lib/utils';
 
@@ -13,27 +14,32 @@ const ROLES: { role: Role; Icon: LucideIcon; about: string }[] = [
   { role: 'admin', Icon: Settings, about: 'Сотрудники, группы, импорт, журнал. Оценки не меняет.' },
 ];
 
-type Props = { identity: Actor; people: Person[]; onChange: (next: Actor) => void };
+type Props = { identity: Actor; people: Person[]; onChange: (next: Actor) => void; onSeedDemo?: () => Promise<void> };
 
 /**
  * Who is using the app. There is no login in the demo: the choice is sent with every request and the server limits
  * what that role can see and do (an operator themselves, a manager their team). Not security; it keeps the
  * responsibilities apart. With a directory the person is picked from it; without one the name is typed.
  */
-export function RolePicker({ identity, people, onChange }: Props) {
+export function RolePicker({ identity, people, onChange, onSeedDemo }: Props) {
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<Role>(identity.role);
-  const [personId, setPersonId] = useState(identity.id ?? '');
   const [name, setName] = useState(identity.name);
+  const [seeding, setSeeding] = useState(false);
+  const [seedError, setSeedError] = useState<unknown>(null);
   const box = useRef<HTMLDivElement>(null);
   const Icon = ROLES.find((r) => r.role === identity.role)!.Icon;
   const of = (r: Role) => people.filter((p) => p.role === r);
+  /** The <select> shows the first person when the identity names nobody, so the state must hold that person too. */
+  const initialPerson = () => (identity.id && of(identity.role).some((p) => p.id === identity.id) ? identity.id : of(identity.role)[0]?.id ?? '');
+  const [personId, setPersonId] = useState(initialPerson);
 
   useEffect(() => {
     if (!open) return;
     setRole(identity.role);
-    setPersonId(identity.id ?? '');
+    setPersonId(initialPerson());
     setName(identity.name);
+    setSeedError(null);
     const close = (e: MouseEvent | KeyboardEvent) => {
       if (e instanceof KeyboardEvent ? e.key === 'Escape' : !box.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -43,7 +49,7 @@ export function RolePicker({ identity, people, onChange }: Props) {
       document.removeEventListener('mousedown', close);
       document.removeEventListener('keydown', close);
     };
-  }, [open, identity.role, identity.id, identity.name]);
+  }, [open, identity.role, identity.id, identity.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pick = (r: Role) => {
     setRole(r);
@@ -54,7 +60,7 @@ export function RolePicker({ identity, people, onChange }: Props) {
   const listed = of(role);
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const person = listed.find((p) => p.id === personId);
+    const person = listed.find((p) => p.id === (personId || listed[0]?.id));
     if (listed.length > 0 && !person) return;
     onChange(person ? { role, name: person.name, id: person.id } : { role, name: name.trim() || ROLE_LABELS[role] });
     setOpen(false);
@@ -69,9 +75,10 @@ export function RolePicker({ identity, people, onChange }: Props) {
         aria-haspopup="dialog"
         aria-label={`Роль: ${ROLE_LABELS[identity.role]}, ${identity.name}. Сменить`}
         title="Сменить роль"
-        className="flex min-h-12 w-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-xs text-muted transition-colors hover:bg-fill hover:text-ink md:w-full"
+        className="flex min-h-12 w-16 flex-col items-center justify-center gap-1 rounded-xl px-1 text-xs text-muted transition-colors hover:bg-fill hover:text-ink md:w-full"
       >
         <Icon aria-hidden className="size-5" />
+        <span className="w-full min-w-0 truncate text-center font-medium leading-tight">{ROLE_LABELS[identity.role]}</span>
         <span className="line-clamp-2 w-full min-w-0 break-words text-center leading-tight">{identity.name}</span>
       </button>
       {open && (
@@ -96,7 +103,7 @@ export function RolePicker({ identity, people, onChange }: Props) {
           <div className="space-y-1">
             <label htmlFor="demo-person" className="text-xs font-medium">{listed.length ? 'Кто именно' : 'Ваше имя'}</label>
             {listed.length ? (
-              <Select id="demo-person" value={personId} onChange={(e) => setPersonId(e.target.value)} className="w-full">
+              <Select id="demo-person" value={personId || listed[0]!.id} onChange={(e) => setPersonId(e.target.value)} className="w-full">
                 {listed.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </Select>
             ) : (
@@ -106,8 +113,14 @@ export function RolePicker({ identity, people, onChange }: Props) {
               {listed.length ? 'Видимость зависит от человека: оператор видит себя, менеджер свою группу.' : people.length ? 'В справочнике нет сотрудников с этой ролью.' : 'Справочник пуст: сотрудников и группы создаёт администратор (раздел «Команда»).'}
             </p>
           </div>
+          {people.length === 0 && onSeedDemo && (role === 'lead' || role === 'admin') && (
+            <div className="space-y-2">
+              <Button type="button" size="sm" disabled={seeding} onClick={() => { setSeeding(true); setSeedError(null); onSeedDemo().catch(setSeedError).finally(() => setSeeding(false)); }}>Создать демо-команду</Button>
+              <ErrorNote error={seedError} />
+            </div>
+          )}
           <p className="text-xs text-muted">Входа в демо нет: роль только разделяет обязанности.</p>
-          <Button type="submit" variant="primary" size="sm" disabled={listed.length > 0 && !personId}>Применить</Button>
+          <Button type="submit" variant="primary" size="sm" disabled={seeding}>Применить</Button>
         </form>
       )}
     </div>

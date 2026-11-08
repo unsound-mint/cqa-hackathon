@@ -1,4 +1,4 @@
-import { can, type Comment, type Directory, type ErrorOrigin, type Notification, type SaveTimelineEventInput, type Tag as ErrorTag, type Task, type TaxonomyItem, type TimelineEvent, type Appeal, type ChecklistVersion, type Conversation, type DecideAppealInput, type Evaluation, type SaveChecklistInput } from '@cqa/contracts';
+import { can, ROLE_LABELS, type Comment, type Crosscheck, type Directory, type ErrorOrigin, type Notification, type SaveTimelineEventInput, type Tag as ErrorTag, type Task, type TaxonomyItem, type TimelineEvent, type Appeal, type ChecklistVersion, type Conversation, type DecideAppealInput, type Evaluation, type SaveChecklistInput } from '@cqa/contracts';
 import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, PanelLeftOpen } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MockCqaApi } from './api';
@@ -92,6 +92,8 @@ export function App() {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<unknown>(null);
   const [searchFocus, setSearchFocus] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [submittedCc, setSubmittedCc] = useState<Crosscheck | null>(null);
   const [onlyFlagged, setOnlyFlagged] = useState(false);
   const fits = useWide();
   /** The queue rail is optional: a reviewer can collapse it (remembered per browser; storage may be unavailable). */
@@ -185,6 +187,32 @@ export function App() {
       live = false;
     };
   }, [fetchAll]);
+
+  /** The inbox refreshes every 45 s and when the window regains focus, so a new comment or task shows without a reload. */
+  const ready = load.status === 'ready';
+  useEffect(() => {
+    if (!ready) return;
+    let live = true;
+    const refresh = () => {
+      if (document.hidden) return;
+      api.listNotifications().then((notifications) => live && setLoad((l) => (l.status === 'ready' ? { status: 'ready', data: { ...l.data, notifications } } : l)), () => {});
+    };
+    const timer = window.setInterval(refresh, 45_000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [api, ready, identity.role, identity.id]);
+
+  /** The first-visit identity names nobody; once the directory exists it becomes the directory's first person of that role, so the bell and the tasks belong to a real account. */
+  const directoryPeople = load.status === 'ready' ? load.data.directory.people : null;
+  useEffect(() => {
+    if (!directoryPeople || identity.id) return;
+    const first = directoryPeople.find((p) => p.role === identity.role);
+    if (first && identity.name === ROLE_LABELS[identity.role]) setIdentity({ role: first.role, name: first.name, id: first.id });
+  }, [directoryPeople, identity]);
 
   /** Evaluations per conversation, oldest first (the API lists them in creation order). */
   const byConversation = useMemo(() => {
@@ -371,18 +399,32 @@ export function App() {
   const setReview = async (status: 'new' | 'in_review' | 'reviewed') => {
     if (!conversation) return;
     await api.setReview(conversation.id, { status });
+    if (status === 'reviewed') await readRelated(conversation.id, ['task']);
     await reload();
     if (status !== 'reviewed') return;
+    const flash = (text: string) => {
+      setNotice(text);
+      window.setTimeout(() => setNotice((cur) => (cur === text ? null : cur)), 4000);
+    };
     const from = Math.max(queue.indexOf(conversation.id), 0);
     for (let k = 1; k < queue.length; k++) {
       const id = queue[(from + k) % queue.length]!;
       const c = data.conversations.find((x) => x.id === id);
-      if (c && reviewOf(c, latest.get(id)).state === 'new') return go({ name: 'dialog', id });
+      if (c && reviewOf(c, latest.get(id)).state === 'new') {
+        flash('Отмечено проверенным · следующий диалог');
+        return go({ name: 'dialog', id });
+      }
     }
+    flash('Отмечено проверенным');
   };
   const act = async (f: () => Promise<unknown>) => {
     await f();
     await reload();
+  };
+  /** Notifications about a dialog are read once the thing they announce is dealt with (comment acknowledged, task opened or done). */
+  const readRelated = async (conversationId: string, kinds: Notification['kind'][]) => {
+    const ids = data.notifications.filter((n) => !n.readAt && n.conversationId === conversationId && kinds.includes(n.kind)).map((n) => n.id);
+    if (ids.length) await api.markNotificationsRead(ids);
   };
   const openNotification = (n: Notification) => {
     void api.markNotificationsRead([n.id]).then(reload);
@@ -429,7 +471,7 @@ export function App() {
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         <Button variant="ghost" size="sm" aria-label="К списку диалогов" onClick={() => go({ name: 'list' })} className="-ml-3"><ArrowLeft aria-hidden className="size-4" /></Button>
         <h1 className="text-2xl font-semibold leading-8">{conversation.id}</h1>
-        <p className="text-sm text-muted">{conversation.language} · {conversation.channel === 'voice call' ? 'звонок' : 'чат'} · {conversation.transcript.length} сообщений{staff && conversation.operatorId ? ` · оператор ${conversation.operatorId}` : ''}</p>
+        <p className="text-sm text-muted">{conversation.language} · {conversation.channel === 'voice call' ? 'звонок' : 'чат'} · {conversation.transcript.length} сообщений{staff && conversation.operatorId ? ` · оператор ${data.directory.people.find((p) => p.id === conversation.operatorId)?.name ?? conversation.operatorId}` : ''}</p>
       </div>
       {!wide && (
         <div className="flex flex-wrap items-center gap-2">
@@ -465,10 +507,11 @@ export function App() {
         sections={SECTIONS[identity.role]}
         active={sectionOf(route)}
         pendingAppeals={data.appeals.filter((a) => a.status === 'pending').length}
-        openTasks={data.tasks.filter((t) => t.status === 'open' && (can(identity, 'task') || t.assigneeId === identity.id)).length}
+        openTasks={data.tasks.filter((t) => t.status === 'open' && t.assigneeId === identity.id).length}
         notifications={data.notifications}
         onNotification={openNotification}
         onReadNotifications={() => void api.markNotificationsRead().then(reload)}
+        onSeedDemo={() => act(() => api.seedDemoOrg())}
         onNavigate={(to) => go(to === 'dialogs' ? { name: 'list' } : { name: to })}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -481,7 +524,7 @@ export function App() {
           </main>
         ) : route.name === 'tasks' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
-            <TasksPage identity={identity} tasks={data.tasks} directory={data.directory} conversations={data.conversations} onOpenDialog={(id) => go({ name: 'dialog', id })} onOpenCrosscheck={(id) => go({ name: 'crosscheck', id })}
+            <TasksPage identity={identity} tasks={data.tasks} directory={data.directory} conversations={data.conversations} onOpenDialog={(id) => { void readRelated(id, ['task']).then(reload); go({ name: 'dialog', id }); }} onOpenCrosscheck={(id) => { const t = data.tasks.find((x) => x.id === id); if (t) void readRelated(t.conversationId, ['crosscheck', 'task']).then(reload); go({ name: 'crosscheck', id }); }}
               onSample={async (percent) => { const made = await api.sampleCrosschecks(percent); await reload(); return made.length; }} onCancel={(id) => act(() => api.cancelTask(id))} />
           </main>
         ) : route.name === 'analytics' ? (
@@ -504,8 +547,8 @@ export function App() {
             const evals = byConversation.get(task?.conversationId ?? '');
             const evl = evals?.[evals.length - 1];
             const cl = data.checklists.find((c) => c.id === evl?.checklistVersionId);
-            return task && conv && evl && cl && task.status === 'open' ? (
-              <CrosscheckPage task={task} conversation={conv} evaluation={evl} checklist={cl} onBack={() => go({ name: 'tasks' })} onSubmit={(results) => act(() => api.submitCrosscheck({ taskId: task.id, results }))} />
+            return task && conv && evl && cl && (task.status === 'open' || submittedCc?.taskId === task.id) ? (
+              <CrosscheckPage task={task} conversation={conv} evaluation={evl} checklist={cl} submitted={submittedCc?.taskId === task.id ? submittedCc : undefined} onBack={() => go({ name: 'tasks' })} onSubmit={async (results) => { setSubmittedCc(await api.submitCrosscheck({ taskId: task.id, results })); await reload(); }} />
             ) : (
               <main id="content" tabIndex={-1} className="p-6 text-sm outline-none"><p className="text-muted">Эта проверка недоступна или уже выполнена.</p><Button className="mt-4" onClick={() => go({ name: 'tasks' })}>К задачам</Button></main>
             );
@@ -516,7 +559,7 @@ export function App() {
           </main>
         ) : route.name === 'appeals' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
-            <AppealsPage appeals={data.appeals} evaluations={data.evaluations} checklists={data.checklists} conversations={data.conversations} onOpen={(id, criterion) => go({ name: 'dialog', id, criterion })} identity={identity} />
+            <AppealsPage appeals={data.appeals} evaluations={data.evaluations} checklists={data.checklists} conversations={data.conversations} onOpen={(id, criterion) => go({ name: 'dialog', id, criterion })} identity={identity} people={data.directory.people} />
           </main>
         ) : route.name === 'list' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
@@ -567,7 +610,7 @@ export function App() {
                   tags={data.tags.filter((t) => t.evaluationId === evaluationId)}
                   taxonomy={data.taxonomy}
                   onAddComment={(body) => act(() => api.addComment({ conversationId: conversation.id, body }))}
-                  onAckComment={(id) => act(() => api.acknowledgeComment(id))}
+                  onAckComment={(id) => act(async () => { const c = await api.acknowledgeComment(id); await readRelated(c.conversationId, ['comment']); })}
                   onAddTag={(cid, origin: ErrorOrigin, label) => act(() => api.addTag({ evaluationId: evaluation!.id, criterionId: cid, origin, ...(label ? { label } : {}) }))}
                   key={conversation.id}
                   conversation={conversation}
@@ -611,6 +654,7 @@ export function App() {
         )}
       </div>
     </div>
+    <div role="status" aria-live="polite" className={notice ? 'pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-sm text-canvas shadow-card print:hidden' : 'sr-only'}>{notice}</div>
     {route.name === 'dialog' && conversation && evaluation?.status === 'completed' && <PrintReport conversation={conversation} evaluation={evaluation} checklist={checklist} appeals={data.appeals.filter((x) => x.evaluationId === evaluation.id)} />}
     </>
   );

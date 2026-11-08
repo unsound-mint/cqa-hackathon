@@ -37,13 +37,18 @@ export function markRead(db: Db, actor: Actor | undefined, ids?: string[]): void
 /**
  * A serious violation on a finished evaluation tells the manager of the operator's team and the top managers. The
  * trigger is the checklist's own critical flag, never a criterion id, so it follows whatever the checklist defines.
+ * Called when an evaluation is stored, when a correction or appeal decision newly raises a flag, and as a backfill
+ * when the demo organisation is seeded (the dialogs had no manager before).
  */
-export function notifyCritical(db: Db, e: Evaluation): void {
+export function notifyCritical(db: Db, e: Evaluation, opts: { tx?: Tx; once?: boolean } = {}): void {
   if (e.status !== 'completed' || !e.seriousViolation) return;
+  const w = opts.tx ?? db;
   const checklist = getChecklist(db, e.checklistVersionId);
   const raised = e.finalResults.filter((r) => r.value === true && checklist?.criteria.find((c) => c.id === r.criterionId)?.criticalFlag).map((r) => checklist?.criteria.find((c) => c.id === r.criterionId)?.title ?? r.criterionId);
   const { managerId } = responsibleFor(db, e.conversationId);
-  const leads = db.select({ id: people.id }).from(people).where(eq(people.role, 'lead')).all().map((p) => p.id);
-  const to = [...(managerId ? [managerId] : []), ...leads];
-  if (to.length) notify(db, to, { kind: 'critical', title: `Грубое нарушение: ${e.conversationId}`, body: raised.length ? raised.join('; ') : 'Выявлено грубое нарушение.', conversationId: e.conversationId });
+  const leads = w.select({ id: people.id }).from(people).where(eq(people.role, 'lead')).all().map((p) => p.id);
+  let to = [...(managerId ? [managerId] : []), ...leads];
+  // `once`: a backfill must not repeat an alert the person already has for this dialog.
+  if (opts.once) to = to.filter((id) => !w.select({ id: notifications.id }).from(notifications).where(and(eq(notifications.recipientId, id), eq(notifications.kind, 'critical'), eq(notifications.conversationId, e.conversationId))).get());
+  if (to.length) notify(w, to, { kind: 'critical', title: `Грубое нарушение: ${e.conversationId}`, body: raised.length ? raised.join('; ') : 'Выявлено грубое нарушение.', conversationId: e.conversationId });
 }

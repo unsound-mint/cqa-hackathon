@@ -126,6 +126,16 @@ describe('suspicious', () => {
   });
 });
 
+describe('suspicious: burst length', () => {
+  it('reports the real length of the burst, not the threshold', () => {
+    const at = (s: number) => new Date(Date.UTC(2026, 10, 8, 10, 0, s)).toISOString();
+    const events: AuditEvent[] = [0, 10, 20, 30, 40, 50, 60, 70].map((s) => ({ id: `r${s}`, at: at(s), actorId: 'qa1', actorName: 'qa1', type: 'review.set', conversationId: `d${s}`, summary: '', data: { status: 'reviewed' } }));
+    const [f] = suspicious(events);
+    expect(f?.summary).toMatch(/^8 диалогов .* за 70 с$/);
+    expect(f?.conversationIds).toHaveLength(8);
+  });
+});
+
 describe('followUp', () => {
   it('tracks a serious violation from "nobody looked" to "reviewed, commented and read"', () => {
     const bad = (id: string) => ev(id, 40, '2026-11-02T00:00:00Z', { seriousViolation: true });

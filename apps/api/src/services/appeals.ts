@@ -7,7 +7,7 @@ import { getChecklist } from './checklists.js';
 import { scopeOf } from './directory.js';
 import { ApiError } from './errors.js';
 import { logEvent } from './events.js';
-import { notify } from './notifications.js';
+import { notify, notifyCritical } from './notifications.js';
 import { responsibleFor } from './directory.js';
 import { toEvaluation } from './evaluations.js';
 import { noteReviewActivity } from './review.js';
@@ -101,6 +101,8 @@ function applyOverride(db: Db, tx: Tx, evaluationId: string, criterionId: string
     throw e;
   }
   tx.update(evaluations).set({ finalResults: next, finalTotal: scored.total, seriousViolation: scored.seriousViolation }).where(eq(evaluations.id, ev.id)).run();
+  // A human decision that newly raises a critical flag alerts the same people as an AI result would.
+  if (!ev.seriousViolation && scored.seriousViolation) notifyCritical(db, { ...ev, finalResults: next, finalTotal: scored.total, seriousViolation: true }, { tx });
   return { value, isNA, before: { value: before.value, isNA: before.isNA }, conversationId: ev.conversationId };
 }
 

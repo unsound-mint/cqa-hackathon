@@ -2,6 +2,8 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
+import { z } from 'zod';
+import { ApiError } from './services/errors.js';
 import { openDb, type Db } from './db/index.js';
 import { checklistRoutes } from './routes/checklists.js';
 import { evaluationRoutes } from './routes/evaluations.js';
@@ -54,6 +56,14 @@ export function buildApp(opts: AppOptions = {}) {
       if (req.method === 'OPTIONS') return reply.header('access-control-allow-methods', 'GET,POST,OPTIONS').header('access-control-allow-headers', 'content-type,x-cqa-role,x-cqa-actor,x-cqa-person').code(204).send();
     });
   }
+
+  // App-wide on purpose: any route may throw ApiError (mapped to its status) or a ZodError (400); anything else is a
+  // bug and falls through to Fastify's default 500.
+  app.setErrorHandler((e, _req, reply) => {
+    if (e instanceof ApiError) return reply.code(e.status).send({ error: e.message });
+    if (e instanceof z.ZodError) return reply.code(400).send({ error: 'invalid input', issues: e.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) });
+    throw e;
+  });
 
   app.get('/health', async () => ({ status: 'ok', service: 'cqa-api' }));
   conversationRoutes(app, db, audio);

@@ -6,7 +6,6 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../db/index.js';
 import { getDirectory, savePerson, saveTeam, seedDemoOrg } from '../services/directory.js';
-import { ApiError } from '../services/errors.js';
 import { listEvents } from '../services/events.js';
 import { listNotifications, markRead } from '../services/notifications.js';
 import {
@@ -19,13 +18,7 @@ const bad = (reply: FastifyReply, what: string) => reply.code(400).send({ error:
 
 /** People, teams, audit log, notifications, comments, tags, tasks, cross-checks and the timeline. Roles are enforced here; scoping in the services. */
 export function teamRoutes(app: FastifyInstance, db: Db) {
-  // Every handler maps ApiError to its status; anything else is a bug and surfaces as 500.
-  app.setErrorHandler((e, _req, reply) => {
-    if (e instanceof ApiError) return reply.code(e.status).send({ error: e.message });
-    if (e instanceof z.ZodError) return reply.code(400).send({ error: 'invalid input', issues: e.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) });
-    throw e;
-  });
-
+  // Handlers here throw ApiError / ZodError and rely on the app-wide error handler in app.ts.
   app.get('/api/directory', async () => getDirectory(db));
   app.post('/api/people', async (req, reply) => {
     if (denied(req, reply, 'manageTeams')) return;
