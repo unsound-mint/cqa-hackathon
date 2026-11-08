@@ -35,6 +35,8 @@ The [reviewer guide](REVIEWER_GUIDE.md) is the presentation path; this runbook c
 
 ## Submitting results (organizer appendix, JSON 1.0)
 Two files must be pushed to the public repo before the stop-code: `results/dev/results.json` (65 DEV records) and `results/prod/results.json` (exactly 10 control chats, errors included). The exporter writes the immutable initial AI result (never reviewer overrides) in the required format and validates it (eight criteria once each, allowed values, 1-based evidence turns, score recomputed from weights, unique IDs).
+Export from the evaluation snapshot **before rehearsing critical-flag corrections or appeals**. Current exporter limitation: criterion values come from the original result, but `critical_flag` reads the mutable reviewed flag. If review changes that flag, validation rejects the inconsistent export. Keep the submission snapshot separate from the review demonstration until the exporter is corrected.
+
 1. Import and evaluate the control set in the app (all 10 conversations; an evaluation that fails is exported as `status: "error"`, never as a zero).
 2. `node scripts/export-results.mjs --group <control group id> --out results/prod/results.json --team "<team name>" --expect 10` (DEV: `--group DEV --expect 65`).
 3. `pnpm results:check results/prod/results.json --expect 10`, then commit, push, and confirm the file is visible on GitHub. Local commit without push does not count.
