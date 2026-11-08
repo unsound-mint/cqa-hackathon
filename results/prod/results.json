@@ -1,0 +1,757 @@
+{
+  "schema_version": "1.0",
+  "team_name": "abSuRd",
+  "model": {
+    "mode": "external_api",
+    "name": "claude-haiku-5-5"
+  },
+  "results": [
+    {
+      "conversation_id": "p2-ru-001",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": true,
+          "rationale": "Правило: в первом ответе оператора есть приветствие на языке клиента («Здравствуйте») и представление («Меня зовут»).",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": null,
+          "rationale": "Правило: N/A при достаточном исходном контексте; иначе проверяется уточнение до ответа. Запрос клиента — где посмотреть текущий тариф в веб-версии и название раздела отчёта; это публичная навигация. Для ответа не требовалось никаких деталей от клиента, оператор дал корректный публичный путь («Кабинет»).",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "identification",
+          "value": null,
+          "rationale": "Запрос — общий публичный вопрос о том, где найти тариф в интерфейсе; доступа к данным аккаунта или их раскрытия не было.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 15,
+          "rationale": "Правило: балл определён по покрытию заявленных вопросов и корректному следующему шагу. Клиент сформулировал основной вопрос о месте просмотра текущего тарифа с компьютера (индекс 0). Оператор дал корректный путь в веб-версии: «Кабинет», тариф под ФИО (индекс 9). Второстепенный вопрос о названии раздела в отчёте брокера (индекс 0) оператор не закрыл; клиент сам отложил просмотр отчёта (индекс 10). Некорректной итоговой рекомендации нет.",
+          "evidence_turns": [
+            1,
+            10
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": true,
+          "rationale": "Оператор приветствует клиента, представляется и благодарит словом «Пожалуйста», прощается вежливо. Клиент не выражал недовольства, поэтому реагировать было не на что; вежливость в формулировках достаточна.",
+          "evidence_turns": [
+            10,
+            12
+          ]
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 10,
+          "rationale": "Правило: приоритет — непонимание, вынужденный переспрос, прочий сбой или ожидание без предупреждения, затем ясный диалог. Реплики оператора ясные и связные: путь в веб-версии изложен однозначно, прощание понятно. Явного ожидания, объявленного оператором, нет; обмен сообщениями без подтверждённого hold-события. Переспросов клиента, вызванных формулировками, не видно.",
+          "evidence_turns": [
+            10,
+            12
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": true,
+          "rationale": "Правило: в последней реплике оператора есть завершающая фраза («напишите нам» + «До свидания» + «Пожалуйста»).",
+          "evidence_turns": [
+            12
+          ]
+        },
+        {
+          "criterion_id": "critical",
+          "value": false,
+          "rationale": "Оскорблений, предложения платной услуги в обход компании или раскрытия конфиденциальных данных в сообщениях оператора нет. Оператор лишь дал публичную инструкцию по веб-кабинету.",
+          "evidence_turns": []
+        }
+      ],
+      "score": {
+        "final_score": 92.31,
+        "critical_flag": false
+      }
+    },
+    {
+      "conversation_id": "p2-ru-002",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": true,
+          "rationale": "Правило: в первом ответе оператора есть приветствие на языке клиента («Здравствуйте») и представление («я Анна»).",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": null,
+          "rationale": "Правило: N/A при достаточном исходном контексте; иначе проверяется уточнение до ответа. Запрос клиента — где обновить анкетные данные и когда повторять вывод. Путь в меню является публичной навигацией и дан без необходимости уточнять данные клиента. Вопрос о сроке повтора вывода оператор не разобрал, но это качество консультации, а не недостающая деталь на входе; оператор ничего не уточнял у клиента.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "identification",
+          "value": null,
+          "rationale": "Оператор дал публичный путь в меню и не запрашивал и не раскрывал данные аккаунта; клиент не просил проверки аккаунта, запрос носит общий характер.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 10,
+          "rationale": "Правило: балл определён по покрытию заявленных вопросов и корректному следующему шагу. Клиент описал проблему с выводом денег и сформулировал два вопроса: где обновить анкетные данные и когда повторять вывод. Оператор дал точный путь в меню для обновления данных (индекс 9), но на вопрос о повторе вывода не ответил: в индексе 11 сказано только «Для обновления используется указанное меню», клиент уточнил в индексе 12, и оператор завершил диалог без ответа. Основной вопрос о выводе остался без ответа.",
+          "evidence_turns": [
+            1,
+            10
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": false,
+          "rationale": "Оператор формально вежлив («Здравствуйте, я Анна», «До свидания»), но не отреагировал на заявленную проблему: клиент дважды написал, что второй день не может вывести деньги, а оператор ответил лишь «Для обновления используется указанное меню» и не ответил о выводе. Критерий требует и вежливости, и реакции на конкретное неудобство, поэтому «Нет».",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 4,
+          "rationale": "Правило: приоритет — непонимание, вынужденный переспрос, прочий сбой или ожидание без предупреждения, затем ясный диалог. Инструкции оператора по меню ясны и последовательны. Однако на вопрос клиента о повторе вывода оператор ответил нерелевантной фразой («Для обновления используется указанное меню»), что вынудило клиента переспросить («Я про вывод спрашиваю»). Это непонятная реплика, приведшая к переспросу; путаницы, мешающей пониманию в целом, нет. Явного ожидания или ожидания с предупреждением в диалоге оператора нет.",
+          "evidence_turns": [
+            10,
+            12,
+            13,
+            14
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": true,
+          "rationale": "Правило: в последней реплике оператора есть завершающая фраза («Если появятся ещё вопросы» + «До свидания»).",
+          "evidence_turns": [
+            14
+          ]
+        },
+        {
+          "criterion_id": "critical",
+          "value": false,
+          "rationale": "В сообщениях оператора нет оскорблений, предложений платных услуг в обход компании и раскрытия конфиденциальных данных.",
+          "evidence_turns": []
+        }
+      ],
+      "score": {
+        "final_score": 47.69,
+        "critical_flag": false
+      }
+    },
+    {
+      "conversation_id": "p2-ru-003",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": true,
+          "rationale": "Правило: в первом ответе оператора есть приветствие на языке клиента («Здравствуйте») и представление («меня зовут»).",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": true,
+          "rationale": "Правило: N/A при достаточном исходном контексте; иначе проверяется уточнение до ответа. Клиент сообщил, что пополнял счёт и деньги не появились, но не указал, когда и в какой валюте был отправлен перевод. Оператор спросил об этом до содержательного ответа и получил сведения (сегодня утром, в евро). Первая содержательная рекомендация оператора (передача специалистам, статусы банка и брокера) от этих деталей не зависела.",
+          "evidence_turns": [
+            1,
+            13
+          ]
+        },
+        {
+          "criterion_id": "identification",
+          "value": true,
+          "rationale": "Правило: подтверждение личности («Личность клиента подтверждена.») зафиксировано до раскрытия защищённых данных или действия.",
+          "evidence_turns": [
+            12,
+            15
+          ]
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 20,
+          "rationale": "Правило: балл определён по покрытию заявленных вопросов и корректному следующему шагу. Основной запрос клиента (деньги отправлены, но не появились в приложении) сформулирован в сообщении 0. Оператор передал вопрос специалистам по зачислениям и указал, что ответ будет дан в этом чате, то есть предоставил следующий шаг. Дополнительные вопросы клиента («Мне надо что-то ещё делать сейчас?», разница статусов банка и брокера, отправка скриншота) получили прямые ответы. Существенных открытых вопросов не осталось, ошибочных ключевых рекомендаций нет.",
+          "evidence_turns": [
+            1,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            22
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": true,
+          "rationale": "Оператор вежлив и отреагировал на неудобство клиента: «Понимаю, что неприятно не видеть отправленные деньги», а в конце поблагодарил за ожидание. Формулировки профессиональные и относятся к проблеме клиента.",
+          "evidence_turns": [
+            10,
+            22
+          ]
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 10,
+          "rationale": "Правило: приоритет — непонимание, вынужденный переспрос, прочий сбой или ожидание без предупреждения, затем ясный диалог. Реплики оператора ясные и связные: сначала подтверждение личности, затем уточняющий вопрос, передача специалистам с указанием канала ответа, ответы на дополнительные вопросы. Удержаний и явного ожидания нет, повторных переспрашиваний клиента из-за формулировок не возникло.",
+          "evidence_turns": [
+            10,
+            13,
+            15,
+            18,
+            20,
+            22
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": true,
+          "rationale": "Правило: в последней реплике оператора есть завершающая фраза («до свидания»).",
+          "evidence_turns": [
+            22
+          ]
+        },
+        {
+          "criterion_id": "critical",
+          "value": false,
+          "rationale": "Оскорблений, предложений платной услуги в обход компании и раскрытия конфиденциальной информации в репликах оператора не выявлено. Оператор лишь передал вопрос специалистам и не раскрыл данные счёта.",
+          "evidence_turns": []
+        }
+      ],
+      "score": {
+        "final_score": 100,
+        "critical_flag": false
+      }
+    },
+    {
+      "conversation_id": "p2-ru-004",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": false,
+          "rationale": "Оператор не поздоровался и не представился. Первое сообщение оператора («Сейчас. Там оно у вас по счёту стоит…») начинается сразу с содержания.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "discovery",
+          "value": false,
+          "rationale": "Правило: N/A при достаточном исходном контексте; иначе проверяется уточнение до ответа. Клиент сообщил о проблеме с выводом средств и просил проверить счёт. Оператор не задал ни одного уточняющего вопроса (например, какая ошибка появляется или каким способом пытался вывести), хотя для разбора конкретного счёта такие детали могли понадобиться. Ответ оператора («через тот раздел», «смотрите в приложении») не учитывает эти детали. Известный контекст (вывод средств, счёт) оператор использовал, но не уточнил недостающее.",
+          "evidence_turns": [
+            1,
+            10
+          ]
+        },
+        {
+          "criterion_id": "identification",
+          "value": false,
+          "rationale": "Правило: проверка личности требовалась, но события подтверждения личности в диалоге нет.",
+          "evidence_turns": [
+            12
+          ]
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 20,
+          "rationale": "Правило: балл определён по покрытию заявленных вопросов и корректному следующему шагу. Клиент сообщил о невозможности вывести деньги и попросил проверить счёт (основной запрос). Оператор указал на ограничение на вывод и отослал к разделу вывода в приложении; это конкретный шаг, но причина и порядок снятия ограничения не раскрыты. Вопрос «что стоит и через какой раздел» закрыт частично: ограничение названо, раздел указан кратко. Повторный вопрос «где в приложении смотреть» (сообщение 12) объединён с этим запросом.",
+          "evidence_turns": [
+            1,
+            10,
+            11,
+            12,
+            14
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": false,
+          "rationale": "Клиент сообщил о повторной проблеме с выводом денег («Опять не получается…»), но оператор не проявил вежливости и не отреагировал на неудобство. Ответы сухие и краткие, а на вопрос клиента «Что стоит? И через какой раздел?» оператор не ответил по существу.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 4,
+          "rationale": "Правило: приоритет — непонимание, вынужденный переспрос, прочий сбой или ожидание без предупреждения, затем ясный диалог. Формулировка оператора в сообщении 9 («Там оно у вас по счёту стоит, поэтому через тот раздел опять») неясна: клиент переспросил, что стоит и какой раздел. Сообщение 11 уточнило ограничение, но отсылка «Детали смотрите в приложении» вызвала повторный вопрос клиента, где именно смотреть. Ожидания без предупреждения и holds не зафиксировано.",
+          "evidence_turns": [
+            10,
+            11,
+            12,
+            13,
+            14
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": false,
+          "rationale": "Оператор не подвёл итог, не предложил дальнейшую помощь и не попрощался. Последнее сообщение оператора («В разделе вывода.») — просто указание, после чего чат закрыт оператором. Возможность завершить диалог была.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "critical",
+          "value": true,
+          "rationale": "Оператор сообщил клиенту о конкретном ограничении на его счёте до проверки личности, которую клиент прямо отметил как непройденную. Это раскрытие конфиденциальной информации по счёту.",
+          "evidence_turns": [
+            12
+          ]
+        }
+      ],
+      "score": {
+        "final_score": 26,
+        "critical_flag": true
+      }
+    },
+    {
+      "conversation_id": "p2-kz-001",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": true,
+          "rationale": "Ереже: оператордың алғашқы жауабында клиент тілінде сәлемдесу («Сәлеметсіз бе») және таныстыру («Менің атым») бар.",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": null,
+          "rationale": "Ереже: бастапқы дерек жеткілікті болса N/A; әйтпесе жауапқа дейін нақтылау тексеріледі. Клиент банкке ақша аудару үшін деректемелерді қайдан алу керектігін сұрады. Бұл жалпы қосымшадағы жол туралы сұрақ, сондықтан валюта қажетті міндетті деталь емес; клиентке өзі валютаны таңдауды айтуға болады. Оператор валюта сұрады, бірақ жауап үшін оның болуы міндетті болмады.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "identification",
+          "value": null,
+          "rationale": "Сұрақ жалпы қосымшадағы деректемелерді табу жолы туралы. Оператор ешқандай шоттық деректі сұрамады және ашпады, сондай-ақ жүйе хабарламасы верификацияны растамайды.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 20,
+          "rationale": "Ереже: балл қойылған сұрақтардың қамтылуына және дұрыс келесі қадамға сәйкес есептелді. Клиент брокерлік шотқа ақша аудару үшін деректемелерді қайдан алатынын сұраған (0-хабарлама); 4-хабарламада қосымшадан таба алмайтынын айтқан — бұл осы сұраққа қатысты бір өтініш. Оператор 12-хабарламада қосымшадағы нақты жолды және деректемелерді жүктеу қадамдарын берді, клиент 13-хабарламада «Енді таптым» деп растады. Негізгі сұрақ жабылды, қосымша сұрақ жоқ.",
+          "evidence_turns": [
+            1,
+            13
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": true,
+          "rationale": "Оператор сәлемдесіп, өзін таныстырды және клиенттің «Қосымшада таба алмай тұрмын» деген қиындығына қысқа, нақты жолмен жауап берді. Соңында да сыпайы қорытынды айтты.",
+          "evidence_turns": [
+            10,
+            13,
+            15
+          ]
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 10,
+          "rationale": "Ереже: алдымен түсініксіздік, мәжбүрлі қайта сұрау, өзге ақау немесе ескертусіз күту, содан кейін анық диалог бағаланады. Оператордың хабарламалары қысқа, анық және ретті: валюта туралы нақтылаушы сұрақ, содан кейін қосымшадағы жол мен деректемелерді жүктеу қадамдары. Клиент қайта сұрамады, түсінбеушілік көрсетілмеген. Оператордың 'проверку' туралы алдын ала ескертуі жоқ, ал жүйелік хабарлама оператордың айтқан сөзі емес, сондықтан анық күту белгіленбеді.",
+          "evidence_turns": [
+            10,
+            13,
+            15
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": true,
+          "rationale": "Ереже: оператордың соңғы жауабында қорытынды сөз («Сау болыңыз») бар.",
+          "evidence_turns": [
+            15
+          ]
+        },
+        {
+          "criterion_id": "critical",
+          "value": false,
+          "rationale": "Оператор клиентті қорламады, ақылы қызмет ұсынбады және құпия ақпарат ашпады. Жауаптар тек жалпы қосымша жолын түсіндіреді.",
+          "evidence_turns": []
+        }
+      ],
+      "score": {
+        "final_score": 100,
+        "critical_flag": false
+      }
+    },
+    {
+      "conversation_id": "p2-kz-002",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": true,
+          "rationale": "Ереже: оператордың алғашқы жауабында клиент тілінде сәлемдесу («Сәлеметсіз бе») және таныстыру («мен Асқармын») бар.",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": null,
+          "rationale": "Ереже: бастапқы дерек жеткілікті болса N/A; әйтпесе жауапқа дейін нақтылау тексеріледі. Клиент облигация өтінімі қайта-қайта «отклонён» мәртебесімен қабылданбайтынын айтты, және бұл мәлімет 4-хабарламада берілген. Оператор ешқандай қосымша мәлімет сұрамады. Оператор клиенттің нақты көрсеткен «отклонён» мәртебесін ескермей, өтінімнің орындалып қойғанын айтты, сондықтан known context пайдаланылмаған. Қосымша қажетті мәлімет анық көрінбейді.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "identification",
+          "value": null,
+          "rationale": "Сұрау облигация өтінімінің жалпы қабылданбау себебіне қатысты. Клиент шоттың нақты деректерін сұрамады, оператор да шотқа кіріп тексермеді және аккаунт деректерін ашпады. Сондықтан идентификация қажет емес.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 0,
+          "rationale": "Ереже: балл қойылған сұрақтардың қамтылуына және дұрыс келесі қадамға сәйкес есептелді. Клиент сұрады: облигацияға өтінім неге қайта-қайта қабылданбайтынын түсіндіре алмай отыр (0), сонымен қатар «отклонён» статусын көрсетіп, оператормен байланысуды сұрады (4). Оператор (9) қабылданбаған өтінім міндетті түрде орындалған деп мәлімдеп, ештеңе тексермеуді ұсынды. Бұл растау фактілерге сай емес, сондықтан негізгі сұраққа нақты жауап немесе дұрыс келесі қадам берілмеген. Клиент 10-хабарламада осы мәлімдеменің мәнін сұрады, оператор жауап бермей чатты жапты (11).",
+          "evidence_turns": [
+            1,
+            10
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": false,
+          "rationale": "Оператор өтінімнің қабылданбауы туралы клиенттің шағымына нақты жауап бермей, «Ештеңе тексермей-ақ қойыңыз» деп қысқа және менсінбейтін түрде жауап берді. Клиенттің мәселесі ескерілмеді, кәсіби сыпайылық сөздері жоқ.",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 10,
+          "rationale": "Ереже: алдымен түсініксіздік, мәжбүрлі қайта сұрау, өзге ақау немесе ескертусіз күту, содан кейін анық диалог бағаланады. Оператордың 9-хабарламасы сөйлем құрылымы жағынан түсінікті, бірақ мазмұны жалған: қабылданбаған өтінімнің орындалғанын және тексерудің қажеті жоқ екенін айтады. Клиенттің реакциясы (10) — мазмұнға қатысты нақтылау сұрағы, түсінбеушілікке байланысты сөздік қайта сұрау емес. Қайта сұрауға әкелетін бұрмалаушы нұсқау, бөлек ақпараттық кідіріс немесе hold жоқ.",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": false,
+          "rationale": "Оператордың жалғыз хабарламасында итог, көмек ұсынысы немесе қоштасу жоқ. Клиент 10-хабарлама арқылы сұрақ қойды, оператор оған жауап бермей чатты жауып кетті, сондықтан жабу мүмкіндігі болған.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "critical",
+          "value": false,
+          "rationale": "Оператор клиентті қорлаған жоқ, платное ұсыныс жасамады және конфиденциалды деректерді ашпады. Оператордың тәсілі дөрекі болғанымен, бұл грубая ошибка критерийіне жатпайды.",
+          "evidence_turns": []
+        }
+      ],
+      "score": {
+        "final_score": 38.46,
+        "critical_flag": false
+      }
+    },
+    {
+      "conversation_id": "p2-kz-003",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": true,
+          "rationale": "Ереже: оператордың алғашқы жауабында клиент тілінде сәлемдесу («Сәлеметсіз бе») және таныстыру («мен Жанармын») бар.",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": null,
+          "rationale": "Ереже: бастапқы дерек жеткілікті болса N/A; әйтпесе жауапқа дейін нақтылау тексеріледі. Клиент D-шоттағы ақшаны акцияға тікелей пайдалану мүмкіндігі туралы сұрады. Бұл сұраққа жауап беру үшін клиенттен қосымша деталь қажет болмады. Оператор бірден жауап берді, сондықтан қажетті жетіспейтін мәлімет жоқ.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "identification",
+          "value": null,
+          "rationale": "Сұрақ жалпы ақпаратқа қатысты (D-шот пен сауда шотының айырмасы). Оператор аккаунтқа қатысты деректерді көрсетпеді және тексеруді талап етпеді, сондықтан жеке тексеру қажет болмады.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 10,
+          "rationale": "Ереже: балл қойылған сұрақтардың қамтылуына және дұрыс келесі қадамға сәйкес есептелді. Клиенттің негізгі сұрағы (D-шоттағы ақшаға акция сатып алуға бола ма) оператордың 9-хабарламасында анық жауапталды. Бірақ клиенттің 12-хабарламадағы шоттардың айырмасын білу қажеттігі ешқандай түсіндірмесіз қалды, оператор тек «Түсіндім» деп жауап берді.",
+          "evidence_turns": [
+            1,
+            10,
+            13
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": true,
+          "rationale": "Оператор әзірге формальды сәлемдесіп, өзін таныстырды және соңында «Сау болыңыз!» деп қош айтысты. Клиент нақты наразылық немесе шағым айтпаған, сондықтан жауап тек вежливость деңгейінде бағаланады. Бұл жеткілікті деп есептелді, бірақ жеке жылы сөз аз.",
+          "evidence_turns": [
+            10,
+            14
+          ]
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 10,
+          "rationale": "Ереже: алдымен түсініксіздік, мәжбүрлі қайта сұрау, өзге ақау немесе ескертусіз күту, содан кейін анық диалог бағаланады. Оператордың сөйлемдері қысқа, түсінікті және ретпен берілген. Клиент оператор сөздерін түсініп, қайта сұрамаған. Оператор ешқандай күту немесе тексеру жариялаған жоқ, сондықтан wait жазбасы жоқ.",
+          "evidence_turns": [
+            10,
+            12,
+            14
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": true,
+          "rationale": "Ереже: оператордың соңғы жауабында қорытынды сөз («Басқа сұрақ» + «Сау болыңыз») бар.",
+          "evidence_turns": [
+            14
+          ]
+        },
+        {
+          "criterion_id": "critical",
+          "value": true,
+          "rationale": "Оператор клиентке компания арқылы емес, жеке ақшасын аударуды ұсынып, оны «пайда түсетіндей» инвестициялап беруге уәде берді. Бұл компания арқылы жүрмейтін жеке платное қызметті ұсыну болып табылады, сондықтан флаг қойылды.",
+          "evidence_turns": [
+            12
+          ]
+        }
+      ],
+      "score": {
+        "final_score": 84.62,
+        "critical_flag": true
+      }
+    },
+    {
+      "conversation_id": "p2-kz-004",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": true,
+          "rationale": "Ереже: оператордың алғашқы жауабында клиент тілінде сәлемдесу («Сәлеметсіз бе») және таныстыру («менің атым») бар.",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": true,
+          "rationale": "Ереже: бастапқы дерек жеткілікті болса N/A; әйтпесе жауапқа дейін нақтылау тексеріледі. Клиент операторға «сұрағымды соған айтайын» деп жазып, операторға қосуды сұраған. Оператор сұрақтың мәнін сұрап, клиенттен өтінішінің мазмұнын шығаруды сұрады. Шағымның табиғаты (не туралы сұрақ екені) оператор сұрағына дейін белгісіз болды. Оператор ешқандай кеңес бермеді, сондықтан оған тәуелді кеңес жоқ.",
+          "evidence_turns": [
+            5,
+            10
+          ]
+        },
+        {
+          "criterion_id": "identification",
+          "value": null,
+          "rationale": "Клиент тек операторға қосуды сұрады, нақты account-специфті көмек сұралмады және оператор ешқандай шоттық деректерді ашпады немесе әрекет жасамады. Сондықтан жеке куәландыру талап етілмейді.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "consultation",
+          "value": null,
+          "rationale": "Ереже: балл қойылған сұрақтардың қамтылуына және дұрыс келесі қадамға сәйкес есептелді. Клиент тек операторға қосуды сұрады және «сұрағымды соған айтайын» деді. Нақты консультация сұрауы тұжырымдалмаған, ал клиент оператор қосылғаннан кейін сұрағын жазбай чаттан шықты. Сондықтан requestFormulated=false.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "empathy",
+          "value": true,
+          "rationale": "Оператор сәлемдесіп, өзін таныстырды және «Айта беріңіз, қалай көмектесе аламын?» деп мәдени, сыпайы түрде көмек ұсынды. Клиент әлі нақты шағым немесе ыңғайсыздық сипаттаған жоқ, сондықтан оған жауап беру талап етілмейді.",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 10,
+          "rationale": "Ереже: алдымен түсініксіздік, мәжбүрлі қайта сұрау, өзге ақау немесе ескертусіз күту, содан кейін анық диалог бағаланады. Оператордың жалғыз клиентке арналған хабарламасы (9) анық және түсінікті: сәлемдесу, аты және көмек ұсынысы. Қайта сұрау, бағыт қатесі немесе түсініксіз нұсқаулар жоқ. Оператор күту жағдайын тудырмады, ал чаттан шығу клиент тарапынан болды.",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": true,
+          "rationale": "Ереже: оператордың соңғы жауабында қорытынды сөз («көмектесе аламын») бар.",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "critical",
+          "value": false,
+          "rationale": "Оператордың жалғыз хабарламасында қорлау, ақылы жеке қызметті ұсыну немесе құпия ақпаратты ашу байқалмайды. Оператор тек сәлемдесіп, көмек ұсынды.",
+          "evidence_turns": []
+        }
+      ],
+      "score": {
+        "final_score": 100,
+        "critical_flag": false
+      }
+    },
+    {
+      "conversation_id": "p2-en-001",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": true,
+          "rationale": "Rule: the operator's first reply has a greeting in the client's language (\"Hi\") and an introduction (\"I'm Nora\").",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": true,
+          "rationale": "Rule: sufficient initial context takes N/A precedence; otherwise clarification must precede the answer. The operator needed to know which site the client was on before directing them. The client's sign-in problem was unclear without this, and the operator asked for it at message 9. The client answered at 10, and the operator's advice at 11 depended on that answer, though it was vague and needed clarification at 13.",
+          "evidence_turns": [
+            1,
+            10,
+            12
+          ]
+        },
+        {
+          "criterion_id": "identification",
+          "value": null,
+          "rationale": "The assistance was generic public navigation to the sign-in address and app. No account-specific data was accessed or disclosed, so identity verification was not required.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 20,
+          "rationale": "Rule: the tier follows coverage of expressed requests and appropriate concrete next steps. The client's main request was help signing in when the sign-in button could not be found. After the operator's clarification at index 13 (tradernet.global or the app), the client confirmed it worked, so the request was answered. The earlier vague route at index 11 was explicitly corrected and is not a final incorrect key recommendation.",
+          "evidence_turns": [
+            1,
+            14
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": true,
+          "rationale": "The operator responded to the client's sign-in problem, apologised for the unclear instruction (\"Sorry, let me be specific.\") and closed courteously. The opening instruction was blunt, but the wording overall shows professional courtesy.",
+          "evidence_turns": [
+            14,
+            16
+          ]
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 4,
+          "rationale": "Rule: severity precedence is incomprehension, forced re-ask, other flaw/unannounced wait, then clear dialogue. Most messages are clear, but the operator's instruction at index 11 ('Go to the other one, not the one you're on') was vague, so the client had to ask which site and which address at index 12. The operator then corrected it at index 13 with specific addresses. No hold or announced wait occurred, and the client was not confused about the final instructions.",
+          "evidence_turns": [
+            10,
+            12,
+            13,
+            14,
+            16
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": true,
+          "rationale": "Rule: the operator's last turn wraps up the conversation (\"Have a good day\").",
+          "evidence_turns": [
+            16
+          ]
+        },
+        {
+          "criterion_id": "critical",
+          "value": false,
+          "rationale": "No insult, paid off-company offer, or confidential disclosure by the operator appears in the transcript. The operator only gave public navigation instructions.",
+          "evidence_turns": []
+        }
+      ],
+      "score": {
+        "final_score": 88.75,
+        "critical_flag": false
+      }
+    },
+    {
+      "conversation_id": "p2-en-002",
+      "status": "ok",
+      "criteria": [
+        {
+          "criterion_id": "contact",
+          "value": true,
+          "rationale": "Rule: the operator's first reply has a greeting in the client's language (\"Hi\") and an introduction (\"I'm Jordan\").",
+          "evidence_turns": [
+            10
+          ]
+        },
+        {
+          "criterion_id": "discovery",
+          "value": null,
+          "rationale": "Rule: sufficient initial context takes N/A precedence; otherwise clarification must precede the answer. The client asked where the pricing plan appears in last year's broker report and the operator's answer is public navigation. The needed details (last year, broker report, mobile app) were already given, and no further client information was necessary to give the path.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "identification",
+          "value": null,
+          "rationale": "The assistance was public how-to guidance for finding a report section and a generic web navigation path. No account-specific data was accessed or disclosed, and no verification event occurred.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "consultation",
+          "value": 20,
+          "rationale": "Rule: the tier follows coverage of expressed requests and appropriate concrete next steps. The client raised several substantive needs: finding the pricing plan in the broker report, the report menu path, seeing the current plan without downloading, confirming the right document, and choosing between two downloads. The operator gave the menu path, the location of the plan, a web-version alternative, document-title verification and guidance on which download to use. All were answered with concrete steps.",
+          "evidence_turns": [
+            1,
+            5,
+            10,
+            12,
+            13,
+            14,
+            16,
+            17,
+            18,
+            19
+          ]
+        },
+        {
+          "criterion_id": "empathy",
+          "value": false,
+          "rationale": "The operator gave clear, correct navigation steps and addressed the menu and wrong-download problems. However, the wording is mostly terse commands (e.g., \"Check the document title.\"), with no clear professional courtesy until the closing \"You're welcome.\" Courtesy is not recognizable enough for Yes.",
+          "evidence_turns": []
+        },
+        {
+          "criterion_id": "dialogue",
+          "value": 10,
+          "rationale": "Rule: severity precedence is incomprehension, forced re-ask, other flaw/unannounced wait, then clear dialogue. Operator messages are clear, short and in order. No hold or announced wait occurred, and the client did not re-ask because of unclear or wrong-navigation guidance. The client's later follow-ups were normal new questions.",
+          "evidence_turns": [
+            10,
+            12,
+            14,
+            17,
+            19,
+            21
+          ]
+        },
+        {
+          "criterion_id": "closure",
+          "value": true,
+          "rationale": "Rule: the operator's last turn wraps up the conversation (\"Goodbye\" + \"You're welcome\").",
+          "evidence_turns": [
+            21
+          ]
+        },
+        {
+          "criterion_id": "critical",
+          "value": false,
+          "rationale": "No insult, paid off-company offer, or confidential account disclosure appears. The operator only gave public navigation guidance about where the plan is shown.",
+          "evidence_turns": []
+        }
+      ],
+      "score": {
+        "final_score": 76.92,
+        "critical_flag": false
+      }
+    }
+  ]
+}
