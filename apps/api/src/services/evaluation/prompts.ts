@@ -2,7 +2,7 @@
 import type { Criterion } from '@cqa/contracts';
 import { calibrationExamples } from './calibration.js';
 
-export const PROMPT_VERSION = 'eval-v16';
+export const PROMPT_VERSION = 'eval-v17';
 
 export const SYSTEM_PROMPT = `You evaluate the quality of ONE customer-support conversation (a typed chat or a phone call transcript) against a checklist.
 
