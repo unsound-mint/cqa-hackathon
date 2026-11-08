@@ -127,9 +127,12 @@ The **same** interface must have `MockCqaApi` (fictional in-repo fixture) and `H
 | decideAppeal | `POST /api/appeals/:id/decision` |
 | setReview | `POST /api/conversations/:id/review` |
 | assignOperator | `POST /api/conversations/operator` |
-| listOperators | `GET /api/operators` |
+| getDirectory / savePerson / saveTeam / seedDemoOrg | `GET /api/directory`, `POST /api/people`, `POST /api/teams`, `POST /api/demo/org` |
+| listEvents, listNotifications, markNotificationsRead | `GET /api/events`, `GET /api/notifications`, `POST /api/notifications/read` |
+| comments, tags, taxonomy, timeline | `/api/comments`, `/api/tags`, `/api/taxonomy`, `/api/timeline` |
+| tasks and cross-checks | `/api/tasks`, `/api/tasks/sample`, `/api/crosschecks` |
 
-Every request carries the demo role in `x-cqa-role` / `x-cqa-actor` (see `packages/contracts/src/roles.ts`); the API enforces it, the mock mirrors it. Added to the records (all optional): `Conversation.importedAt`, `operatorId`, `review`; `Evaluation.createdAt`; `Appeal.createdBy`, `decidedBy`.
+Every request carries the demo role in `x-cqa-role` / `x-cqa-actor` (see `packages/contracts/src/roles.ts`); the API enforces it, the mock mirrors it. New records in `packages/contracts/src/team.ts` (Person, Team, AuditEvent, Notification, Comment, Task, Crosscheck, Tag, TimelineEvent). Roles and least-privilege scope in `roles.ts`. Added to the records (all optional): `Conversation.clientId/csat/startedAt` (not in the DEV data), `Conversation.importedAt`, `operatorId`, `review`; `Evaluation.createdAt`; `Appeal.createdBy`, `decidedBy`.
 
 The import endpoint `POST /api/datasets/import` is a backend-only operation that uses an environment-configured signed URL for organizers' DEV/control group. Do not expose the signed URL to the browser.
 

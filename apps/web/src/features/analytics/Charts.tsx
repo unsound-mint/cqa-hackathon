@@ -21,8 +21,8 @@ export function TrendChart({ points, events }: { points: TrendPoint[]; events: T
       {[lo, (lo + hi) / 2, hi].map((v) => (
         <g key={v}><line x1={L} x2={W - R} y1={y(v)} y2={y(v)} className="stroke-line" /><text x={L - 4} y={y(v) + 4} textAnchor="end" className="fill-muted text-xs">{formatScore(v)}</text></g>
       ))}
-      {events.filter((e) => Date.parse(e.date) >= t0 && Date.parse(e.date) <= t1).map((e) => (
-        <g key={e.id}><line x1={x(Date.parse(e.date))} x2={x(Date.parse(e.date))} y1={T} y2={H - B} strokeDasharray="4 4" className={e.kind === 'training' ? 'stroke-brand' : 'stroke-warn'} /><text x={x(Date.parse(e.date)) + 4} y={T + 12} className="fill-ink text-xs">{e.title.slice(0, 26)}</text></g>
+      {events.filter((e) => Date.parse(e.date) >= t0 && Date.parse(e.date) <= t1).map((e, i) => (
+        <g key={e.id}><line x1={x(Date.parse(e.date))} x2={x(Date.parse(e.date))} y1={T} y2={H - B} strokeDasharray="4 4" className={e.kind === 'training' ? 'stroke-brand' : 'stroke-warn'} /><text x={x(Date.parse(e.date)) + 4} y={T + 12 + (i % 2) * 16} className="fill-ink text-xs">{e.title.slice(0, 26)}</text></g>
       ))}
       <path d={path} fill="none" strokeWidth={2} className="stroke-ink" />
       {points.map((p) => p.average !== null && <circle key={p.week} cx={x(Date.parse(p.week))} cy={y(p.average)} r={3} className="fill-ink" />)}
