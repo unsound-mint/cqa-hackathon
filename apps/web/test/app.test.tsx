@@ -6,7 +6,7 @@ import { ApiProvider } from '../src/ApiContext';
 import { App } from '../src/App';
 import { HttpCqaApi, MockCqaApi } from '../src/api';
 import { richDemo, richDemoAppeals } from '../src/api/demoExtras';
-import { asRole, withOperator } from './roles';
+import { DIRECTORY, asRole, withOperator } from './roles';
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
@@ -38,10 +38,10 @@ const withSecond = (b: any) => {
   b.conversations.push(c);
   b.evaluations.push(e);
 };
-const renderApp = (b: unknown = demo, hash = '#/dialog/demo-ru-001') => {
+const renderApp = (b: unknown = demo, hash = '#/dialog/demo-ru-001', org: ConstructorParameters<typeof MockCqaApi>[2] = {}) => {
   window.location.hash = hash;
   return render(
-    <ApiProvider api={new MockCqaApi(b)}>
+    <ApiProvider api={new MockCqaApi(b, [], org)}>
       <App />
     </ApiProvider>,
   );
@@ -458,7 +458,7 @@ it('the queue rail has the dialogs page filters as dropdowns (state with counts,
   const rail = within(screen.getByRole('navigation', { name: 'Очередь диалогов' }));
   expect(rail.queryByRole('button', { name: /требующему проверки/ })).toBeNull(); // the separate warning button is gone
   const state = rail.getByRole('combobox', { name: 'Что показать' }) as HTMLSelectElement;
-  expect([...state.options].map((o) => o.textContent)).toEqual(['Все диалоги · 2', 'Грубые нарушения · 0', 'Нужна проверка · 0', 'Не оценены · 0']);
+  expect([...state.options].map((o) => o.textContent)).toEqual(['Все диалоги · 2', 'Грубые нарушения · 0', 'Нарушения без разбора · 0', 'Нужна проверка · 0', 'Не оценены · 0']);
   fireEvent.change(rail.getByRole('combobox', { name: 'Язык' }), { target: { value: 'EN' } });
   expect(rail.queryAllByRole('button', { name: /demo-ru-/ }).length).toBe(0); // both demo dialogs are RU
   fireEvent.click(screen.getByRole('link', { name: 'Диалоги' }));
@@ -648,7 +648,13 @@ it('does not label an HTTP-backed workspace as a fictional offline demo', async 
     '/api/evaluations': await mock.listEvaluations(),
     '/api/checklists': await mock.listChecklists(),
     '/api/appeals': await mock.listAppeals(),
-    '/api/operators': [],
+    '/api/directory': { people: [], teams: [] },
+    '/api/comments': [],
+    '/api/tags': [],
+    '/api/tasks': [],
+    '/api/notifications': [],
+    '/api/taxonomy': [],
+    '/api/timeline': [],
   };
   const fetchFn = (async (url: string) => new Response(JSON.stringify(payloads[url.split('?')[0]!]), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch;
   render(<ApiProvider api={new HttpCqaApi({ fetch: fetchFn })}><App /></ApiProvider>);
@@ -712,7 +718,7 @@ it('a reviewer takes a dialog and marks it reviewed; the list shows who, and the
 });
 
 it('the lead assigns an operator to a dialog and, in bulk, from the list', async () => {
-  renderApp(bundle(withSecond));
+  renderApp(bundle(withSecond), '#/dialog/demo-ru-001', { directory: DIRECTORY });
   await transcriptReady();
   fireEvent.change(screen.getByLabelText('Оператор'), { target: { value: 'Алина' } });
   fireEvent.click(screen.getByRole('button', { name: 'Назначить' }));

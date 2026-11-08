@@ -1,4 +1,4 @@
-import { can, type Actor, type Channel, type ChecklistVersion, type Conversation, type Evaluation, type Language } from '@cqa/contracts';
+import { can, type Person, type Actor, type Channel, type ChecklistVersion, type Conversation, type Evaluation, type Language } from '@cqa/contracts';
 import { ArrowDown, ArrowUp, Download, Headphones, MessagesSquare, Search } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -19,8 +19,11 @@ type Props = {
   onFilters: (f: Filters) => void;
   onOpen: (id: string) => void;
   identity: Actor;
-  operators: string[];
+  people: Person[];
   onAssign: (conversationIds: string[], operator: string | null) => Promise<void>;
+  /** Hand dialogs to QA: review, or a blind cross-check. Absent for roles that cannot. */
+  onTasks?: (conversationIds: string[], kind: 'review' | 'crosscheck') => Promise<void>;
+  followUpOpen: ReadonlySet<string>;
   /** Bumped to move focus into the search field. */
   focusSignal?: number;
 };
@@ -58,20 +61,21 @@ function ReviewChip({ c, e }: { c: Conversation; e: Evaluation | undefined }) {
 }
 
 /** The queue: every dialog with its score, the reason for a serious violation and what needs a human look. */
-export function DialogsPage({ conversations, latest, checklists, filters, onFilters, onOpen, identity, operators, onAssign, focusSignal = 0 }: Props) {
+export function DialogsPage({ conversations, latest, checklists, filters, onFilters, onOpen, identity, people, onAssign, onTasks, followUpOpen, focusSignal = 0 }: Props) {
   const search = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (focusSignal > 0) search.current?.focus();
   }, [focusSignal]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const c = useMemo(() => counts(conversations, latest), [conversations, latest]);
+  const c = useMemo(() => counts(conversations, latest, { followUpOpen }), [conversations, latest, followUpOpen]);
   const checklistOf = (e: Evaluation | undefined) => checklists.find((x) => x.id === e?.checklistVersionId);
   const staff = identity.role !== 'operator';
   const canAssign = can(identity, 'assign');
   const sort = filters.sort;
+  const nameOf = (id: string | null | undefined) => (id ? people.find((p) => p.id === id)?.name ?? id : undefined);
 
-  const rows = useMemo(() => sortConversations(conversations.filter((x) => matches(x, latest.get(x.id), filters)), latest, sort), [conversations, latest, filters, sort]);
-  const knownOperators = useMemo(() => [...new Set([...operators, ...conversations.map((x) => x.operatorId).filter((o): o is string => !!o)])].sort((a, b) => a.localeCompare(b, 'ru')), [operators, conversations]);
+  const rows = useMemo(() => sortConversations(conversations.filter((x) => matches(x, latest.get(x.id), filters, { followUpOpen })), latest, sort), [conversations, latest, filters, sort, followUpOpen]);
+  const knownOperators = useMemo(() => people.filter((x) => x.role === 'operator'), [people]);
 
   const set = (patch: Partial<Filters>) => onFilters({ ...filters, ...patch });
   const quick = (q: Quick, label: string, n: number, tone?: 'danger' | 'warn') => (
@@ -128,6 +132,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
         <div role="group" aria-label="Что показать" className="flex max-w-full flex-wrap gap-1 rounded-3xl bg-fill p-1">
           {quick('all', 'Все', c.all)}
           {quick('violations', 'Грубые нарушения', c.violations, 'danger')}
+          {quick('followup', 'Нарушения без разбора', c.followup, 'danger')}
           {quick('review', 'Нужна проверка', c.review, 'warn')}
           {quick('unevaluated', 'Не оценены', c.unevaluated)}
         </div>
@@ -142,7 +147,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
           <Select aria-label="Оператор" value={filters.operator} onChange={(e) => set({ operator: e.target.value })} className={cn(narrow, filters.operator !== 'all' && 'border-ink font-medium')}>
             <option value="all">Все операторы</option>
             <option value={NO_OPERATOR}>Без оператора</option>
-            {knownOperators.map((o) => <option key={o} value={o}>{o}</option>)}
+            {knownOperators.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
           </Select>
         )}
         <Select aria-label="Язык" value={filters.lang} onChange={(e) => set({ lang: e.target.value as Filters['lang'] })} className={cn(narrow, filters.lang !== 'all' && 'border-ink font-medium')}>
@@ -161,6 +166,8 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
           <span className="tabular-nums">Выбрано: {chosen.length}</span>
           <AssignOperator operators={knownOperators} submitLabel="Назначить оператору" compact onAssign={async (op) => { await onAssign(chosen, op); setSelected(new Set()); }} />
           <Button variant="ghost" size="sm" onClick={() => void onAssign(chosen, null).then(() => setSelected(new Set()))}>Снять оператора</Button>
+          {onTasks && <Button size="sm" onClick={() => void onTasks(chosen, 'review').then(() => setSelected(new Set()))}>Поручить проверку</Button>}
+          {onTasks && <Button size="sm" onClick={() => void onTasks(chosen, 'crosscheck').then(() => setSelected(new Set()))}>Контрольная проверка</Button>}
           <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Отменить выбор</Button>
         </div>
       )}
@@ -211,7 +218,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
                     <td className="hidden px-3 py-3 sm:table-cell">
                       <span className="inline-flex items-center gap-3"><span className="text-sm font-medium tabular-nums">{x.language}</span><span className="inline-flex items-center gap-1 text-muted"><Icon aria-hidden className="size-4" />{x.channel === 'voice call' ? 'Звонок' : 'Чат'}</span></span>
                     </td>
-                    {staff && <td className="hidden px-3 py-3 lg:table-cell">{x.operatorId ?? <span className="text-muted">—</span>}</td>}
+                    {staff && <td className="hidden px-3 py-3 lg:table-cell">{nameOf(x.operatorId) ?? <span className="text-muted">—</span>}</td>}
                     <td className="hidden px-3 py-3 whitespace-nowrap tabular-nums lg:table-cell">
                       {stamp(x.importedAt)}
                       {e?.createdAt && <div className="text-xs text-muted">оценён {stamp(e.createdAt)}</div>}

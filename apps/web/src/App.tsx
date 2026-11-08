@@ -1,4 +1,4 @@
-import { can, type Appeal, type ChecklistVersion, type Conversation, type DecideAppealInput, type Evaluation, type SaveChecklistInput } from '@cqa/contracts';
+import { can, type Comment, type Directory, type ErrorOrigin, type Notification, type SaveTimelineEventInput, type Tag as ErrorTag, type Task, type TaxonomyItem, type TimelineEvent, type Appeal, type ChecklistVersion, type Conversation, type DecideAppealInput, type Evaluation, type SaveChecklistInput } from '@cqa/contracts';
 import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, PanelLeftOpen } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MockCqaApi } from './api';
@@ -16,7 +16,13 @@ import { DialogsPage } from './features/DialogsPage';
 import { LoadingShell } from './features/LoadingShell';
 import { PrintReport } from './features/PrintReport';
 import { QueueRail } from './features/QueueRail';
-import { Sidebar } from './features/Sidebar';
+import { Sidebar, type Section } from './features/Sidebar';
+import { AnalyticsPage } from './features/AnalyticsPage';
+import { AuditPage } from './features/AuditPage';
+import { CrosscheckPage } from './features/CrosscheckPage';
+import { TasksPage } from './features/TasksPage';
+import { TeamPage } from './features/TeamPage';
+import { followUp } from '@/lib/analytics';
 import { AssignOperator } from './features/AssignOperator';
 import { ReviewControl } from './features/ReviewControl';
 import { StatsPage } from './features/StatsPage';
@@ -29,14 +35,22 @@ import { Select } from '@/components/ui/field';
 import { Splitter } from '@/components/ui/splitter';
 import { humanError } from '@/lib/errors';
 
-type Data = { conversations: Conversation[]; evaluations: Evaluation[]; checklists: ChecklistVersion[]; appeals: Appeal[]; operators: string[] };
-type Section = 'dialogs' | 'appeals' | 'checklist' | 'stats';
-/** What each role has in its navigation: the checklist is the lead's; the others work from dialogs, appeals and results. */
-const SECTIONS: Record<'operator' | 'reviewer' | 'lead', Section[]> = { operator: ['dialogs', 'appeals', 'stats'], reviewer: ['dialogs', 'appeals', 'stats'], lead: ['dialogs', 'appeals', 'checklist', 'stats'] };
-const sectionOf = (r: Route): Section => (r.name === 'list' || r.name === 'dialog' ? 'dialogs' : r.name);
+type Data = {
+  conversations: Conversation[]; evaluations: Evaluation[]; checklists: ChecklistVersion[]; appeals: Appeal[];
+  directory: Directory; comments: Comment[]; tags: ErrorTag[]; tasks: Task[]; notifications: Notification[]; taxonomy: TaxonomyItem[]; timeline: TimelineEvent[];
+};
+/** What each role has in its navigation. The checklist, QA tasks, team and journal are the top manager's; the admin keeps people and the journal; a manager gets their team's results. */
+const SECTIONS: Record<'operator' | 'reviewer' | 'manager' | 'lead' | 'admin', Section[]> = {
+  operator: ['dialogs', 'appeals', 'stats'],
+  reviewer: ['dialogs', 'tasks', 'appeals', 'stats', 'analytics'],
+  manager: ['dialogs', 'appeals', 'stats', 'analytics'],
+  lead: ['dialogs', 'tasks', 'appeals', 'stats', 'analytics', 'team', 'audit', 'checklist'],
+  admin: ['dialogs', 'stats', 'analytics', 'team', 'audit'],
+};
+const sectionOf = (r: Route): Section => (r.name === 'list' || r.name === 'dialog' ? 'dialogs' : r.name === 'crosscheck' ? 'tasks' : r.name);
 type Load = { status: 'loading' } | { status: 'error'; error: unknown } | { status: 'ready'; data: Data };
 type Pane = 'transcript' | 'evaluation';
-type Route = { name: 'list' } | { name: 'checklist' } | { name: 'appeals' } | { name: 'stats' } | { name: 'dialog'; id: string; criterion?: string };
+type Route = { name: 'list' } | { name: 'checklist' } | { name: 'appeals' } | { name: 'stats' } | { name: 'tasks' } | { name: 'analytics' } | { name: 'team' } | { name: 'audit' } | { name: 'crosscheck'; id: string } | { name: 'dialog'; id: string; criterion?: string };
 
 
 function parseHash(): Route {
@@ -44,6 +58,12 @@ function parseHash(): Route {
   if (h === '#/checklist') return { name: 'checklist' };
   if (h === '#/appeals') return { name: 'appeals' };
   if (h === '#/stats') return { name: 'stats' };
+  if (h === '#/tasks') return { name: 'tasks' };
+  if (h === '#/analytics') return { name: 'analytics' };
+  if (h === '#/team') return { name: 'team' };
+  if (h === '#/audit') return { name: 'audit' };
+  const cc = /^#\/crosscheck\/(.+)$/.exec(h);
+  if (cc) return { name: 'crosscheck', id: decodeURIComponent(cc[1]!) };
   const m = /^#\/dialog\/([^?]+)(?:\?criterion=(.+))?$/.exec(h);
   if (m) {
     try {
@@ -54,7 +74,7 @@ function parseHash(): Route {
   }
   return { name: 'list' };
 }
-const hashFor = (r: Route) => (r.name === 'checklist' ? '#/checklist' : r.name === 'appeals' ? '#/appeals' : r.name === 'stats' ? '#/stats' : r.name === 'dialog' ? `#/dialog/${encodeURIComponent(r.id)}${r.criterion ? `?criterion=${encodeURIComponent(r.criterion)}` : ''}` : '#/');
+const hashFor = (r: Route) => (r.name === 'tasks' ? '#/tasks' : r.name === 'analytics' ? '#/analytics' : r.name === 'team' ? '#/team' : r.name === 'audit' ? '#/audit' : r.name === 'crosscheck' ? `#/crosscheck/${encodeURIComponent(r.id)}` : r.name === 'checklist' ? '#/checklist' : r.name === 'appeals' ? '#/appeals' : r.name === 'stats' ? '#/stats' : r.name === 'dialog' ? `#/dialog/${encodeURIComponent(r.id)}${r.criterion ? `?criterion=${encodeURIComponent(r.criterion)}` : ''}` : '#/');
 
 export function App() {
   const api = useApi();
@@ -146,10 +166,12 @@ export function App() {
   }, [selectedId, route.name === 'dialog' ? route.criterion : undefined]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchAll = useCallback(async (): Promise<Data> => {
-    const [conversations, evaluations, checklists, appeals, operators] = await Promise.all([api.listConversations(), api.listEvaluations(), api.listChecklists(), api.listAppeals(), api.listOperators()]);
-    return { conversations, evaluations, checklists, appeals, operators };
+    const [conversations, evaluations, checklists, appeals, directory, comments, tags, tasks, notifications, taxonomy, timeline] = await Promise.all([
+      api.listConversations(), api.listEvaluations(), api.listChecklists(), api.listAppeals(), api.getDirectory(), api.listComments(), api.listTags(), api.listTasks(), api.listNotifications(), api.listTaxonomy(), api.listTimeline(),
+    ]);
+    return { conversations, evaluations, checklists, appeals, directory, comments, tags, tasks, notifications, taxonomy, timeline };
     // The role decides what the API returns: a changed role loads everything again.
-  }, [api, identity.role, identity.name]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api, identity.role, identity.name, identity.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const reload = useCallback(async () => setLoad({ status: 'ready', data: await fetchAll() }), [fetchAll]);
 
   useEffect(() => {
@@ -173,8 +195,10 @@ export function App() {
   const latest = useMemo(() => new Map([...byConversation].map(([id, list]) => [id, list[list.length - 1]!])), [byConversation]);
 
   /** The dialogs the list currently shows: previous/next and J/K walk this queue, not all dialogs. */
-  const queue = useMemo(() => (load.status === 'ready' ? sortConversations(load.data.conversations.filter((c) => matches(c, latest.get(c.id), filters)), latest, filters.sort).map((c) => c.id) : []), [load, latest, filters]);
-  const quickCounts = useMemo(() => (load.status === 'ready' ? counts(load.data.conversations, latest) : { all: 0, violations: 0, review: 0, unevaluated: 0, new: 0, in_review: 0, reviewed: 0 }), [load, latest]);
+  /** Serious violations nobody has dealt with yet (not reviewed, not commented, not read): the "was it worked through" filter. */
+  const followUpOpen = useMemo(() => new Set(load.status === 'ready' ? followUp(load.data.conversations, load.data.evaluations, load.data.comments).filter((f) => f.stage !== 'done').map((f) => f.conversationId) : []), [load]);
+  const queue = useMemo(() => (load.status === 'ready' ? sortConversations(load.data.conversations.filter((c) => matches(c, latest.get(c.id), filters, { followUpOpen })), latest, filters.sort).map((c) => c.id) : []), [load, latest, filters, followUpOpen]);
+  const quickCounts = useMemo(() => (load.status === 'ready' ? counts(load.data.conversations, latest, { followUpOpen }) : { all: 0, violations: 0, review: 0, unevaluated: 0, followup: 0, new: 0, in_review: 0, reviewed: 0 }), [load, latest, followUpOpen]);
   const position = selectedId ? queue.indexOf(selectedId) : -1;
   const step = useCallback(
     (by: 1 | -1) => {
@@ -212,7 +236,7 @@ export function App() {
   const firstRoute = useRef(true);
   const keepFocus = useRef(false); // set when navigation was started by the search shortcut, which focuses the search field itself
   useEffect(() => {
-    document.title = route.name === 'dialog' ? `${route.id} · CQA` : route.name === 'checklist' ? 'Чек-лист · CQA' : route.name === 'appeals' ? 'Апелляции · CQA' : route.name === 'stats' ? 'Статистика · CQA' : 'Диалоги · CQA';
+    document.title = route.name === 'dialog' ? `${route.id} · CQA` : route.name === 'tasks' || route.name === 'crosscheck' ? 'Задачи · CQA' : route.name === 'analytics' ? 'Аналитика · CQA' : route.name === 'team' ? 'Команда · CQA' : route.name === 'audit' ? 'Журнал · CQA' : route.name === 'checklist' ? 'Чек-лист · CQA' : route.name === 'appeals' ? 'Апелляции · CQA' : route.name === 'stats' ? 'Статистика · CQA' : 'Диалоги · CQA';
     if (firstRoute.current) {
       firstRoute.current = false;
       return;
@@ -356,6 +380,14 @@ export function App() {
       if (c && reviewOf(c, latest.get(id)).state === 'new') return go({ name: 'dialog', id });
     }
   };
+  const act = async (f: () => Promise<unknown>) => {
+    await f();
+    await reload();
+  };
+  const openNotification = (n: Notification) => {
+    void api.markNotificationsRead([n.id]).then(reload);
+    if (n.conversationId) go({ name: 'dialog', id: n.conversationId, ...(n.criterionId ? { criterion: n.criterionId } : {}) });
+  };
   const assign = async (conversationIds: string[], operator: string | null) => {
     await api.assignOperator({ conversationIds, operator });
     await reload();
@@ -384,7 +416,7 @@ export function App() {
         const r = reviewOf(conversation, evaluation);
         return <ReviewControl state={r.state} stale={r.stale} by={r.by} at={r.at} disabled={evaluation?.status !== 'completed'} onSet={setReview} />;
       })()}
-      {can(identity, 'assign') && <AssignOperator key={conversation.id} operators={data.operators} current={conversation.operatorId} onAssign={(op) => assign([conversation.id], op)} />}
+      {can(identity, 'assign') && <AssignOperator key={conversation.id} operators={data.directory.people.filter((p) => p.role === 'operator')} current={conversation.operatorId} onAssign={(op) => assign([conversation.id], op)} />}
     </div>
   );
 
@@ -428,12 +460,16 @@ export function App() {
       <a href="#content" onClick={(e) => { e.preventDefault(); document.getElementById('content')?.focus(); }} className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-4 focus:py-2 focus:text-sm focus:text-canvas">Перейти к содержимому</a>
       <Sidebar
         identity={identity}
-        operators={data.operators}
+        people={data.directory.people}
         onIdentity={setIdentity}
         sections={SECTIONS[identity.role]}
-        active={route.name === 'checklist' ? 'checklist' : route.name === 'appeals' ? 'appeals' : route.name === 'stats' ? 'stats' : 'dialogs'}
+        active={sectionOf(route)}
         pendingAppeals={data.appeals.filter((a) => a.status === 'pending').length}
-        onNavigate={(to) => go(to === 'checklist' ? { name: 'checklist' } : to === 'appeals' ? { name: 'appeals' } : to === 'stats' ? { name: 'stats' } : { name: 'list' })}
+        openTasks={data.tasks.filter((t) => t.status === 'open' && (can(identity, 'task') || t.assigneeId === identity.id)).length}
+        notifications={data.notifications}
+        onNotification={openNotification}
+        onReadNotifications={() => void api.markNotificationsRead().then(reload)}
+        onNavigate={(to) => go(to === 'dialogs' ? { name: 'list' } : { name: to })}
         theme={theme}
         onToggleTheme={toggleTheme}
         demo={mode === 'mock'}
@@ -443,6 +479,37 @@ export function App() {
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
             <ChecklistEditor checklists={data.checklists} conversationCount={data.conversations.length} onSave={saveChecklist} onEvaluate={evaluateWith} currentConversationId={lastDialogId} />
           </main>
+        ) : route.name === 'tasks' ? (
+          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
+            <TasksPage identity={identity} tasks={data.tasks} directory={data.directory} conversations={data.conversations} onOpenDialog={(id) => go({ name: 'dialog', id })} onOpenCrosscheck={(id) => go({ name: 'crosscheck', id })}
+              onSample={async (percent) => { const made = await api.sampleCrosschecks(percent); await reload(); return made.length; }} onCancel={(id) => act(() => api.cancelTask(id))} />
+          </main>
+        ) : route.name === 'analytics' ? (
+          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
+            <AnalyticsPage identity={identity} conversations={data.conversations} evaluations={data.evaluations} checklists={data.checklists} appeals={data.appeals} directory={data.directory} tags={data.tags} tasks={data.tasks} comments={data.comments} timeline={data.timeline}
+              onAddTimeline={(input: SaveTimelineEventInput) => act(() => api.addTimelineEvent(input))} onOpenDialog={(id) => go({ name: 'dialog', id })} demo={mode === 'mock'} />
+          </main>
+        ) : route.name === 'team' ? (
+          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
+            <TeamPage directory={data.directory} taxonomy={data.taxonomy} conversations={data.conversations} checklists={data.checklists} onSavePerson={(p) => act(() => api.savePerson(p))} onSaveTeam={(t) => act(() => api.saveTeam(t))} onSeedDemo={() => act(() => api.seedDemoOrg())} onAddCategory={(label, criterionId) => act(() => api.addTaxonomyItem({ label, ...(criterionId ? { criterionId } : {}) }))} />
+          </main>
+        ) : route.name === 'audit' ? (
+          <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
+            <AuditPage onOpenDialog={(id) => go({ name: 'dialog', id })} />
+          </main>
+        ) : route.name === 'crosscheck' ? (
+          (() => {
+            const task = data.tasks.find((t) => t.id === route.id);
+            const conv = data.conversations.find((c) => c.id === task?.conversationId);
+            const evals = byConversation.get(task?.conversationId ?? '');
+            const evl = evals?.[evals.length - 1];
+            const cl = data.checklists.find((c) => c.id === evl?.checklistVersionId);
+            return task && conv && evl && cl && task.status === 'open' ? (
+              <CrosscheckPage task={task} conversation={conv} evaluation={evl} checklist={cl} onBack={() => go({ name: 'tasks' })} onSubmit={(results) => act(() => api.submitCrosscheck({ taskId: task.id, results }))} />
+            ) : (
+              <main id="content" tabIndex={-1} className="p-6 text-sm outline-none"><p className="text-muted">Эта проверка недоступна или уже выполнена.</p><Button className="mt-4" onClick={() => go({ name: 'tasks' })}>К задачам</Button></main>
+            );
+          })()
         ) : route.name === 'stats' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
             <StatsPage conversations={data.conversations} evaluations={data.evaluations} checklists={data.checklists} appeals={data.appeals} identity={identity} />
@@ -453,7 +520,7 @@ export function App() {
           </main>
         ) : route.name === 'list' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
-            <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} identity={identity} operators={data.operators} onAssign={assign} focusSignal={searchFocus} />
+            <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} identity={identity} people={data.directory.people} onAssign={assign} followUpOpen={followUpOpen} onTasks={can(identity, 'task') ? async (ids, kind) => { await api.createTasks({ conversationIds: ids, kind }); await reload(); } : undefined} focusSignal={searchFocus} />
           </main>
         ) : !conversation ? (
           <main id="content" tabIndex={-1} className="p-6 text-sm outline-none">
@@ -496,6 +563,12 @@ export function App() {
               <div ref={panelRef} className={cn('min-h-0 flex-col overflow-hidden bg-surface xl:rounded-card xl:shadow-card', pane === 'evaluation' ? 'flex' : 'hidden xl:flex')}>
                 <EvaluationPanel
                   identity={identity}
+                  comments={data.comments}
+                  tags={data.tags.filter((t) => t.evaluationId === evaluationId)}
+                  taxonomy={data.taxonomy}
+                  onAddComment={(body) => act(() => api.addComment({ conversationId: conversation.id, body }))}
+                  onAckComment={(id) => act(() => api.acknowledgeComment(id))}
+                  onAddTag={(cid, origin: ErrorOrigin, label) => act(() => api.addTag({ evaluationId: evaluation!.id, criterionId: cid, origin, ...(label ? { label } : {}) }))}
                   key={conversation.id}
                   conversation={conversation}
                   evaluation={evaluation}

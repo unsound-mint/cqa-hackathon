@@ -1,4 +1,5 @@
 import { can, type Actor } from '@cqa/contracts';
+import type { Comment, ErrorOrigin, Tag, TaxonomyItem } from '@cqa/contracts';
 import type { Appeal, ChecklistVersion, Conversation, Criterion, CriterionResult, DecideAppealInput, EvidenceReference, Evaluation } from '@cqa/contracts';
 import { AlertTriangle, ChevronDown, Download, FlaskConical, Headphones, Link2Off, Loader2, Play, Printer, Quote, ShieldAlert, Square } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
@@ -14,6 +15,7 @@ import { fragmentLabel, segmentOf, usePlayer } from '@/lib/player';
 import { useCountUp } from '@/lib/motion';
 import { Meter } from '@/components/ui/meter';
 import { ReviewBox, type Correction } from './Appeals';
+import { CriterionTags, DialogComments } from './DialogNotes';
 
 type Props = {
   conversation: Conversation;
@@ -25,6 +27,13 @@ type Props = {
   /** Who is acting: decides which review actions a criterion offers. */
   identity: Actor;
   onStart: () => void;
+  /** Coaching comments, error tags and categories of this dialog (team features). */
+  comments: Comment[];
+  tags: Tag[];
+  taxonomy: TaxonomyItem[];
+  onAddComment: (body: string) => Promise<void>;
+  onAckComment: (id: string) => Promise<void>;
+  onAddTag: (criterionId: string, origin: ErrorOrigin, label?: string) => Promise<void>;
   starting: boolean;
   /** A failed start of an evaluation (any thrown value; shown in Russian). */
   startError: unknown;
@@ -171,9 +180,9 @@ function Reasoning({ result, conversation, onJump, title }: { result: CriterionR
   );
 }
 
-type RowProps = { identity: Actor; criterion: Criterion | undefined; result: CriterionResult; original: CriterionResult | undefined; conversation: Conversation; open: boolean; onToggle: () => void; onJump: (i: number) => void; evaluation: Evaluation; checklist: ChecklistVersion | undefined; appeals: Appeal[]; onCreateAppeal: Props['onCreateAppeal']; onDecideAppeal: Props['onDecideAppeal']; onCorrect: Props['onCorrect'] };
+type RowProps = { tags: Tag[]; taxonomy: TaxonomyItem[]; onAddTag: Props['onAddTag']; identity: Actor; criterion: Criterion | undefined; result: CriterionResult; original: CriterionResult | undefined; conversation: Conversation; open: boolean; onToggle: () => void; onJump: (i: number) => void; evaluation: Evaluation; checklist: ChecklistVersion | undefined; appeals: Appeal[]; onCreateAppeal: Props['onCreateAppeal']; onDecideAppeal: Props['onDecideAppeal']; onCorrect: Props['onCorrect'] };
 
-function CriterionRow({ identity, criterion, result, original, conversation, open, onToggle, onJump, evaluation, checklist, appeals, onCreateAppeal, onDecideAppeal, onCorrect }: RowProps) {
+function CriterionRow({ tags, taxonomy, onAddTag, identity, criterion, result, original, conversation, open, onToggle, onJump, evaluation, checklist, appeals, onCreateAppeal, onDecideAppeal, onCorrect }: RowProps) {
   const g = grade(criterion, result);
   const changed = !!original && !sameResult(original, result);
   const pts = earnedPoints(criterion, result);
@@ -246,6 +255,7 @@ function CriterionRow({ identity, criterion, result, original, conversation, ope
             </details>
           )}
 
+          <CriterionTags identity={identity} criterionId={result.criterionId} tags={tags} taxonomy={taxonomy} onAdd={(o, l) => onAddTag(result.criterionId, o, l)} />
           <ReviewBox identity={identity} evaluation={evaluation} checklist={checklist} criterionId={result.criterionId} criterion={criterion} appeals={appeals} onCreate={onCreateAppeal} onDecide={onDecideAppeal} onCorrect={onCorrect} />
         </div>
       )}
@@ -253,7 +263,7 @@ function CriterionRow({ identity, criterion, result, original, conversation, ope
   );
 }
 
-export function EvaluationPanel({ identity, conversation, evaluation, checklist, selectedCriterionId, onSelectCriterion, onJump, onStart, starting, startError, appeals, onCreateAppeal, onDecideAppeal, onCorrect, onlyFlagged, onOnlyFlagged, demoMode, versions, onPickEvaluation, newerChecklistVersion }: Props) {
+export function EvaluationPanel({ comments, tags, taxonomy, onAddComment, onAckComment, onAddTag, identity, conversation, evaluation, checklist, selectedCriterionId, onSelectCriterion, onJump, onStart, starting, startError, appeals, onCreateAppeal, onDecideAppeal, onCorrect, onlyFlagged, onOnlyFlagged, demoMode, versions, onPickEvaluation, newerChecklistVersion }: Props) {
   /** An opened criterion (digit key, tag on a message, link) is brought into view with its form. */
   useEffect(() => {
     if (!selectedCriterionId || !evaluation) return;
@@ -384,6 +394,9 @@ export function EvaluationPanel({ identity, conversation, evaluation, checklist,
                 <CriterionRow
                   key={r.criterionId}
                   identity={identity}
+                  tags={tags}
+                  taxonomy={taxonomy}
+                  onAddTag={onAddTag}
                   criterion={lookup(r.criterionId)}
                   result={r}
                   original={originalById.get(r.criterionId)}
@@ -403,6 +416,7 @@ export function EvaluationPanel({ identity, conversation, evaluation, checklist,
           </div>
         ))}
         {groups.length === 0 && <p className="p-4 text-sm text-muted">Ничего не требует внимания.</p>}
+        <DialogComments identity={identity} conversationId={conversation.id} comments={comments} onAdd={onAddComment} onAck={onAckComment} />
       </div>
 
       <footer className="flex shrink-0 items-center gap-2 whitespace-nowrap border-t border-line bg-surface px-4 py-2 text-sm text-muted sm:px-6">
