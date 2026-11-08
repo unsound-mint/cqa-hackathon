@@ -78,6 +78,23 @@ pnpm start               # builds, then serves web + API at http://127.0.0.1:878
 
 Checks: `pnpm typecheck && pnpm test && pnpm build` (no test needs a network or a model). Details, backup advice and troubleshooting: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
+## Model and API cost
+
+The default is **Claude Haiku 5.5** (`claude-haiku-5-5`) through Anthropic's API, with `medium` effort. All 65 completed evaluations in the committed DEV seed record this model; `CQA_MODEL` and `CQA_EFFORT` can override it for new runs.
+
+Standard API prices in **USD per million tokens**, checked **8 November 2026** against [Anthropic's official model pricing](https://platform.claude.com/docs/en/models/haiku-5-5/overview):
+
+| Token category | Prompt up to 100,000 tokens | Prompt over 100,000 tokens |
+|---|---:|---:|
+| Uncached input | $0.10 | $0.50 |
+| Output | $0.50 | $2.50 |
+| Cache write (5 minutes) | $0.125 | $0.625 |
+| Cache read | $0.01 | $0.05 |
+
+For example, **10,000 uncached input + 2,000 output tokens cost $0.002** at the lower tier (one fifth of a US cent). This illustrates the rate, not a measured cost per conversation. A conversation can require multiple requests and a repair attempt; token counts, caching and retries determine the bill. Rules and compatible reused results avoid model calls. Viewing stored results incurs no model cost.
+
+Each evaluation records token usage and model provenance. The [comparison CLI](evaluation/README.md#3-compare-with-the-model) can estimate cost using supplied input/output rates; treat it as an estimate, not a provider invoice.
+
 ## Technical reading guide
 
 | If you want to check… | Look at |
