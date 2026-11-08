@@ -1,5 +1,9 @@
 # Six-person workflow: three humans + three supervised agents
 
+## Current authorization
+
+The standing authorization in [AGENTS.md](../AGENTS.md#github-collaboration-contract) supersedes older per-action approval language below: owner agents may create/update issues, push owner branches, open PRs and merge after green CI within the stated scope. Contract/scoring/privacy/deployment changes require a documented self-review note. Human owners retain architecture, model-choice and ground-truth decisions. Never merge during an announced freeze.
+
 ## Human decision makers
 - Denis — technical integrator; owns backend, shared contracts, scorer, external model/data calls, security, CI/deploy.
 - Sofia — frontend owner; owns UX and frontend implementation and tests. She can self-merge owner-scoped low-risk changes after CI.
