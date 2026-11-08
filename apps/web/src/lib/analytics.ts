@@ -1,3 +1,4 @@
+import { evaluationMaps } from '@cqa/contracts';
 import type { Appeal, AuditEvent, ChecklistVersion, Comment, Conversation, Crosscheck, Directory, Evaluation, Person, Tag, Task, TimelineEvent } from '@cqa/contracts';
 import { earnedPoints, sameResult } from './present';
 import { reviewOf } from './queue';
@@ -20,9 +21,7 @@ const median = (xs: number[]) => {
 
 /** The current evaluation of each dialog (the API lists evaluations in creation order). */
 export function latestOf(evaluations: Evaluation[]): Map<string, Evaluation> {
-  const m = new Map<string, Evaluation>();
-  for (const e of evaluations) m.set(e.conversationId, e);
-  return m;
+  return evaluationMaps(evaluations).preferred;
 }
 const done = (e: Evaluation | undefined): e is Evaluation => e?.status === 'completed';
 const total = (e: Evaluation) => (e.finalTotal === null ? [] : [e.finalTotal]);

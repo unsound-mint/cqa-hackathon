@@ -30,6 +30,11 @@ export function evaluationRoutes(app: FastifyInstance, db: Db, runner: JobRunner
     if (denied(req, reply, 'evaluate')) return;
     const body = StartEvaluationInputSchema.safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: 'body must be { conversationIds: string[], checklistVersionId: string }' });
+    const actor = actorOf(req);
+    if (scopeOf(db, actor) !== null) {
+      const visible = new Set(listConversationViews(db, {}, actor).map(c => c.id));
+      if (body.data.conversationIds.some(id => !visible.has(id))) return reply.code(404).send({ error: 'conversations not found' });
+    }
     try {
       const job = runner.start(body.data);
       logEvent(db, actorOf(req), { type: 'evaluation.started', summary: `Запущена оценка диалогов: ${body.data.conversationIds.length}`, data: { jobId: job.id, count: body.data.conversationIds.length, checklistVersionId: body.data.checklistVersionId, force: !!(body.data.force || body.data.fresh) } });
@@ -40,7 +45,16 @@ export function evaluationRoutes(app: FastifyInstance, db: Db, runner: JobRunner
     }
   });
 
-  app.get<{ Params: { id: string } }>('/api/jobs/:id', async (req, reply) => runner.getJob(req.params.id) ?? reply.code(404).send({ error: 'job not found' }));
+  app.get<{ Params: { id: string } }>('/api/jobs/:id', async (req, reply) => {
+    const ids = runner.conversationIds(req.params.id);
+    if (!ids) return reply.code(404).send({ error: 'job not found' });
+    const actor = actorOf(req);
+    if (scopeOf(db, actor) !== null) {
+      const visible = new Set(listConversationViews(db, {}, actor).map(c => c.id));
+      if (ids.some(id => !visible.has(id))) return reply.code(404).send({ error: 'job not found' });
+    }
+    return runner.getJob(req.params.id);
+  });
 
   app.get<{ Params: { id: string } }>('/api/evaluations/:id', async (req, reply) => (evaluationVisible(db, req.params.id, actorOf(req)) && getEvaluation(db, req.params.id)) || reply.code(404).send({ error: 'evaluation not found' }));
 

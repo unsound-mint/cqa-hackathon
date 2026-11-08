@@ -15,7 +15,9 @@ it('upgrades a legacy database idempotently without losing prior evaluations or 
     legacy.exec(`
       ALTER TABLE evaluations DROP COLUMN cache_context;
       ALTER TABLE evaluations DROP COLUMN decision_facts;
+      ALTER TABLE evaluations DROP COLUMN diagnostics;
       ALTER TABLE jobs DROP COLUMN force;
+      ALTER TABLE jobs DROP COLUMN max_attempts;
       INSERT INTO evaluations VALUES ('old', 'c', 'v', 'completed', '[]', 0, '[]', 0, 0, NULL, NULL, 'then');
       INSERT INTO jobs VALUES ('j', 'v', '["c"]', '["old"]', 'completed', 1, 1, 'then');
     `);
@@ -25,6 +27,8 @@ it('upgrades a legacy database idempotently without losing prior evaluations or 
       expect(upgraded.$client.prepare('SELECT cache_context FROM evaluations WHERE id = ?').get('old')).toEqual({cache_context:null});
       expect(upgraded.$client.prepare('SELECT decision_facts FROM evaluations WHERE id = ?').get('old')).toEqual({decision_facts:null});
       expect(upgraded.$client.prepare('SELECT force FROM jobs WHERE id = ?').get('j')).toEqual({force:0});
+      expect(upgraded.$client.prepare('SELECT diagnostics FROM evaluations WHERE id = ?').get('old')).toEqual({diagnostics:null});
+      expect(upgraded.$client.prepare('SELECT max_attempts FROM jobs WHERE id = ?').get('j')).toEqual({max_attempts:1});
       upgraded.$client.close();
     }
   } finally { rmSync(dir, {recursive:true,force:true}); }
