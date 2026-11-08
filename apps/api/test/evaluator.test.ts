@@ -164,8 +164,9 @@ describe('POST /api/evaluations', () => {
     const p = fakeProvider((req) => genericAnswer(req, (r) => { if (r[0]) r[0].evidence = [{ messageIndex: 99 }]; }));
     const { app } = setup(p);
     const { job } = await run(app, { conversationIds: [conv.id], checklistVersionId: 'checklist-original-v1' });
-    expect(p.calls).toHaveLength(3);
-    expect(job.status).toBe('failed');
+    expect(p.calls).toHaveLength(6); // Two bounded attempts, each with a validated repair.
+    expect(job).toMatchObject({ status: 'failed', succeeded: 0, failed: 1, completed: 1 });
+    expect(job.evaluationIds).toHaveLength(2);
     const ev = (await app.inject({ url: `/api/evaluations/${job.evaluationIds[0]}` })).json();
     expect(ev).toMatchObject({ status: 'failed', originalResults: [], originalTotal: null });
     expect(ev.error).toMatch(/failed validation/);
@@ -182,7 +183,8 @@ describe('POST /api/evaluations', () => {
     const { job } = await run(app, { conversationIds: [conv.id, other.id], checklistVersionId: 'checklist-original-v1' });
     expect(job).toMatchObject({ status: 'completed', completed: 2, total: 2 });
     const statuses = await Promise.all(job.evaluationIds.map(async (id: string) => (await app.inject({ url: `/api/evaluations/${id}` })).json().status));
-    expect(statuses.sort()).toEqual(['completed', 'failed']);
+    expect(statuses.sort()).toEqual(['completed', 'completed', 'failed']); // Failure remains audited after recovery.
+    expect(job).toMatchObject({ succeeded: 2, failed: 0 });
   });
 
   it('resume after a restart evaluates only conversations without a recorded evaluation', async () => {

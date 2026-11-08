@@ -1,0 +1,30 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, beforeAll, expect, it, vi } from 'vitest';
+import { DemoBundleSchema } from '@cqa/contracts';
+import demo from '../../../fixtures/demo.json';
+import { ApiProvider } from '../src/ApiContext';
+import { App } from '../src/App';
+import { MockCqaApi } from '../src/api';
+import { asRole } from './roles';
+beforeAll(() => { Element.prototype.scrollIntoView = vi.fn(); });
+afterEach(() => { cleanup(); window.location.hash = ''; window.localStorage.clear(); });
+it('shows the previous valid score and failed-attempt notice, then retries only failed work through the mock', async () => {
+  asRole('lead');
+  const bundle = DemoBundleSchema.parse(structuredClone(demo));
+  const original = bundle.evaluations[0]!;
+  bundle.evaluations.push({ ...original, id: 'failed-recovery-demo', status: 'failed', originalResults: [], finalResults: [], originalTotal: null, finalTotal: null });
+  const api = new MockCqaApi(bundle);
+  const spy = vi.spyOn(api, 'startEvaluation');
+  window.location.hash = '#/dialog/demo-ru-001';
+  render(<ApiProvider api={api}><App /></ApiProvider>);
+  const panel = within(await screen.findByRole('region', { name: 'Оценка' }));
+  expect(await panel.findByText('94,12')).toBeTruthy();
+  expect(panel.getByText(/Показана предыдущая успешная оценка/)).toBeTruthy();
+  fireEvent.click(panel.getByRole('button', { name: 'Повторить неудавшуюся оценку' }));
+  await vi.waitFor(() => expect(spy).toHaveBeenCalledWith(expect.objectContaining({ conversationIds: ['demo-ru-001'], retryFailedOnly: true })));
+  await vi.waitFor(() => expect(panel.queryByText(/Показана предыдущая успешная оценка/)).toBeNull());
+  const all = await api.listEvaluations({ conversationId: 'demo-ru-001' });
+  expect(all).toHaveLength(3);
+  expect(all[0]!.originalResults).toEqual(original.originalResults);
+});
