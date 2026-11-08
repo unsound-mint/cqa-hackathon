@@ -55,7 +55,7 @@ function AnswerPicker({ name, opts, current, picked, onPick }: { name: string; o
         const now = isCurrent(o, current);
         return (
           <label key={o.key} className={cn('flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm', picked === o.key ? 'bg-brand-soft' : 'hover:bg-fill', now && 'text-muted')}>
-            <input type="radio" name={name} checked={picked === o.key} disabled={now} onChange={() => onPick(o.key)} className="size-4 accent-brand" />
+            <input type="radio" aria-label={o.label} name={name} checked={picked === o.key} disabled={now} onChange={() => onPick(o.key)} className="size-4 accent-brand" />
             <span className="tabular-nums">{o.label}</span>
             {now && <span className="ml-auto text-xs">сейчас</span>}
           </label>
@@ -186,8 +186,8 @@ export function ReviewBox({ identity, evaluation, checklist, criterionId, criter
             <p className="mt-1 text-xs text-muted">Подана {fmt(pending.createdAt)}{pending.createdBy ? ` · ${pending.createdBy}` : ''}</p>
           </div>
           <div role="radiogroup" aria-label="Решение" className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-            <label className="flex min-h-10 items-center gap-2"><input type="radio" name={`act-${id}`} checked={action === 'uphold'} onChange={() => setAction('uphold')} className="size-4 accent-brand" />Оставить оценку ИИ</label>
-            <label className="flex min-h-10 items-center gap-2"><input type="radio" name={`act-${id}`} checked={action === 'override'} onChange={() => setAction('override')} className="size-4 accent-brand" />Изменить оценку</label>
+            <label className="flex min-h-10 items-center gap-2"><input type="radio" aria-label="Оставить оценку ИИ" name={`act-${id}`} checked={action === 'uphold'} onChange={() => setAction('uphold')} className="size-4 accent-brand" />Оставить оценку ИИ</label>
+            <label className="flex min-h-10 items-center gap-2"><input type="radio" aria-label="Изменить оценку" name={`act-${id}`} checked={action === 'override'} onChange={() => setAction('override')} className="size-4 accent-brand" />Изменить оценку</label>
           </div>
           {action === 'override' && (
             <>

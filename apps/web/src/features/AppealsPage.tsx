@@ -1,4 +1,4 @@
-import type { Actor, Appeal, ChecklistVersion, Conversation, Evaluation } from '@cqa/contracts';
+import type { Actor, Appeal, ChecklistVersion, Conversation, Evaluation, Person } from '@cqa/contracts';
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ type Props = {
   conversations: Conversation[];
   onOpen: (conversationId: string, criterionId: string) => void;
   identity: Actor;
+  people?: Person[];
 };
 
 type Filter = 'pending' | 'decided' | 'all';
@@ -22,11 +23,12 @@ const STATUS = { pending: { label: 'На рассмотрении', tone: 'warn'
  * Appeals by role. A reviewer or lead gets the approver's queue (across all dialogs; opening one lands on the criterion with
  * the decision form). An operator gets their own appeals and what was decided; the server already limits the list to them.
  */
-export function AppealsPage({ appeals: all, evaluations, checklists, conversations, onOpen, identity }: Props) {
+export function AppealsPage({ appeals: all, evaluations, checklists, conversations, onOpen, identity, people = [] }: Props) {
   const mine = identity.role === 'operator';
   const [filter, setFilter] = useState<Filter>('pending');
   // Direct corrections by a reviewer are audit history of a dialog, not disputes: they never enter this queue.
   const appeals = useMemo(() => all.filter((a) => a.kind !== 'correction'), [all]);
+  const nameOf = (id: string | null | undefined) => (id ? people.find((p) => p.id === id)?.name ?? id : undefined);
   const pending = appeals.filter((a) => a.status === 'pending').length;
 
   const rows = useMemo(() => {
@@ -86,7 +88,7 @@ export function AppealsPage({ appeals: all, evaluations, checklists, conversatio
                   <tr key={a.id} onClick={() => conv && onOpen(conv.id, a.criterionId)} className={cn('align-top', conv && 'cursor-pointer hover:bg-brand-soft/60')}>
                     <td className="px-3 py-3">
                       {conv ? (
-                        <a href={`#/dialog/${encodeURIComponent(conv.id)}?criterion=${encodeURIComponent(a.criterionId)}`} onClick={(e) => e.stopPropagation()} className="inline-flex min-h-6 items-center text-base font-medium text-accent underline-offset-2 hover:underline">{conv.id}</a>
+                        <a href={`#/dialog/${encodeURIComponent(conv.id)}?criterion=${encodeURIComponent(a.criterionId)}`} onClick={(e) => e.stopPropagation()} className="inline-flex min-h-6 items-center whitespace-nowrap text-base font-medium text-accent underline-offset-2 hover:underline">{conv.id}</a>
                       ) : (
                         <span className="text-base font-medium">Диалог не найден</span>
                       )}
@@ -100,7 +102,7 @@ export function AppealsPage({ appeals: all, evaluations, checklists, conversatio
                       {changed && final && <div className="font-medium">Итог: {grade(criterion, final).label}</div>}
                     </td>
                     <td className="hidden px-3 py-3 text-muted sm:table-cell">{fmt(a.createdAt)}</td>
-                    {!mine && <td className="hidden px-3 py-3 lg:table-cell">{a.createdBy ?? conv?.operatorId ?? <span className="text-muted">—</span>}</td>}
+                    {!mine && <td className="hidden px-3 py-3 lg:table-cell">{nameOf(a.createdBy ?? conv?.operatorId) ?? <span className="text-muted">—</span>}</td>}
                     <td className="px-3 py-3 text-right sm:text-left">
                       <Badge tone={STATUS[a.status].tone}>{STATUS[a.status].label}</Badge>
                       {a.status !== 'pending' && (a.reviewerReason || a.decidedBy) && <p className="mt-1 max-w-xs text-xs text-muted">{a.decidedBy ? `${a.decidedBy}: ` : ''}{a.reviewerReason}</p>}

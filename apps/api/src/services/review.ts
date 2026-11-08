@@ -28,7 +28,11 @@ export function setReview(db: Db, conversationId: string, input: SetReviewInput,
     logEvent(tx, actor, { type: 'review.set', conversationId, summary: input.status === 'reviewed' ? 'Диалог отмечен проверенным' : 'Диалог взят в работу', data: { status: input.status, evaluationId } });
     // A finished check closes the review task handed to this person.
     if (input.status === 'reviewed' && actor?.id) {
-      tx.update(tasks).set({ status: 'done', doneAt: at }).where(and(eq(tasks.conversationId, conversationId), eq(tasks.kind, 'review'), eq(tasks.assigneeId, actor.id), eq(tasks.status, 'open'))).run();
+      const open = and(eq(tasks.conversationId, conversationId), eq(tasks.kind, 'review'), eq(tasks.assigneeId, actor.id), eq(tasks.status, 'open'));
+      const ids = tx.select({ id: tasks.id }).from(tasks).where(open).all().map((t) => t.id);
+      if (!ids.length) return;
+      tx.update(tasks).set({ status: 'done', doneAt: at }).where(inArray(tasks.id, ids)).run();
+      for (const taskId of ids) logEvent(tx, actor, { type: 'task.done', conversationId, summary: 'Задача на проверку выполнена', data: { taskId } });
     }
   });
 }

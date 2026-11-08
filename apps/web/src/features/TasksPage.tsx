@@ -72,7 +72,7 @@ export function TasksPage({ identity, tasks, directory, conversations, onOpenDia
                 const known = conversations.some((c) => c.id === t.conversationId);
                 return (
                   <tr key={t.id} className="h-12">
-                    <td className="px-3 font-medium">{t.conversationId}</td>
+                    <td className="whitespace-nowrap px-3 font-medium">{t.conversationId}</td>
                     <td className="px-3"><Badge tone={t.kind === 'crosscheck' ? 'warn' : 'neutral'}>{KIND[t.kind]}</Badge></td>
                     {manage && <td className="px-3">{name(t.assigneeId)}{t.auto && <span className="ml-2 text-xs text-muted">по загрузке</span>}</td>}
                     <td className="hidden px-3 text-muted tabular-nums sm:table-cell">{fmt(t.createdAt)}</td>

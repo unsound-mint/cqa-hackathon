@@ -48,6 +48,9 @@ const KNOWN: [string, RegExp][] = [
   ['invalid override', /не принял решение/],
   ['DATASET_IMPORT_URL is not configured on the server', /Импорт данных/],
   ['POST /api/evaluations failed with 502 (HTTP 502)', /Сервер ответил ошибкой/],
+  ['the directory is not empty', /Справочник уже заполнен/],
+  ['a cross-check cannot go to the person who reviewed the dialog', /нельзя назначить тому, кто проверял/],
+  ['conversation demo-1 already has an open task', /уже есть открытая задача/],
   ['evaluation failed', /Оценка не получилась/],
 ];
 

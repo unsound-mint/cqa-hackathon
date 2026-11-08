@@ -1,4 +1,4 @@
-import type { AuditEvent } from '@cqa/contracts';
+import { ROLE_LABELS, type AuditEvent } from '@cqa/contracts';
 import { ShieldAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useApi } from '@/ApiContext';
@@ -62,7 +62,7 @@ export function AuditPage({ onOpenDialog }: { onOpenDialog: (id: string) => void
         <div className="overflow-auto rounded-card border border-line bg-surface shadow-card">
           <table className="w-full border-collapse text-sm"><caption className="sr-only">Журнал действий</caption>
             <thead className="sticky top-0 bg-surface text-xs text-muted shadow-[0_1px_0_var(--c-line)]"><tr className="h-10 text-left"><th scope="col" className="px-3 font-medium">Когда</th><th scope="col" className="px-3 font-medium">Кто</th><th scope="col" className="px-3 font-medium">Что</th><th scope="col" className="hidden px-3 font-medium sm:table-cell">Диалог</th></tr></thead>
-            <tbody className="divide-y divide-line">{rows.slice(0, 500).map((e) => <tr key={e.id} className="align-top"><td className="whitespace-nowrap px-3 py-2 tabular-nums text-muted">{fmt(e.at)}</td><td className="px-3 py-2">{e.actorName}{e.actorRole && <span className="block text-xs text-muted">{e.actorRole}</span>}</td><td className="px-3 py-2"><Badge className="mr-2">{TYPE_LABEL[e.type] ?? e.type}</Badge>{e.summary}</td><td className="hidden px-3 py-2 sm:table-cell">{e.conversationId && <button type="button" onClick={() => onOpenDialog(e.conversationId!)} className="text-accent underline-offset-2 hover:underline">{e.conversationId}</button>}</td></tr>)}</tbody>
+            <tbody className="divide-y divide-line">{rows.slice(0, 500).map((e) => <tr key={e.id} className="align-top"><td className="whitespace-nowrap px-3 py-2 tabular-nums text-muted">{fmt(e.at)}</td><td className="px-3 py-2">{e.actorName}{e.actorRole && <span className="block text-xs text-muted">{ROLE_LABELS[e.actorRole]}</span>}</td><td className="px-3 py-2"><Badge className="mr-2">{TYPE_LABEL[e.type] ?? e.type}</Badge>{e.summary}</td><td className="hidden px-3 py-2 sm:table-cell">{e.conversationId && <button type="button" onClick={() => onOpenDialog(e.conversationId!)} className="whitespace-nowrap text-accent underline-offset-2 hover:underline">{e.conversationId}</button>}</td></tr>)}</tbody>
           </table>
           {rows.length === 0 && <p className="p-4 text-sm text-muted">Записей нет.</p>}
         </div>

@@ -37,12 +37,12 @@ export function ReviewControl({ state, stale, by, at, disabled, onSet }: Props) 
   return (
     <div className="flex flex-wrap items-center gap-2">
       {state === 'new' && stale && <Badge tone="warn" title={`Проверено ${when(at)}: ${by}. С тех пор диалог оценён заново.`}>Оценка обновлена после проверки</Badge>}
-      {state !== 'new' && <Badge tone={state === 'reviewed' ? 'success' : 'neutral'} title={`${by ?? ''} · ${when(at)}`}>{REVIEW_LABEL[state]}{by ? ` · ${by}` : ''}</Badge>}
+      {state !== 'new' && <Badge tone="neutral" title={`${by ?? ''} · ${when(at)}`}>{state === 'reviewed' && <Check aria-hidden className="mr-1 size-4" />}{REVIEW_LABEL[state]}{by ? ` · ${by}` : ''}</Badge>}
       {state === 'new' && (
         <Button size="sm" disabled={disabled || busy !== null} onClick={() => void run('in_review')}><UserRoundCheck aria-hidden className="size-4" />Взять в работу</Button>
       )}
       {state !== 'reviewed' && (
-        <Button variant="primary" size="sm" disabled={disabled || busy !== null} onClick={() => void run('reviewed')}><Check aria-hidden className="size-4" />Проверено</Button>
+        <Button size="sm" disabled={disabled || busy !== null} onClick={() => void run('reviewed')}><Check aria-hidden className="size-4" />Проверено</Button>
       )}
       {state !== 'new' && (
         <Button variant="ghost" size="sm" disabled={busy !== null} onClick={() => void run('new')}><RotateCcw aria-hidden className="size-4" />Вернуть в новые</Button>

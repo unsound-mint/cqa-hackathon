@@ -178,7 +178,7 @@ export function errorStats(tags: Tag[]): ErrorStats {
 
 // ---------- QA work ----------
 
-export type QaRow = { reviewer: string; reviewed: number; timed: number; medianMinutes: number | null; openTasks: number };
+export type QaRow = { reviewerId: string; reviewer: string; reviewed: number; timed: number; medianMinutes: number | null; openTasks: number };
 export type QaMetrics = { rows: QaRow[]; queueLength: number; backlogAgeDays: number | null; reviewedLast7Days: number; perDay: number; medianMinutes: number | null };
 
 /**
@@ -188,13 +188,14 @@ export type QaMetrics = { rows: QaRow[]; queueLength: number; backlogAgeDays: nu
 export function qaMetrics(events: AuditEvent[], tasks: Task[], conversations: Conversation[], evaluations: Evaluation[], directory: Directory, now = Date.now()): QaMetrics {
   const asc = [...events].filter((e) => e.type === 'review.set').sort((a, b) => a.at.localeCompare(b.at));
   const started = new Map<string, number>();
-  const per = new Map<string, { reviewed: number; minutes: number[] }>();
+  const per = new Map<string, { name: string; reviewed: number; minutes: number[] }>();
   const all: number[] = [];
   let last7 = 0;
   for (const e of asc) {
     const status = e.data?.status;
     const key = `${e.actorId ?? e.actorName}|${e.conversationId}`;
-    const row = per.get(e.actorName) ?? per.set(e.actorName, { reviewed: 0, minutes: [] }).get(e.actorName)!;
+    const who = e.actorId ?? e.actorName; // two people may share a name; the id is the identity
+    const row = per.get(who) ?? per.set(who, { name: e.actorName, reviewed: 0, minutes: [] }).get(who)!;
     if (status === 'in_review') started.set(key, Date.parse(e.at));
     else if (status === 'reviewed') {
       row.reviewed++;
@@ -213,10 +214,10 @@ export function qaMetrics(events: AuditEvent[], tasks: Task[], conversations: Co
   const oldest = open.map((c) => Date.parse(latest.get(c.id)?.createdAt ?? c.importedAt ?? '')).filter((t) => !Number.isNaN(t));
   const names = new Map(directory.people.map((p) => [p.id, p.name]));
   const load = new Map<string, number>();
-  for (const t of tasks) if (t.status === 'open') load.set(names.get(t.assigneeId) ?? t.assigneeId, (load.get(names.get(t.assigneeId) ?? t.assigneeId) ?? 0) + 1);
+  for (const t of tasks) if (t.status === 'open') load.set(t.assigneeId, (load.get(t.assigneeId) ?? 0) + 1);
   const reviewers = new Set([...per.keys(), ...load.keys()]);
   return {
-    rows: [...reviewers].map((reviewer) => ({ reviewer, reviewed: per.get(reviewer)?.reviewed ?? 0, timed: per.get(reviewer)?.minutes.length ?? 0, medianMinutes: median(per.get(reviewer)?.minutes ?? []), openTasks: load.get(reviewer) ?? 0 })).sort((a, b) => b.reviewed - a.reviewed || a.reviewer.localeCompare(b.reviewer, 'ru')),
+    rows: [...reviewers].map((reviewer) => ({ reviewerId: reviewer, reviewer: names.get(reviewer) ?? per.get(reviewer)?.name ?? reviewer, reviewed: per.get(reviewer)?.reviewed ?? 0, timed: per.get(reviewer)?.minutes.length ?? 0, medianMinutes: median(per.get(reviewer)?.minutes ?? []), openTasks: load.get(reviewer) ?? 0 })).sort((a, b) => b.reviewed - a.reviewed || a.reviewer.localeCompare(b.reviewer, 'ru')),
     queueLength: open.length,
     backlogAgeDays: oldest.length ? Math.max(0, (now - Math.min(...oldest)) / DAY) : null,
     reviewedLast7Days: last7,
@@ -225,7 +226,7 @@ export function qaMetrics(events: AuditEvent[], tasks: Task[], conversations: Co
   };
 }
 
-export type AgreementRow = { reviewer: string; role: string; checks: number; results: number; agreeFirst: number; agreeAi: number };
+export type AgreementRow = { reviewerId: string; reviewer: string; role: string; checks: number; results: number; agreeFirst: number; agreeAi: number };
 export type CriterionAgreement = { criterionId: string; results: number; agreeFirst: number };
 
 /**
@@ -239,7 +240,8 @@ export function agreement(crosschecks: Crosscheck[], evaluations: Evaluation[]):
   for (const c of crosschecks) {
     const e = byId.get(c.evaluationId);
     if (!e) continue;
-    const row = rows.get(c.reviewerName) ?? rows.set(c.reviewerName, { reviewer: c.reviewerName, role: c.reviewerRole, checks: 0, results: 0, agreeFirst: 0, agreeAi: 0 }).get(c.reviewerName)!;
+    const who = c.reviewerId ?? c.reviewerName;
+    const row = rows.get(who) ?? rows.set(who, { reviewerId: who, reviewer: c.reviewerName, role: c.reviewerRole, checks: 0, results: 0, agreeFirst: 0, agreeAi: 0 }).get(who)!;
     row.checks++;
     for (const r of c.results) {
       const same = (x: { value: unknown; isNA: boolean } | undefined) => !!x && x.isNA === r.isNA && x.value === r.value;
@@ -276,11 +278,13 @@ export function suspicious(events: AuditEvent[]): Finding[] {
   for (const name of new Set(reviewed.map(actorOf))) {
     const mine = reviewed.filter((e) => actorOf(e) === name);
     for (let i = 0; i + 4 < mine.length; i++) {
-      const w = mine.slice(i, i + 5);
-      if (Date.parse(w[4]!.at) - Date.parse(w[0]!.at) <= 120_000) {
-        out.push({ kind: 'rubber-stamp', actor: w[0]!.actorName, at: w[4]!.at, summary: `5 диалогов отмечены проверенными за ${Math.max(1, Math.round((Date.parse(w[4]!.at) - Date.parse(w[0]!.at)) / 1000))} с`, conversationIds: w.map((e) => e.conversationId ?? '') });
-        break;
-      }
+      if (Date.parse(mine[i + 4]!.at) - Date.parse(mine[i]!.at) > 120_000) continue;
+      // The burst is the whole run inside the two minutes, not just the five that tripped the threshold.
+      let end = i + 4;
+      while (end + 1 < mine.length && Date.parse(mine[end + 1]!.at) - Date.parse(mine[i]!.at) <= 120_000) end++;
+      const w = mine.slice(i, end + 1);
+      out.push({ kind: 'rubber-stamp', actor: w[0]!.actorName, at: w[w.length - 1]!.at, summary: `${w.length} диалогов отмечены проверенными за ${Math.max(1, Math.round((Date.parse(w[w.length - 1]!.at) - Date.parse(w[0]!.at)) / 1000))} с`, conversationIds: w.map((e) => e.conversationId ?? '') });
+      break;
     }
   }
 
