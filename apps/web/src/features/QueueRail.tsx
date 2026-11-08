@@ -28,7 +28,7 @@ type Props = {
   onHide: () => void;
 };
 
-const QUICK: [Quick, string][] = [['all', 'Все диалоги'], ['violations', 'Грубые нарушения'], ['review', 'Нужна проверка'], ['unevaluated', 'Не оценены']];
+const QUICK: [Quick, string][] = [['all', 'Все диалоги'], ['violations', 'Грубые нарушения'], ['followup', 'Нарушения без разбора'], ['review', 'Нужна проверка'], ['unevaluated', 'Не оценены']];
 const PILL = 'h-8 min-w-0 rounded-full border-transparent bg-fill pl-3 pr-8 text-sm';
 /** A narrowed filter reads as set: outlined and medium weight. */
 const ACTIVE = 'border-ink font-medium';

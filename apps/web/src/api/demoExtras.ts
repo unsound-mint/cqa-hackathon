@@ -107,7 +107,7 @@ export function richDemo(base: unknown = demoJson): DemoBundle {
   });
   // Fictional operators and import times, so the role views and the queue sort have something to show offline.
   const stamp = (i: number) => new Date(Date.UTC(2026, 10, 6, 8 + i * 3, 30)).toISOString();
-  const operators: Record<string, string> = { 'demo-ru-001': 'Алина', 'demo-en-007': 'Марк', 'demo-ru-023': 'Алина', 'demo-kz-031': 'Марк' };
+  const operators: Record<string, string> = { 'demo-ru-001': 'op-1', 'demo-en-007': 'op-2', 'demo-ru-023': 'op-1', 'demo-kz-031': 'op-2' };
   const all = [...b.conversations, ...conversations].map((c, i) => ({ ...c, importedAt: stamp(i), operatorId: operators[c.id] ?? null }));
   const allEvaluations = [...b.evaluations, ...evaluations].map((e, i) => ({ ...e, createdAt: stamp(i) }));
   return { conversations: all, checklists: b.checklists, evaluations: allEvaluations };
