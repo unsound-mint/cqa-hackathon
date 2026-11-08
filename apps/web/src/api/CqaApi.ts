@@ -1,4 +1,21 @@
 import type {
+  AddCommentInput,
+  AddTagInput,
+  AuditEvent,
+  Comment,
+  CreateTasksInput,
+  Crosscheck,
+  Directory,
+  ListEventsQuery,
+  Notification,
+  Person,
+  SaveTimelineEventInput,
+  SubmitCrosscheckInput,
+  Tag,
+  Task,
+  TaxonomyItem,
+  Team,
+  TimelineEvent,
   Appeal,
   AssignOperatorInput,
   ChecklistVersion,
@@ -39,8 +56,31 @@ export interface CqaApi {
   setReview(conversationId: string, input: SetReviewInput): Promise<Conversation>;
   /** The lead assigns dialogs to an operator (null unassigns). */
   assignOperator(input: AssignOperatorInput): Promise<void>;
-  /** Operators that have dialogs assigned, for the role picker. */
-  listOperators(): Promise<string[]>;
+  /** People and teams: the role picker, assignment and team scoping come from it. */
+  getDirectory(): Promise<Directory>;
+  savePerson(person: Person): Promise<Person>;
+  saveTeam(team: Team): Promise<Team>;
+  /** Fictional organisation for demos, only into an empty directory. */
+  seedDemoOrg(): Promise<{ people: number; assigned: number }>;
+  /** The audit log, newest first (top managers and admins). */
+  listEvents(query?: ListEventsQuery): Promise<AuditEvent[]>;
+  listNotifications(): Promise<Notification[]>;
+  markNotificationsRead(ids?: string[]): Promise<void>;
+  listComments(): Promise<Comment[]>;
+  addComment(input: AddCommentInput): Promise<Comment>;
+  acknowledgeComment(id: string): Promise<Comment>;
+  listTaxonomy(): Promise<TaxonomyItem[]>;
+  addTaxonomyItem(input: { label: string; criterionId?: string }): Promise<TaxonomyItem>;
+  listTags(): Promise<Tag[]>;
+  addTag(input: AddTagInput): Promise<Tag>;
+  listTimeline(): Promise<TimelineEvent[]>;
+  addTimelineEvent(input: SaveTimelineEventInput): Promise<TimelineEvent>;
+  listTasks(): Promise<Task[]>;
+  createTasks(input: CreateTasksInput): Promise<Task[]>;
+  sampleCrosschecks(percent: number): Promise<Task[]>;
+  cancelTask(id: string): Promise<Task>;
+  listCrosschecks(): Promise<Crosscheck[]>;
+  submitCrosscheck(input: SubmitCrosscheckInput): Promise<Crosscheck>;
   /** What an <audio> element plays for a call: the API resolves the organizer's player page to the media file. */
   audioSrc(conversation: Conversation): string | null;
 }

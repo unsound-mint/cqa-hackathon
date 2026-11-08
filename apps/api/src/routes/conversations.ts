@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Db } from '../db/index.js';
 import { getConversation, getConversationView, listConversationViews } from '../services/conversations.js';
 import { ApiError } from '../services/errors.js';
-import { assignOperator, listOperators, setReview } from '../services/review.js';
+import { assignOperator, setReview } from '../services/review.js';
 import { actorOf, denied } from './actor.js';
 import { AudioError, downloadAudio, hasLocalAudio, resolveAudio, sendLocalAudio, type AudioStore } from '../services/audio.js';
 
@@ -17,9 +17,6 @@ export function conversationRoutes(app: FastifyInstance, db: Db, audio: AudioSto
   app.get<{ Params: { id: string } }>('/api/conversations/:id', async (req, reply) => {
     return getConversationView(db, req.params.id, actorOf(req)) ?? reply.code(404).send({ error: 'conversation not found' });
   });
-
-  /** Operators known from assignments: the role picker offers them. Names only, so it is not scoped. */
-  app.get('/api/operators', async () => listOperators(db));
 
   /** Mark a dialog in review / reviewed, or `new` to reopen it. Bound to the latest evaluation. */
   app.post<{ Params: { id: string } }>('/api/conversations/:id/review', async (req, reply) => {

@@ -1,7 +1,9 @@
 import { type Actor, type AssignOperatorInput, type SetReviewInput } from '@cqa/contracts';
 import { desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../db/index.js';
-import { conversations, evaluations, operatorAssignments, reviews } from '../db/schema.js';
+import { conversations, evaluations, operatorAssignments, people, reviews, tasks } from '../db/schema.js';
+import { and } from 'drizzle-orm';
+import { logEvent } from './events.js';
 import { ApiError } from './errors.js';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -15,12 +17,19 @@ export function setReview(db: Db, conversationId: string, input: SetReviewInput,
     if (!tx.select({ id: conversations.id }).from(conversations).where(eq(conversations.id, conversationId)).get()) throw new ApiError('conversation not found', 404);
     if (input.status === 'new') {
       tx.delete(reviews).where(eq(reviews.conversationId, conversationId)).run();
+      logEvent(tx, actor, { type: 'review.set', conversationId, summary: 'Диалог возвращён в новые', data: { status: 'new' } });
       return;
     }
     const evaluationId = latestEvaluationId(tx, conversationId);
     if (!evaluationId) throw new ApiError('the dialog has no evaluation to review yet', 409);
-    const row = { conversationId, status: input.status, evaluationId, by: actor?.name || 'система', at: new Date().toISOString() };
+    const at = new Date().toISOString();
+    const row = { conversationId, status: input.status, evaluationId, by: actor?.name || 'система', byId: actor?.id ?? null, at };
     tx.insert(reviews).values(row).onConflictDoUpdate({ target: reviews.conversationId, set: row }).run();
+    logEvent(tx, actor, { type: 'review.set', conversationId, summary: input.status === 'reviewed' ? 'Диалог отмечен проверенным' : 'Диалог взят в работу', data: { status: input.status, evaluationId } });
+    // A finished check closes the review task handed to this person.
+    if (input.status === 'reviewed' && actor?.id) {
+      tx.update(tasks).set({ status: 'done', doneAt: at }).where(and(eq(tasks.conversationId, conversationId), eq(tasks.kind, 'review'), eq(tasks.assigneeId, actor.id), eq(tasks.status, 'open'))).run();
+    }
   });
 }
 
@@ -34,7 +43,7 @@ export function noteReviewActivity(tx: Tx, evaluationId: string, actor: Actor | 
   if (!conversationId) return;
   const existing = tx.select().from(reviews).where(eq(reviews.conversationId, conversationId)).get();
   if (existing && existing.evaluationId === evaluationId) return;
-  const row = { conversationId, status: 'in_review', evaluationId, by: actor.name || 'система', at: new Date().toISOString() };
+  const row = { conversationId, status: 'in_review', evaluationId, by: actor.name || 'система', byId: actor.id ?? null, at: new Date().toISOString() };
   tx.insert(reviews).values(row).onConflictDoUpdate({ target: reviews.conversationId, set: row }).run();
 }
 
@@ -46,16 +55,17 @@ export function assignOperator(db: Db, input: AssignOperatorInput, actor?: Actor
     if (missing) throw new ApiError(`conversation ${missing} not found`, 404);
     if (input.operator === null) {
       tx.delete(operatorAssignments).where(inArray(operatorAssignments.conversationId, ids)).run();
+      logEvent(tx, actor, { type: 'operator.assigned', summary: `Оператор снят с диалогов: ${ids.length}`, data: { conversationIds: ids, operator: null } });
       return;
     }
+    const person = tx.select().from(people).where(eq(people.id, input.operator)).get();
+    if (!person || person.role !== 'operator') throw new ApiError('unknown operator: add the person to the directory first', 400);
     const at = new Date().toISOString();
     for (const conversationId of ids) {
       const row = { conversationId, operator: input.operator, assignedBy: actor?.name || null, assignedAt: at };
       tx.insert(operatorAssignments).values(row).onConflictDoUpdate({ target: operatorAssignments.conversationId, set: row }).run();
     }
+    logEvent(tx, actor, { type: 'operator.assigned', summary: `Диалоги назначены оператору ${person.name}: ${ids.length}`, data: { conversationIds: ids.slice(0, 50), count: ids.length, operator: person.id } });
   });
 }
 
-export function listOperators(db: Db): string[] {
-  return [...new Set(db.select({ operator: operatorAssignments.operator }).from(operatorAssignments).all().map((r) => r.operator))].sort((a, b) => a.localeCompare(b, 'ru'));
-}

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { computeTotal } from '@cqa/contracts';
 import demo from '../../../fixtures/demo.json';
 import { CqaApiError, MockCqaApi } from '../src/api';
-import { asRole, withOperator } from './roles';
+import { DIRECTORY, asRole, withOperator } from './roles';
 
 describe('MockCqaApi', () => {
   beforeEach(() => asRole('lead'));
@@ -113,8 +113,10 @@ describe('MockCqaApi roles (the same rules as the API)', () => {
     await expect(api.overrideCriterion({ evaluationId: ev.id, criterionId: '04', reason: 'r', value: 20 })).rejects.toMatchObject({ code: 'forbidden' });
     await expect(api.setReview('demo-ru-001', { status: 'reviewed' })).rejects.toMatchObject({ code: 'forbidden' });
     asRole('lead');
-    await api.assignOperator({ conversationIds: ['demo-ru-001'], operator: 'Тимур' });
-    expect(await api.listOperators()).toEqual(['Тимур']);
+    await expect(api.assignOperator({ conversationIds: ['demo-ru-001'], operator: 'Тимур' })).rejects.toMatchObject({ code: 'invalid' }); // not in the directory
+    const withDir = new MockCqaApi(withOperator(demo), [], { directory: DIRECTORY });
+    await withDir.assignOperator({ conversationIds: ['demo-ru-001'], operator: 'Тимур' });
+    expect((await withDir.getConversation('demo-ru-001')).operatorId).toBe('Тимур');
   });
 
   it('a review is bound to the evaluation; a correction puts the dialog in review but never finishes it', async () => {

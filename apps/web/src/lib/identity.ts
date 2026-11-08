@@ -25,9 +25,9 @@ export function getIdentity(): Actor {
   if (raw === cache.raw) return cache.value;
   let value = DEFAULT;
   try {
-    const v = JSON.parse(raw ?? 'null') as { role?: unknown; name?: unknown } | null;
+    const v = JSON.parse(raw ?? 'null') as { role?: unknown; name?: unknown; id?: unknown } | null;
     const role = RoleSchema.safeParse(v?.role);
-    if (role.success) value = { role: role.data, name: typeof v?.name === 'string' && v.name.trim() ? v.name.trim().slice(0, 80) : ROLE_LABELS[role.data] };
+    if (role.success) value = { role: role.data, name: typeof v?.name === 'string' && v.name.trim() ? v.name.trim().slice(0, 80) : ROLE_LABELS[role.data], ...(typeof v?.id === 'string' && v.id ? { id: v.id } : {}) };
   } catch {
     /* unreadable value: the default */
   }
@@ -36,7 +36,7 @@ export function getIdentity(): Actor {
 }
 
 export function setIdentity(next: Actor): void {
-  const raw = JSON.stringify({ role: next.role, name: next.name.trim() || ROLE_LABELS[next.role] });
+  const raw = JSON.stringify({ role: next.role, name: next.name.trim() || ROLE_LABELS[next.role], ...(next.id ? { id: next.id } : {}) });
   memory = raw;
   try {
     window.localStorage.setItem(KEY, raw);

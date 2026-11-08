@@ -1,7 +1,9 @@
 import type { Channel, ChecklistVersion, Conversation, Evaluation, Language } from '@cqa/contracts';
 import { needsReview } from './present';
 
-export type Quick = 'all' | 'violations' | 'review' | 'unevaluated';
+export type Quick = 'all' | 'violations' | 'review' | 'unevaluated' | 'followup';
+/** Dialogs whose serious violation is not dealt with yet (see analytics `followUp`); passed in because it needs the comments. */
+export type QueueContext = { followUpOpen?: ReadonlySet<string> };
 /** Where a dialog stands in the human check. */
 export type ReviewState = 'new' | 'in_review' | 'reviewed';
 /** Order of the queue: `queue` = what to look at first; the others are the columns. */
@@ -67,7 +69,8 @@ export function sortConversations(list: Conversation[], latest: Map<string, Eval
   return [...list].sort(cmp);
 }
 
-export function matches(c: Conversation, e: Evaluation | undefined, f: Filters): boolean {
+export function matches(c: Conversation, e: Evaluation | undefined, f: Filters, ctx: QueueContext = {}): boolean {
+  if (f.quick === 'followup' && !ctx.followUpOpen?.has(c.id)) return false;
   if (f.review !== 'all' && reviewOf(c, e).state !== f.review) return false;
   if (f.operator !== 'all' && (f.operator === NO_OPERATOR ? !!c.operatorId : c.operatorId !== f.operator)) return false;
   if (f.lang !== 'all' && c.language !== f.lang) return false;
@@ -79,8 +82,9 @@ export function matches(c: Conversation, e: Evaluation | undefined, f: Filters):
   return !q || c.id.toLowerCase().includes(q) || c.transcript.some((m) => m.text.toLowerCase().includes(q));
 }
 
-export function counts(conversations: Conversation[], latest: Map<string, Evaluation>) {
+export function counts(conversations: Conversation[], latest: Map<string, Evaluation>, ctx: QueueContext = {}) {
   return {
+    followup: conversations.filter((c) => ctx.followUpOpen?.has(c.id)).length,
     all: conversations.length,
     violations: conversations.filter((c) => hasViolation(latest.get(c.id))).length,
     review: conversations.filter((c) => reviewCount(latest.get(c.id)) > 0).length,

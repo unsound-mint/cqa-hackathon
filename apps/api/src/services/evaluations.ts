@@ -3,6 +3,7 @@ import { asc, eq } from 'drizzle-orm';
 import type { Db } from '../db/index.js';
 import type { DecisionFacts } from './evaluation/semantic/index.js';
 import { evaluations } from '../db/schema.js';
+import { notifyCritical } from './notifications.js';
 
 export function toEvaluation(row: typeof evaluations.$inferSelect): Evaluation {
   const { error, provenance, ...rest } = row;
@@ -14,6 +15,7 @@ export function insertEvaluation(db: Db, e: Evaluation, cacheContext?: string, d
   db.insert(evaluations)
     .values({ ...EvaluationSchema.parse(e), cacheContext: cacheContext ?? null, decisionFacts: decisionFacts ?? null, provenance: e.provenance ?? null, error: e.error ?? null, createdAt: new Date().toISOString() })
     .run();
+  notifyCritical(db, e);
 }
 
 export function getEvaluation(db: Db, id: string): Evaluation | undefined {

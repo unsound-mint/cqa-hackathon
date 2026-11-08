@@ -33,7 +33,7 @@ flowchart LR
 
 - **Production-style run:** `pnpm start` builds everything; the API serves `apps/web/dist` and `/api` on one port (8787). No Docker, no queue service, no external database.
 - **Browser never calls the model or the organizer API.** The signed dataset URL and the model key are server-only environment variables.
-- **No authentication** by design (hackathon demo). A role picker (operator / reviewer / lead, `contracts/roles.ts`) sends `x-cqa-role` and `x-cqa-actor` (URI-encoded name) with every request; the API enforces what each role may do and see (`routes/actor.ts`). It separates responsibilities, it is not security: any client can send any role. A request without a role is unrestricted (exporter, stability runner, scripts), so they keep working.
+- **No authentication** by design (hackathon demo). A role picker (operator / reviewer / manager / lead / admin, `contracts/roles.ts`) sends `x-cqa-role`, `x-cqa-actor` (URI-encoded name) and `x-cqa-person` (directory id) with every request; the API enforces what each role may do and see (`routes/actor.ts`). It separates responsibilities, it is not security: any client can send any role. A request without a role is unrestricted (exporter, stability runner, scripts), so they keep working.
 
 ## 3. Repository layout and module boundaries
 
@@ -98,6 +98,9 @@ components/ui/   small primitives
 | `evaluations` | `original_*` write-once; `final_*` and `serious_violation` rewritten by appeals | Also stores `provenance` (provider, model, prompt version, effort, tokens, latency), `cache_context`, `decision_facts` (validated model-extracted facts), `error`. |
 | `appeals` | append-only | `kind` = `appeal` or `correction` (reviewer override without an appeal). A decided row is never rewritten. `created_by` / `decided_by` hold the display names from the role picker. |
 | `operator_assignments` | upsert | Dialog → operator, set by the lead (the organizer data carries no operator identity). Its own table so a re-import, which rewrites the conversation row, never touches it. |
+| `people`, `teams` | upsert | The directory (role, team, team manager). The organizer data has none; the admin creates it, or `POST /api/demo/org` fills a fictional one (logged as demo). Visibility is derived from it: operator = themselves, manager = the operators of the team they lead. |
+| `events` | append-only | One row per human action (review state, corrections, appeals, assignments, checklist saves, comments, tasks, tags, directory…), written inside the action's transaction. The audit log and the QA time metrics read it. |
+| `notifications`, `comments`, `tasks`, `crosschecks`, `taxonomy`, `tags`, `timeline_events` | insert / state flags | Inbox, coaching comments (+ operator acknowledgement), QA tasks (manual or by open load), blind cross-checks, error categories, non-scoring error tags (origin: operator / process / rule / tool), top-manager timeline. None of them touches a grade or the evaluator. |
 | `reviews` | upsert | One human check per dialog: `in_review` / `reviewed`, who and when, bound to the `evaluation_id` that was looked at. A newer evaluation makes it stale (the dialog counts as new again). Not part of the immutable evaluation. |
 | `jobs` | progress counters | Holds conversation ids, checklist id, `force`, produced evaluation ids → resumable after restart. |
 
@@ -165,6 +168,7 @@ If rules and reuse settle everything, the provider is never called; `POST /api/e
 - On override the scorer recomputes `finalTotal` and `serious_violation` from the stored checklist version, inside a transaction. The overridden result carries the reviewer's reason and `source: 'reviewer'`; the AI's explanation remains in `originalResults`. Evidence and decision facts are kept.
 
 - **Review state** (`POST /api/conversations/:id/review` `{status: new|in_review|reviewed}`): bound to the dialog's latest evaluation; `new` reopens. A correction or decision by a reviewer moves the dialog to `in_review` but never to `reviewed`: one criterion is not a full check. Only the explicit action finishes it.
+- **Team workflow.** A serious violation (the checklist's own `criticalFlag`, never a criterion id) notifies the team manager and the top managers. QA tasks go to the QA person with the fewest open tasks; a cross-check (`/api/tasks`, `/api/crosschecks`) goes to someone other than the first reviewer and is a blind re-grade; a top manager's check is QA-of-QA. Agreement with the first review and with the AI is computed in the web app (`lib/analytics.ts`) from the lists the API already scoped to the viewer.
 - **Assignment** (`POST /api/conversations/operator` `{conversationIds, operator|null}`) and `GET /api/operators` (names, for the role picker).
 
 ## 7. Audio and evidence navigation
@@ -180,7 +184,14 @@ All shapes are the Zod schemas in `packages/contracts/src/api.ts` and `domain.ts
 | `GET /health` | liveness |
 | `POST /api/datasets/import` `{groupId}` | server-side fetch of the organizer dataset (retry/backoff, `group_id` overridden), idempotent insert, recordings prefetched |
 | `GET /api/conversations`, `/:id` | list (filters language/channel) / one; carries `importedAt`, `operatorId`, `review`; scoped for operators |
-| `POST /api/conversations/:id/review`, `POST /api/conversations/operator`, `GET /api/operators` | review state, operator assignment, known operators |
+| `POST /api/conversations/:id/review`, `POST /api/conversations/operator` | review state, operator assignment (to a directory person) |
+| `GET /api/directory`, `POST /api/people`, `POST /api/teams`, `POST /api/demo/org` | people and teams |
+| `GET /api/events` | audit log (lead, admin) |
+| `GET /api/notifications`, `POST /api/notifications/read` | inbox of the acting person |
+| `GET/POST /api/comments`, `POST /api/comments/:id/ack` | coaching comments, operator acknowledgement |
+| `GET/POST /api/taxonomy`, `GET/POST /api/tags` | error categories, non-scoring tags |
+| `GET/POST /api/timeline` | training / policy events |
+| `GET/POST /api/tasks`, `POST /api/tasks/sample`, `POST /api/tasks/:id/cancel`, `GET/POST /api/crosschecks` | QA tasks and cross-checks |
 | `GET /api/conversations/:id/audio` | recording with ranges |
 | `GET /api/checklists`, `/:id`, `POST /api/checklists` | versions; save = new version |
 | `GET /api/detectors` | detector names the editor may reference |

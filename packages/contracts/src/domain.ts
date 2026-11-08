@@ -54,6 +54,10 @@ export const ConversationSchema = z
     operatorId: z.string().nullable().optional(),
     /** Absent = nobody has looked at it yet. */
     review: ReviewSchema.optional(),
+    /** Optional source fields the DEV set lacks: an opaque client id (repeat contacts), the client's 1-5 rating, the call start. */
+    clientId: z.string().nullable().optional(),
+    csat: z.number().int().min(1).max(5).nullable().optional(),
+    startedAt: z.string().nullable().optional(),
   })
   .superRefine((c, ctx) => {
     c.transcript.forEach((m, i) => {
