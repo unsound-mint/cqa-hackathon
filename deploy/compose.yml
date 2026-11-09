@@ -1,0 +1,10 @@
+# Server deploy. Put secrets in deploy/.env (git-ignored); a reverse proxy terminates TLS and forwards to 127.0.0.1:8787.
+services:
+  cqa:
+    build: ..
+    restart: unless-stopped
+    env_file: .env
+    ports: ["127.0.0.1:8787:8787"]
+    volumes: ["cqa-data:/app/data"]
+volumes:
+  cqa-data:
