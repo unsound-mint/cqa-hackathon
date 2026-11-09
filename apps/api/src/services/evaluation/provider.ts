@@ -24,4 +24,15 @@ export interface LlmProvider {
   complete(req: ProviderRequest): Promise<ProviderResponse>;
 }
 
-export class ProviderError extends Error {}
+export type Usage = NonNullable<ProviderResponse['usage']>;
+export const emptyUsage = () => ({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
+export function addUsage(target: ReturnType<typeof emptyUsage>, usage?: Usage) {
+  if (!usage) return;
+  target.inputTokens += usage.inputTokens;
+  target.outputTokens += usage.outputTokens;
+  target.cacheReadTokens += usage.cacheReadTokens ?? 0;
+  target.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
+}
+export class ProviderError extends Error {
+  constructor(message: string, public readonly usage?: Usage, public readonly retryable = true) { super(message); }
+}

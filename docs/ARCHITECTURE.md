@@ -43,8 +43,10 @@ flowchart LR
 | `apps/api` | Fastify routes, SQLite/Drizzle storage, import, evaluation pipeline, jobs, appeals, audio. | contracts |
 | `apps/web` | Review workspace, checklist editor, appeals queue, print/export. Talks only to the `CqaApi` interface. | contracts |
 | `evaluation` | Human-label sheets, comparison and run-to-run stability reports. A CLI that reads the running API. **Never imported by production code.** | contracts |
-| `fixtures/demo.json` | Fictional conversation for the mock client and tests. The only conversation data in git. | – |
-| `data/` (contents git-ignored) | SQLite file, raw dataset download, call recordings. Real data lives only here. | – |
+| `fixtures/demo.json` | Fictional conversation for mock mode and tests; published DEV data is separate in `data/seed/`. | – |
+| `data/seed/` | Published organizer DEV snapshot: database and five recordings. `pnpm seed` copies it into runtime storage. | – |
+| Runtime data (git-ignored) | `data/cqa.sqlite`, `data/raw/`, `data/private/`: working database, raw imports and recordings. | – |
+| `results/` | DEV/control model predictions in organizer JSON format; not reference labels. | – |
 | `docs/` | This documentation. `docs/official/` (organizer PDFs, local only, git-ignored) is not in the repository. | – |
 
 Rule of thumb: contracts ← api, web, evaluation. api and web never import each other.
@@ -218,7 +220,7 @@ Bumping either invalidates cached results; legacy rows without a cache context a
 
 - Transcripts are untrusted data: sent to the model as a JSON payload field, never concatenated into instructions; model output is validated, never executed.
 - Secrets (`DATASET_IMPORT_URL`, `ANTHROPIC_API_KEY`) are unprefixed server env vars; `VITE_*` is public and holds no secret. The importer never logs or returns the URL.
-- Raw transcripts, real audio URLs, recordings and the SQLite file are git-ignored (`data/`, `evaluation/private/`). Git contains only fabricated fixtures.
+- `data/seed/` is the organizer-cleared publication exception: the DEV database and recordings are committed. Runtime SQLite, other raw imports, recordings and private labels remain ignored (`*.sqlite`, `data/raw/`, `data/private/`, `evaluation/private/`). `results/` contains submitted predictions, not control transcripts or reference labels.
 - Real calls are not sent to a hosted model without confirmed permission. Only an Anthropic adapter exists; another provider means one new class implementing `LlmProvider`.
 - No hardcoded outputs: nothing keys on conversation id, language or DEV content. Calibration examples are fictional and chosen by criterion signature.
 
@@ -240,8 +242,17 @@ Bumping either invalidates cached results; legacy rows without a cache context a
 
 ## 13. Known limits
 
-- Reference agreement reported by the tooling is agreement with human labels written by the team (see `docs/VALIDATION.md`), not with the organizer's hidden ground truth.
+- The tooling can report agreement with human labels (see [validation protocol](VALIDATION.md)); no human-reference report is linked in the current repository. Stored predictions and format validation do not measure accuracy against the organizer's hidden ground truth.
 - Semantic relevance of an operator quote still depends on model judgment; the validators prove the quote is real and operator-authored, not that it is the right quote.
 - Voice transcripts are speech-recognition output; absence claims inside recording pauses are capped at medium confidence and flagged for human review.
 - Rounding of halfway cases is provisional (§5.3). No authentication: the role is a demo switch that any client can spoof.
 - Cost reporting is per-evaluation token usage in provenance; price conversion is done by the evaluation tool (`--price-in/--price-out`).
+
+
+## Evaluation recovery
+
+New jobs allow at most two durable evaluation attempts per conversation, each retaining the evaluator's existing one-repair policy. Running attempts are reserved in SQLite before provider calls. Restart marks unfinished reservations interrupted and consumes their original budget; completed conversations are never rerun. Missing provider configuration leaves resumed work pending. Exact duplicate active starts reattach; overlapping starts are rejected. Run one API process per database.
+
+`POST /api/evaluations` accepts additive `retryFailedOnly: true`, selecting only latest failures on the requested checklist and bypassing result reuse. Job status adds terminal `partial`; `succeeded`, `failed`, `retrying` describe conversations, while `evaluationIds` includes all append-only attempts. `completed` counts terminal conversations, not attempts. The API checks conversation scope before starting/retrying or returning job details.
+
+Failed attempts retain known token usage, prompt provenance, elapsed time, validation diagnostics and accepted partial facts internally; partial facts never become a score. Unknown spend after interruption/network loss is not fabricated. Web scores, analytics and review state prefer the latest successful evaluation, while failed latest attempts remain visible and retryable. Checklist and prompt versions are displayed; a failed run on a new checklist never silently relabels an older result.

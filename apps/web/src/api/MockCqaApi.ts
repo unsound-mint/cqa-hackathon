@@ -197,7 +197,7 @@ export class MockCqaApi implements CqaApi {
       delete conv.review;
       this.log('review.set', 'Диалог возвращён в новые', conversationId, { status: 'new' });
     } else {
-      const latest = [...this.evaluations].reverse().find((e) => e.conversationId === conversationId);
+      const latest = [...this.evaluations].reverse().find((e) => e.conversationId === conversationId && e.status === 'completed');
       if (!latest) throw new CqaApiError('conflict', 'Диалог ещё не оценён: проверять пока нечего');
       const a = this.actor();
       conv.review = { status: parsed.data.status, evaluationId: latest.id, by: a.name, at: new Date().toISOString() };
@@ -431,7 +431,9 @@ export class MockCqaApi implements CqaApi {
     const checklist = this.checklists.find((c) => c.id === parsed.data.checklistVersionId);
     if (!checklist) throw new CqaApiError('not_found', `checklist ${parsed.data.checklistVersionId} not found`);
     const created: Evaluation[] = [];
-    for (const conversationId of parsed.data.conversationIds) {
+    const ids = [...new Set(parsed.data.conversationIds)].filter(id => !parsed.data.retryFailedOnly || [...this.evaluations].reverse().find(e => e.conversationId === id && e.checklistVersionId === checklist.id)?.status === 'failed');
+    if (!ids.length) throw new CqaApiError('conflict', 'no failed conversations on this checklist to retry');
+    for (const conversationId of ids) {
       const conv = this.conversations.find((c) => c.id === conversationId);
       if (!conv) throw new CqaApiError('not_found', `conversation ${conversationId} not found`);
       const results = checklist.criteria.map((c) => placeholderResult(c, conv.transcript.length - 1));
@@ -452,7 +454,7 @@ export class MockCqaApi implements CqaApi {
     }
     this.evaluations.push(...created);
     const jobId = this.nextId('job-mock');
-    this.jobs.set(jobId, { id: jobId, status: 'completed', completed: created.length, total: created.length, evaluationIds: created.map((e) => e.id) });
+    this.jobs.set(jobId, { id: jobId, status: 'completed', succeeded: created.length, failed: 0, retrying: 0, completed: created.length, total: created.length, evaluationIds: created.map((e) => e.id) });
     return later({ jobId });
   }
 

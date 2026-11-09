@@ -9,9 +9,16 @@ import { cn } from '@/lib/utils';
 import { downloadText, queueCsv } from '@/lib/export';
 import { formatScore, REVIEW_LABEL } from '@/lib/present';
 import { DEFAULT_FILTERS, NO_OPERATOR, counts, hasViolation, matches, reviewCount, reviewOf, sortConversations, violationReasons, type Filters, type Quick, type ReviewState, type Sort, type SortKey } from '@/lib/queue';
+import { ErrorNote } from '@/components/ui/error-note';
 import { AssignOperator } from './AssignOperator';
 
 type Props = {
+  failedCount?: number;
+  onRetryFailed?: () => Promise<void>;
+  retrying?: boolean;
+  progress?: string | null;
+  retryError?: unknown;
+  attempts?: Map<string, Evaluation>;
   conversations: Conversation[];
   latest: Map<string, Evaluation>;
   checklists: ChecklistVersion[];
@@ -61,7 +68,7 @@ function ReviewChip({ c, e }: { c: Conversation; e: Evaluation | undefined }) {
 }
 
 /** The queue: every dialog with its score, the reason for a serious violation and what needs a human look. */
-export function DialogsPage({ conversations, latest, checklists, filters, onFilters, onOpen, identity, people, onAssign, onTasks, followUpOpen, focusSignal = 0 }: Props) {
+export function DialogsPage({ failedCount = 0, onRetryFailed, retrying, progress, retryError, attempts, conversations, latest, checklists, filters, onFilters, onOpen, identity, people, onAssign, onTasks, followUpOpen, focusSignal = 0 }: Props) {
   const search = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (focusSignal > 0) search.current?.focus();
@@ -113,6 +120,11 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
     <section aria-label="Диалоги" className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-col gap-4 p-4 sm:p-6">
       <div>
         <h1 className="text-2xl font-semibold leading-8">{staff ? 'Диалоги' : 'Мои диалоги'}</h1>
+        {(failedCount > 0 || progress) && <div className="flex flex-wrap items-center gap-3 text-sm" role="status">
+          <span>{progress ?? `Последняя оценка не получилась: ${failedCount}. Предыдущие успешные оценки сохранены.`}</span>
+          {failedCount > 0 && onRetryFailed && <Button size="sm" disabled={retrying} onClick={() => void onRetryFailed()}>{retrying ? 'Повторяем…' : `Повторить неудавшиеся (${failedCount})`}</Button>}
+        </div>}
+        <ErrorNote error={retryError} />
         <p className="max-w-prose text-sm text-muted">{staff ? 'Очередь проверки: сверху то, что ещё никто не смотрел. Откройте диалог, чтобы увидеть оценку и её обоснование.' : 'Ваши диалоги с оценками. Откройте диалог, чтобы увидеть обоснование; если не согласны с оценкой, её можно оспорить.'}</p>
       </div>
 
@@ -236,7 +248,7 @@ export function DialogsPage({ conversations, latest, checklists, filters, onFilt
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <Status e={e} />
+                        <Status e={attempts?.get(x.id) ?? e} />
                         {staff && e && <ReviewChip c={x} e={e} />}
                         {review > 0 && <Badge tone="warn">Проверить: {review}</Badge>}
                       </div>

@@ -1,0 +1,88 @@
+{
+  "measurementDate": "2026-11-08",
+  "source": {
+    "database": "local data/cqa.sqlite (not committed)",
+    "jobId": "job-775230bf-cc74-409b-b4fb-7048b3e66bea",
+    "startedAt": "2026-11-08T06:09:51.903Z",
+    "lastResultStoredAt": "2026-11-08T06:14:25.290Z",
+    "checklistVersionId": "checklist-original-v1",
+    "selection": "Exactly the evaluation_ids recorded by this job; no earlier successful fallback results"
+  },
+  "provenance": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
+    "effort": "medium",
+    "promptVersion": "eval-v17",
+    "evaluatorVersion": "operator-v3"
+  },
+  "coverage": {
+    "attempted": 75,
+    "completed": 73,
+    "failed": 2,
+    "completedWithUsage": 73,
+    "failedWithUsage": 0,
+    "reusedCriterionResults": 0,
+    "inputChannels": {
+      "agent chat": 70,
+      "voice call": 5
+    },
+    "completedChannels": {
+      "agent chat": 68,
+      "voice call": 5
+    },
+    "inputLanguages": {
+      "EN": 17,
+      "KZ": 19,
+      "RU": 39
+    },
+    "datasetGroups": {
+      "DEV": 65,
+      "FBroker": 10
+    }
+  },
+  "tokens": {
+    "inputTokens": 659072,
+    "outputTokens": 285021,
+    "cacheReadTokens": 936434,
+    "cacheWriteTokens": 133433
+  },
+  "pricing": {
+    "currency": "USD",
+    "unit": "per million tokens",
+    "source": "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
+    "checkedAt": "2026-11-08",
+    "promptTier": "up to 100000 tokens",
+    "rates": {
+      "inputTokens": "0.10",
+      "outputTokens": "0.50",
+      "cacheReadTokens": "0.01",
+      "cacheWriteTokens": "0.125"
+    },
+    "maximumCombinedInputTokensPerCompletedEvaluation": 47176
+  },
+  "recordedCostUsd": {
+    "byCategory": {
+      "inputTokens": "0.0659072",
+      "outputTokens": "0.1425105",
+      "cacheReadTokens": "0.00936434",
+      "cacheWriteTokens": "0.016679125"
+    },
+    "totalCompleted": "0.234461165",
+    "meanPerCompleted": "0.003211796780821917808219178082"
+  },
+  "latencyMsCompleted": {
+    "mean": 10500.164383561643,
+    "median": 8829,
+    "p95NearestRank": 27334,
+    "min": 4557,
+    "max": 40824
+  },
+  "secondsFromJobStartToLastStoredResult": 273.387,
+  "limits": [
+    "Cost is calculated from recorded successful-evaluation token usage, not a provider invoice.",
+    "Both failed evaluations lack persisted usage; their token spend is excluded.",
+    "Successful-evaluation usage includes returned responses from schema repair attempts; usage lost inside provider-level retries is not guaranteed to be represented.",
+    "This is one existing application job (not the provider Batch API), including rules and concurrent requests; timings are not a repeated benchmark.",
+    "No reference labels or accuracy claims are included."
+  ]
+}

@@ -1,4 +1,4 @@
-import { ProviderError, type LlmProvider, type ProviderRequest, type ProviderResponse } from './provider.js';
+import { addUsage, emptyUsage, ProviderError, type LlmProvider, type ProviderRequest, type ProviderResponse } from './provider.js';
 
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -46,6 +46,7 @@ export class AnthropicProvider implements LlmProvider {
     const retries = this.o.retries ?? 3;
     const started = Date.now();
     let lastStatus = 0;
+    const usage = emptyUsage();
     // A reply without the tool call is also retried once: with `auto` the model may answer in prose.
     let missingTool = 0;
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -68,17 +69,18 @@ export class AnthropicProvider implements LlmProvider {
         lastStatus = res.status;
         if (res.ok) {
           const body = (await res.json()) as Body;
-          if (body.stop_reason === 'refusal') throw new ProviderError(`model refused (${body.stop_details?.category ?? 'no category'})`);
-          if (body.stop_reason === 'max_tokens') throw new ProviderError('model output was cut off at max_tokens');
+          const u = body.usage;
+          addUsage(usage, u ? { inputTokens: u.input_tokens, outputTokens: u.output_tokens, cacheReadTokens: u.cache_read_input_tokens, cacheWriteTokens: u.cache_creation_input_tokens } : undefined);
+          if (body.stop_reason === 'refusal') throw new ProviderError(`model refused (${body.stop_details?.category ?? 'no category'})`, usage, false);
+          if (body.stop_reason === 'max_tokens') throw new ProviderError('model output was cut off at max_tokens', usage);
           const tool = body.content?.find((c) => c.type === 'tool_use');
           if (!tool) {
-            if (++missingTool > 1) throw new ProviderError('model returned no tool call');
+            if (++missingTool > 1) throw new ProviderError('model returned no tool call', usage);
             continue;
           }
-          const u = body.usage;
           return {
             output: tool.input,
-            usage: u ? { inputTokens: u.input_tokens, outputTokens: u.output_tokens, cacheReadTokens: u.cache_read_input_tokens, cacheWriteTokens: u.cache_creation_input_tokens } : undefined,
+            usage,
             latencyMs: Date.now() - started,
           };
         }
@@ -88,6 +90,6 @@ export class AnthropicProvider implements LlmProvider {
         lastStatus = 0; // network/timeout: retry; details dropped on purpose
       }
     }
-    throw new ProviderError(`provider request failed (status ${lastStatus || 'network error'})`);
+    throw new ProviderError(`provider request failed (status ${lastStatus || 'network error'})`, usage, lastStatus === 0 || lastStatus === 429 || lastStatus >= 500);
   }
 }

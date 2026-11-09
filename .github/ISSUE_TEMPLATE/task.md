@@ -1,19 +1,16 @@
 ---
 name: "Task"
-about: "One independently verifiable hackathon deliverable"
+about: "One independently verifiable deliverable"
 title: "[P0][area] "
 labels: []
 assignees: []
 ---
 
-## Human owner
-Denis / Sofia / Eldana
-
 ## Objective
 What user-visible or testable outcome is required?
 
 ## Scope / files
-Which modules can the agent change?
+Which modules does this change?
 
 ## Acceptance criteria
 - [ ] Given ..., when ..., then ...
