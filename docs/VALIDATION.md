@@ -1,11 +1,11 @@
-# Annotation and evaluation protocol (Eldana owns)
+# Annotation and evaluation protocol
 
 ## Aim
 Produce a **human-reviewed development reference**, not a claimed copy of organizer ground truth. Label with the exact eight criteria and evidence indices. Use a mixture of RU/KZ/EN, chat/call, short/long, obvious and ambiguous cases. Avoid selecting only examples known to favor a model.
 
 ## Sequence
 1. Independently label ~10 diverse conversations with the PDF checklist, without first reading model grades.
-2. Denis and Eldana compare outcomes and adjudicate disagreements against the explicit rules. Write reusable decision notes, not answer keys tied to conversation IDs.
+2. Both annotators compare outcomes and adjudicate disagreements against the explicit rules. Write reusable decision notes, not answer keys tied to conversation IDs.
 3. Expand to 20–25 labels (including KZ and EN). Reserve a small subset as final holdout. One person should not edit their human judgments to match model outputs without a documented review reason.
 4. Run baseline evaluator on the same selected records and compare exact per-criterion agreement, weighted absolute error, high-weight failures, false N/A, and serious-violation false positives/negatives.
 5. Only then test Jev or prompt adjustments. Prevent any benchmark data or per-conversation IDs from leaking into production prompts as an answer cache.
