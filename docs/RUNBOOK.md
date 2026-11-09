@@ -22,7 +22,7 @@ The [reviewer guide](REVIEWER_GUIDE.md) is the presentation path; this runbook c
 - Decide the model path ahead of time. The configured hosted provider needs working internet and a funded key; no local-model adapter is included. Evaluations already stored in the database show without any model call, but new semantic judgments need the model. A checklist edit may reuse unchanged judgments; follow the [reviewer guide](REVIEWER_GUIDE.md) to demonstrate a new semantic criterion.
 - Disable sleep and notifications; close heavy apps.
 - Keep a second browser tab on `/health`.
-- Freeze `main` at a green commit before the control round (see `docs/WORKFLOW.md`).
+- Freeze `main` at a green commit before the control round.
 
 ## If something breaks
 | Symptom | Check |
