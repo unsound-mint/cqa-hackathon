@@ -1,4 +1,4 @@
-import { can, ROLE_LABELS, type Comment, type Crosscheck, type Directory, type ErrorOrigin, type Notification, type SaveTimelineEventInput, type Tag as ErrorTag, type Task, type TaxonomyItem, type TimelineEvent, type Appeal, type ChecklistVersion, type Conversation, type DecideAppealInput, type Evaluation, type SaveChecklistInput } from '@cqa/contracts';
+import { evaluationMaps, can, ROLE_LABELS, type Comment, type Crosscheck, type Directory, type ErrorOrigin, type Notification, type SaveTimelineEventInput, type Tag as ErrorTag, type Task, type TaxonomyItem, type TimelineEvent, type Appeal, type ChecklistVersion, type Conversation, type DecideAppealInput, type Evaluation, type Job, type SaveChecklistInput } from '@cqa/contracts';
 import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, PanelLeftOpen } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MockCqaApi } from './api';
@@ -90,6 +90,7 @@ export function App() {
   const [focus, setFocus] = useState<Focus>(null);
   const [pane, setPane] = useState<Pane>('evaluation');
   const [starting, setStarting] = useState(false);
+  const [jobProgress, setJobProgress] = useState<Job | null>(null);
   const [startError, setStartError] = useState<unknown>(null);
   const [searchFocus, setSearchFocus] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
@@ -220,7 +221,7 @@ export function App() {
     if (load.status === 'ready') for (const e of load.data.evaluations) (m.get(e.conversationId) ?? m.set(e.conversationId, []).get(e.conversationId)!).push(e);
     return m;
   }, [load]);
-  const latest = useMemo(() => new Map([...byConversation].map(([id, list]) => [id, list[list.length - 1]!])), [byConversation]);
+  const { preferred: latest, attempts: latestAttempts } = useMemo(() => evaluationMaps(load.status === 'ready' ? load.data.evaluations : []), [load]);
 
   /** The dialogs the list currently shows: previous/next and J/K walk this queue, not all dialogs. */
   /** Serious violations nobody has dealt with yet (not reviewed, not commented, not read): the "was it worked through" filter. */
@@ -286,7 +287,7 @@ export function App() {
 
   const evaluationId = (() => {
     const list = selectedId ? byConversation.get(selectedId) : undefined;
-    return (list?.find((e) => e.id === pickedEvaluationId) ?? list?.[list.length - 1])?.id ?? null;
+    return (list?.find((e) => e.id === pickedEvaluationId) ?? (selectedId ? latest.get(selectedId) : undefined))?.id ?? null;
   })();
 
   /** Results the digit keys 1-9 open: the rows exactly as the panel lists them (sections, attention filter). */
@@ -361,11 +362,12 @@ export function App() {
   }
 
   /** Starts a job and waits for it; the job decides what is recomputed (rules and unchanged criteria are reused server-side). */
-  const runJob = async (ids: string[], checklistVersionId: string) => {
-    const { jobId } = await api.startEvaluation({ conversationIds: ids, checklistVersionId });
+  const runJob = async (ids: string[], checklistVersionId: string, retryFailedOnly = false) => {
+    const { jobId } = await api.startEvaluation({ conversationIds: ids, checklistVersionId, retryFailedOnly });
     for (;;) {
       const job = await api.getJob(jobId);
-      if (job.status === 'completed' || job.status === 'failed') break;
+      setJobProgress(job);
+      if (job.status !== 'pending' && job.status !== 'running') break;
       await new Promise((r) => setTimeout(r, 1000));
     }
     await reload();
@@ -384,6 +386,18 @@ export function App() {
       setStarting(false);
     }
   };
+
+  const retryFailed = async (onlyId?: string) => {
+    const failed = [...latestAttempts.values()].filter(e => e.status === 'failed' && (!onlyId || e.conversationId === onlyId));
+    const groups = new Map<string, string[]>();
+    for (const e of failed) groups.set(e.checklistVersionId, [...(groups.get(e.checklistVersionId) ?? []), e.conversationId]);
+    setStarting(true); setStartError(null);
+    try { for (const [checklistId, ids] of groups) await runJob(ids, checklistId, true); }
+    catch (e) { setStartError(e); }
+    finally { setStarting(false); }
+  };
+  const failedCount = [...latestAttempts.values()].filter(e => e.status === 'failed').length;
+  const progressText = jobProgress ? `Готово: ${jobProgress.succeeded ?? jobProgress.completed} из ${jobProgress.total}; ошибок: ${jobProgress.failed ?? 0}; повторяются: ${jobProgress.retrying ?? 0}` : null;
 
   const saveChecklist = async (input: SaveChecklistInput) => {
     const v = await api.saveChecklistVersion(input);
@@ -563,7 +577,7 @@ export function App() {
           </main>
         ) : route.name === 'list' ? (
           <main id="content" tabIndex={-1} className="min-h-0 flex-1 bg-canvas outline-none">
-            <DialogsPage conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} identity={identity} people={data.directory.people} onAssign={assign} followUpOpen={followUpOpen} onTasks={can(identity, 'task') ? async (ids, kind) => { await api.createTasks({ conversationIds: ids, kind }); await reload(); } : undefined} focusSignal={searchFocus} />
+            <DialogsPage failedCount={failedCount} onRetryFailed={can(identity, 'evaluate') ? () => retryFailed() : undefined} retrying={starting} progress={progressText} retryError={startError} attempts={latestAttempts} conversations={data.conversations} latest={latest} checklists={data.checklists} filters={filters} onFilters={setFilters} onOpen={(id) => go({ name: 'dialog', id })} identity={identity} people={data.directory.people} onAssign={assign} followUpOpen={followUpOpen} onTasks={can(identity, 'task') ? async (ids, kind) => { await api.createTasks({ conversationIds: ids, kind }); await reload(); } : undefined} focusSignal={searchFocus} />
           </main>
         ) : !conversation ? (
           <main id="content" tabIndex={-1} className="p-6 text-sm outline-none">
@@ -620,6 +634,9 @@ export function App() {
                   onSelectCriterion={(id) => setCriterionId((cur) => (cur === id ? null : id))}
                   onJump={jump}
                   onStart={start}
+                  latestAttempt={latestAttempts.get(conversation.id)}
+                  onRetry={() => retryFailed(conversation.id)}
+                  progress={starting ? progressText : null}
                   starting={starting}
                   startError={startError}
                   appeals={data.appeals.filter((a) => a.evaluationId === evaluationId)}
@@ -640,7 +657,7 @@ export function App() {
                   onlyFlagged={onlyFlagged}
                   onOnlyFlagged={setOnlyFlagged}
                   demoMode={mode === 'mock'}
-                  versions={list.map((ev, i) => ({ id: ev.id, label: `Версия ${versionOf(ev) ?? '?'}${i === list.length - 1 ? ' (последняя)' : ''}` }))}
+                  versions={list.map((ev, i) => ({ id: ev.id, label: `Версия ${versionOf(ev) ?? '?'} · ${ev.status === 'failed' ? 'ошибка' : ev.provenance?.promptVersion ?? ev.status}${i === list.length - 1 ? ' (последняя попытка)' : ''}` }))}
                   onPickEvaluation={(id) => {
                     setPickedEvaluationId(id);
                     setCriterionId(null);

@@ -1,0 +1,8 @@
+# Append to the host Caddyfile. Generate the hash with: caddy hash-password
+cqa.unsoundmint.com {
+	encode zstd gzip
+	basic_auth {
+		cqa <bcrypt-hash>
+	}
+	reverse_proxy 127.0.0.1:8787
+}

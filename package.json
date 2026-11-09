@@ -11,6 +11,7 @@
     "test": "pnpm -r test",
     "build": "pnpm -r build",
     "seed": "node scripts/seed.mjs",
+    "seed:export": "node scripts/export-seed.mjs",
     "prod": "node scripts/prod.mjs",
     "stop": "node scripts/stop.mjs",
     "results:check": "node scripts/export-results.mjs --check",

@@ -2,7 +2,7 @@
 
 > **Historical v0 design.** The source of truth is the Zod schemas in `packages/contracts/src` (`domain.ts`, `api.ts`, `checklist.ts`) and the `CqaApi` interface in `apps/web/src/api/CqaApi.ts`; the HTTP routes are listed in `docs/ARCHITECTURE.md` §8. The type sketches below are the kickoff design and are **out of date** (they lack confidence, source, reusedFrom, provenance, appeal `kind`, `force`, listAppeals/listEvaluations/overrideCriterion/audioSrc). Read them for intent, not for exact shapes.
 
-**Owner: Denis.** This is the initial contract for bootstrap, not a substitute for the Zod schemas / TypeScript types published in `packages/contracts`. Publish those types on `main` before Sofia begins. Change shared shapes via a small `area:shared` issue and version the change; do not allow independently invented frontend/backend DTOs.
+This is the initial contract for bootstrap, not a substitute for the Zod schemas / TypeScript types published in `packages/contracts`. Change shared shapes via a small `area:shared` issue and version the change; do not allow independently invented frontend/backend DTOs.
 
 ## Domain records
 
@@ -110,7 +110,7 @@ interface CqaApi {
 }
 ```
 
-The **same** interface must have `MockCqaApi` (fictional in-repo fixture) and `HttpCqaApi` (Fastify REST). Sofia can work exclusively with `MockCqaApi`; Denis implements the HTTP endpoints. If backend pagination or additional metadata becomes necessary, add it compatibly rather than breaking the working mock.
+The **same** interface must have `MockCqaApi` (fictional in-repo fixture) and `HttpCqaApi` (Fastify REST). The frontend can work exclusively with `MockCqaApi` while the HTTP endpoints are built. If backend pagination or additional metadata becomes necessary, add it compatibly rather than breaking the working mock.
 
 ## Initial API mapping
 
@@ -138,6 +138,6 @@ The import endpoint `POST /api/datasets/import` is a backend-only operation that
 
 ## Integration checkpoint
 
-Denis announces the commit SHA where `packages/contracts` and the fictional `MockCqaApi` are ready. Sofia works against those without needing Fastify. When the HTTP API matches this service interface, Sofia switches the implementation behind an injected client; components should not import backend services or call `fetch()` directly. Report any mismatch as an issue with an exact example request and response.
+The frontend works against the contracts and the mock without needing Fastify. When the HTTP API matches this service interface, the implementation is switched behind an injected client; components should not import backend services or call `fetch()` directly. Report any mismatch as an issue with an exact example request and response.
 
 Compatibility addition: startEvaluation accepts optional force?: boolean (default false), also supported by POST /api/evaluations. It bypasses result reuse while keeping deterministic detectors. Existing requests remain valid.

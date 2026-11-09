@@ -9,7 +9,7 @@ import { ApiError } from './errors.js';
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 const latestEvaluationId = (tx: Tx | Db, conversationId: string) =>
-  tx.select({ id: evaluations.id }).from(evaluations).where(eq(evaluations.conversationId, conversationId)).orderBy(desc(evaluations.createdAt), desc(evaluations.id)).get()?.id;
+  tx.select({ id: evaluations.id }).from(evaluations).where(and(eq(evaluations.conversationId, conversationId), eq(evaluations.status, 'completed'))).orderBy(desc(evaluations.createdAt), desc(evaluations.id)).get()?.id;
 
 /** `new` reopens the dialog (drops the review); the others are bound to the dialog's latest evaluation. */
 export function setReview(db: Db, conversationId: string, input: SetReviewInput, actor?: Actor): void {

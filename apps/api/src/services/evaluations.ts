@@ -6,8 +6,8 @@ import { evaluations } from '../db/schema.js';
 import { notifyCritical } from './notifications.js';
 
 export function toEvaluation(row: typeof evaluations.$inferSelect): Evaluation {
-  const { error, provenance, ...rest } = row;
-  return EvaluationSchema.parse({ ...rest, error: error ?? undefined, provenance: provenance ?? undefined });
+  const { error, provenance, diagnostics, ...rest } = row;
+  return EvaluationSchema.parse({ ...rest, error: error ?? undefined, provenance: provenance ?? undefined, diagnostics: diagnostics ?? undefined });
 }
 
 /** Used by the evaluation job (issue #5). Final results start as a copy of the originals. */

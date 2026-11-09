@@ -7,9 +7,11 @@ import { PROMPT_VERSION, systemPromptFor } from './prompts.js';
 import { originalCriterion } from './rubric.js';
 import { ORIGINAL_SEMANTIC_HELPERS, type DecisionFacts } from './semantic/index.js';
 import { buildOutputSchema } from './output-schema.js';
-import type { LlmProvider } from './provider.js';
+import { addUsage, ProviderError, type LlmProvider } from './provider.js';
 
-export class EvaluationFailure extends Error {}
+export class EvaluationFailure extends Error {
+  constructor(message: string, public readonly provenance?: Provenance, public readonly decisionFacts?: DecisionFacts, public readonly diagnostics?: NonNullable<import('@cqa/contracts').Evaluation['diagnostics']>) { super(message); }
+}
 
 export { IDENTITY_VERIFIED_PATTERNS, deriveFacts as deriveContext } from './facts.js';
 
@@ -181,6 +183,7 @@ export type EvaluatorResult = {
   total: number | null;
   seriousViolation: boolean;
   provenance: Provenance;
+  diagnostics: NonNullable<import('@cqa/contracts').Evaluation['diagnostics']>;
   usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
   latencyMs: number;
   /** Criteria the model decided or helped decide in this run (empty when rules and reuse covered everything). */
@@ -195,6 +198,7 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
   const { decided, assisted, undecided } = planCriteria(conversation, checklist, reuse);
   const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
   let latencyMs = 0;
+  const calls: NonNullable<import('@cqa/contracts').Evaluation['diagnostics']>['calls'] = [];
   const started = performance.now();
   const modelResults = new Map<string, CriterionResult>();
   const decisionFacts = new Map<string, DecisionFacts[string]>();
@@ -216,13 +220,18 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
       let problems: string[] = [];
       let ok = false;
       for (let attempt = 1; attempt <= maxAttempts && !ok; attempt++) {
-        const res = await provider.complete({ system, user: buildUserPayload(conversation, subset, initialDecided, assisted, problems), outputSchema });
-        usage.inputTokens += res.usage?.inputTokens ?? 0;
-        usage.outputTokens += res.usage?.outputTokens ?? 0;
-        usage.cacheReadTokens += res.usage?.cacheReadTokens ?? 0;
-        usage.cacheWriteTokens += res.usage?.cacheWriteTokens ?? 0;
+        let res;
+        try {
+          res = await provider.complete({ system, user: buildUserPayload(conversation, subset, initialDecided, assisted, problems), outputSchema });
+        } catch (e) {
+          if (e instanceof ProviderError) addUsage(usage, e.usage);
+          calls.push({ criteria: [...criteria, ...assisted.map(a => a.criterion)].map(c => c.id), attempt, problems: [e instanceof Error ? e.message : 'provider failed'] });
+          throw e;
+        }
+        addUsage(usage, res.usage);
         const v = validateModelOutput(res.output, conversation, { ...checklist, criteria });
         const a = validateAssisted(res.output, conversation, assisted);
+        calls.push({ criteria: [...criteria, ...assisted.map(a => a.criterion)].map(c => c.id), attempt, problems: [...v.problems, ...a.problems] });
         if (v.results && a.problems.length === 0) {
           for (const r of v.results) {
             const { reusedFrom: _drop, ...clean } = r;
@@ -240,12 +249,12 @@ export async function evaluateConversation(provider: LlmProvider | undefined, co
       if (!ok) throw new EvaluationFailure(`model output failed validation: ${problems.slice(0, 5).join('; ')}`);
     }));
     const failed = completed.find((r): r is PromiseRejectedResult => r.status === 'rejected');
-    if (failed) throw failed.reason;
+    if (failed) throw new EvaluationFailure(failed.reason instanceof Error ? failed.reason.message : 'evaluation failed', { provider: provider.name, model: provider.model, promptVersion: PROMPT_VERSION, ...(provider.effort ? { effort: provider.effort } : {}), usage, latencyMs: Math.round(performance.now() - started) }, Object.fromEntries(decisionFacts), { calls, retryable: !(failed.reason instanceof ProviderError) || failed.reason.retryable });
     latencyMs = Math.round(performance.now() - started);
     provenance = { provider: provider.name, model: provider.model, promptVersion: PROMPT_VERSION, ...(provider.effort ? { effort: provider.effort } : {}), usage, latencyMs };
   }
 
   const results = checklist.criteria.map((c) => decided.get(c.id) ?? modelResults.get(c.id)!);
   const { total, seriousViolation } = scoreEvaluation(checklist, results);
-  return { results, decisionFacts: Object.fromEntries(decisionFacts), total, seriousViolation, provenance, usage, latencyMs, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
+  return { results, decisionFacts: Object.fromEntries(decisionFacts), total, seriousViolation, provenance, diagnostics: { calls }, usage, latencyMs, modelCriteria: [...modelResults.keys(), ...assisted.map((x) => x.criterion.id)] };
 }

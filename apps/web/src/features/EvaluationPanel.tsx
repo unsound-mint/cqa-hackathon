@@ -20,6 +20,9 @@ import { CriterionTags, DialogComments } from './DialogNotes';
 type Props = {
   conversation: Conversation;
   evaluation: Evaluation | undefined;
+  latestAttempt?: Evaluation;
+  onRetry?: () => void;
+  progress?: string | null;
   checklist: ChecklistVersion | undefined;
   selectedCriterionId: string | null;
   onSelectCriterion: (id: string) => void;
@@ -263,7 +266,7 @@ function CriterionRow({ tags, taxonomy, onAddTag, identity, criterion, result, o
   );
 }
 
-export function EvaluationPanel({ comments, tags, taxonomy, onAddComment, onAckComment, onAddTag, identity, conversation, evaluation, checklist, selectedCriterionId, onSelectCriterion, onJump, onStart, starting, startError, appeals, onCreateAppeal, onDecideAppeal, onCorrect, onlyFlagged, onOnlyFlagged, demoMode, versions, onPickEvaluation, newerChecklistVersion }: Props) {
+export function EvaluationPanel({ latestAttempt, onRetry, progress, comments, tags, taxonomy, onAddComment, onAckComment, onAddTag, identity, conversation, evaluation, checklist, selectedCriterionId, onSelectCriterion, onJump, onStart, starting, startError, appeals, onCreateAppeal, onDecideAppeal, onCorrect, onlyFlagged, onOnlyFlagged, demoMode, versions, onPickEvaluation, newerChecklistVersion }: Props) {
   /** An opened criterion (digit key, tag on a message, link) is brought into view with its form. */
   useEffect(() => {
     if (!selectedCriterionId || !evaluation) return;
@@ -295,7 +298,7 @@ export function EvaluationPanel({ comments, tags, taxonomy, onAddComment, onAckC
       <section aria-label="Оценка" className="flex h-full flex-col items-start gap-3 p-5">
         <h2 className="flex items-center gap-2 text-base font-semibold text-danger"><AlertTriangle aria-hidden className="size-5" />Оценка не получилась</h2>
         <ErrorNote error={evaluation.error ?? 'Причина не указана.'} className="max-w-prose text-ink" />
-        {can(identity, 'evaluate') && <Button variant="accent" size="lg" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : 'Повторить оценку'}</Button>}
+        {can(identity, 'evaluate') && <Button variant="accent" size="lg" onClick={onRetry ?? onStart} disabled={starting}>{starting ? 'Идёт оценка…' : 'Повторить оценку'}</Button>}
         <ErrorNote error={startError} />
       </section>
     );
@@ -329,6 +332,12 @@ export function EvaluationPanel({ comments, tags, taxonomy, onAddComment, onAckC
         when there are any. Where points went is the list below (colored rows with reasons), so it is not repeated here;
         how the total is made is the score's tooltip. The checklist version is the bar under the banner.
       */}
+      {latestAttempt?.status === 'failed' && latestAttempt.id !== evaluation.id && <div className="shrink-0 space-y-2 bg-warn-soft px-4 py-3 text-sm text-ink" role="status">
+        <p>Последняя попытка завершилась ошибкой. Показана предыдущая успешная оценка по версии {checklist?.version ?? '?'}.</p>
+        <p className="text-xs">{latestAttempt.error}</p>
+        {can(identity, 'evaluate') && <Button size="sm" disabled={starting} onClick={onRetry ?? onStart}>{starting ? 'Повторяем…' : 'Повторить неудавшуюся оценку'}</Button>}
+      </div>}
+      {progress && <p role="status" className="shrink-0 px-4 py-2 text-sm text-muted">{progress}</p>}
       <header className={cn('verdict shrink-0 px-4 py-4 sm:px-6', evaluation.seriousViolation && 'verdict-danger')}>
         <h2 className="sr-only">Оценка диалога</h2>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -377,7 +386,7 @@ export function EvaluationPanel({ comments, tags, taxonomy, onAddComment, onAckC
             {versions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
           </Select>
         ) : (
-          <span className="text-muted">{checklist ? `Чек-лист, версия ${checklist.version}` : 'Чек-лист не найден'}</span>
+          <span className="text-muted">{checklist ? `Чек-лист, версия ${checklist.version}` : 'Чек-лист не найден'} · {evaluation.provenance?.promptVersion ?? 'версия оценщика не записана'}</span>
         )}
         {newerChecklistVersion !== null && can(identity, 'evaluate') && (
           <Button size="sm" variant="ghost" className="px-2 text-xs" onClick={onStart} disabled={starting}>{starting ? 'Идёт оценка…' : `Пересчитать по версии ${newerChecklistVersion}`}</Button>

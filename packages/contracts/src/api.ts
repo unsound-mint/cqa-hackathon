@@ -16,12 +16,17 @@ export const StartEvaluationInputSchema = z.object({
   force: z.boolean().optional(),
   /** Compatibility alias used by the stability runner. Same behavior as force. */
   fresh: z.boolean().optional(),
+  /** Select only conversations whose latest attempt on this checklist failed. */
+  retryFailedOnly: z.boolean().optional(),
 });
 export type StartEvaluationInput = z.infer<typeof StartEvaluationInputSchema>;
 
 export const JobSchema = z.object({
   id: z.string().min(1),
-  status: EvaluationStatusSchema,
+  status: z.enum(['pending', 'running', 'completed', 'partial', 'failed']),
+  succeeded: z.number().int().nonnegative().optional(),
+  failed: z.number().int().nonnegative().optional(),
+  retrying: z.number().int().nonnegative().optional(),
   completed: z.number().int().nonnegative(),
   total: z.number().int().nonnegative(),
   /** v0.1 addition: how to get from a job to its evaluations. Filled as they are created. */

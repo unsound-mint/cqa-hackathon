@@ -79,7 +79,7 @@ export function StatsPage({ conversations, evaluations, checklists, appeals, ide
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Tile label="Оценено диалогов" value={`${stats.evaluated} из ${stats.dialogs}`} hint={[stats.notEvaluated && `${stats.notEvaluated} не оценено`, stats.failed && `${stats.failed} с ошибкой`].filter(Boolean).join(', ') || undefined} />
+            <Tile label="Оценено диалогов" value={`${stats.evaluated} из ${stats.dialogs}`} hint={[stats.notEvaluated && `${stats.notEvaluated} не оценено`, stats.failed && `${stats.failed}: последняя попытка с ошибкой`].filter(Boolean).join(', ') || undefined} />
             <Tile label="Средний итог" value={formatScore(stats.averageTotal === null ? null : Math.round(stats.averageTotal * 100) / 100)} hint={worst ? `Слабее всего: ${worst.criterion.id} ${worst.criterion.title}` : undefined} />
             <Tile label="Серьёзные нарушения" value={stats.seriousViolations} hint={stats.evaluated ? `${pct(stats.seriousViolations, stats.evaluated)} оценённых` : undefined} tone={stats.seriousViolations ? 'danger' : undefined} />
             <Tile label="Нужна проверка" value={stats.needReview} hint="Низкая уверенность хотя бы в одном критерии" tone={stats.needReview ? 'warn' : undefined} />
