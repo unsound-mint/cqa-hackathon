@@ -153,13 +153,15 @@
   /*
    * The app shell is exactly the viewport and every pane scrolls inside itself. scrollIntoView() (transcript jumps,
    * criterion focus) also scrolls ancestors, and overflow:hidden still allows that, which shifted the whole app up and
-   * left an empty band below it. clip forbids any scrolling of these wrappers. Screen only: print flows normally.
+   * left an empty band below it. clip forbids any scrolling of #root. Only #root: overflow on html/body propagates to the
+   * viewport, where clip is treated as hidden and the viewport stays programmatically scrollable (the blank band came
+   * back). With html/body left alone the document is exactly viewport-high, so there is nothing to scroll. Screen only.
    */
   @media screen {
-    html,
-    body,
     #root {
       overflow: clip;
+      /* Containing block for every absolute descendant; otherwise they escape the clip and make the page scrollable. */
+      position: relative;
     }
   }
   body {
