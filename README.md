@@ -160,14 +160,13 @@ data/seed/         Published organizer DEV database and five recordings
 data/raw/          Ignored raw imports; runtime SQLite is also ignored
 data/private/      Ignored runtime recordings
 results/           Committed DEV/control predictions in organizer JSON format
-docs/              Architecture, rubric, interfaces, design, validation, runbook, workflow
-handoffs/          Per-owner onboarding notes from the hackathon kickoff
-AGENTS.md          Rules the team's coding agents follow (CLAUDE.md imports it)
+docs/              Architecture, rubric, interfaces, design, validation, runbook
+AGENTS.md          Rules for coding agents working in the repo (CLAUDE.md imports it)
 ```
 
-## Team and process
+## Continuous integration
 
-Denis: API, contracts, scoring, providers, integration. Sofia: web app. Eldana: validation, labeling protocol, QA. Branch/PR/CI rules: [`docs/WORKFLOW.md`](docs/WORKFLOW.md); CI runs typecheck, tests and build on Ubuntu and Windows.
+CI runs typecheck, tests and build on Ubuntu and Windows for every pull request.
 
 ## Data handling
 

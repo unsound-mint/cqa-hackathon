@@ -9,7 +9,7 @@ const C = conversation.id;
 
 describe('parseLabels', () => {
   it('reads yes/no in several languages, scale tiers, N/A and evidence', () => {
-    const r = parseLabels(csv(`${C},RU,agent chat,01,Да,,,4,3-4,greeted,,eldana,no`, `${C},RU,agent chat,04,15,,,"8;9",,partial,low,eldana,yes`, `${C},RU,agent chat,02,,yes,,1,0-4,enough info,,eldana,`, `${C},RU,agent chat,05,no,,,,,,,,`), checklist);
+    const r = parseLabels(csv(`${C},RU,agent chat,01,Да,,,4,3-4,greeted,,reviewer,no`, `${C},RU,agent chat,04,15,,,"8;9",,partial,low,reviewer,yes`, `${C},RU,agent chat,02,,yes,,1,0-4,enough info,,reviewer,`, `${C},RU,agent chat,05,no,,,,,,,,`), checklist);
     expect(r.problems).toEqual([]);
     expect(r.labels.map((l) => [l.criterionId, l.value, l.isNA])).toEqual([['01', true, false], ['04', 15, false], ['02', null, true], ['05', false, false]]);
     expect(r.labels[1]).toMatchObject({ evidence: [8, 9], uncertainty: 'low', adjudicated: true });
