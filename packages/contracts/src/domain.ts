@@ -229,6 +229,12 @@ export const EvaluationSchema = z.object({
   createdAt: z.string().optional(),
   provenance: ProvenanceSchema.optional(),
   error: z.string().optional(),
+  diagnostics: z.object({
+    jobId: z.string().optional(),
+    attempt: z.number().int().positive().optional(),
+    retryable: z.boolean().optional(),
+    calls: z.array(z.object({ criteria: z.array(z.string()), attempt: z.number().int().positive(), problems: z.array(z.string()) })),
+  }).optional(),
 });
 export type Evaluation = z.infer<typeof EvaluationSchema>;
 

@@ -1,0 +1,13 @@
+# Evaluation recovery implementation plan
+
+Goal: every conversation keeps its valid evaluation available while failed work can be retried safely, with observable outcomes and spend.
+
+Architecture: keep append-only evaluation attempts in SQLite. A job owns a bounded set of attempts per conversation and derives success/failure/retry counts from its own attempt IDs. Resume uses persisted attempts and timestamps, never reevaluating completed conversations. The web distinguishes its displayed successful result from the newest attempt and warns about checklist/version differences.
+
+Constraints: retain strict evidence validation, original results and transcript order; no model switching, invented grades or reference-label changes. One isolated branch for #83. Existing mock and HTTP adapters remain compatible. Execute inline; no coding delegation.
+
+1. Reproduce consultation contradictions with fictional transcripts. Strengthen the extraction question and repair feedback with exact request/evidence indices; keep contradictory facts rejected. Verify semantic and evaluator tests before live retry.
+2. Extend shared job contract with outcome counts and a partial terminal state. Add optional evaluation attempt diagnostics. Add only nullable/defaulted SQLite columns. Implement append-only bounded attempts, restart-safe retry delay, duplicate launch protection and retry-failed endpoint scoped to permitted conversations. Verify restart, failure/success, exhausted retry, authorization and unchanged successful results.
+3. Retain accumulated usage, latency, provider version and validation diagnostics on every failure; count provider responses without tool calls/refusals/truncation as well. Store accepted partial facts internally without treating them as a completed score. Verify exact token totals on mixed successful/failed request slices.
+4. Add a shared successful-result selector, separate latest-attempt state, visible failure/staleness notices and a retry-failed action using the existing evaluation-start adapter. Make queue/statistics/review state consistently use valid results while reporting failed newest attempts separately. Verify mock interactions, checklist changes, immutable originals and polling of partial jobs.
+5. Run typecheck, all tests and build; inspect the diff, update architecture/runbook and document residual limits. Open PR with self-review, pass both CI platforms, merge. Back up live SQLite using SQLite backup, retry only affected conversations with the checked build and verify 75 usable evaluations plus their provenance. Preserve prior attempts and report new cost separately from the historical measurement.

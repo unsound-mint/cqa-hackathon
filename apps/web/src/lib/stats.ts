@@ -1,3 +1,4 @@
+import { evaluationMaps } from '@cqa/contracts';
 import type { Appeal, ChecklistVersion, Conversation, Criterion, Evaluation, Language } from '@cqa/contracts';
 import { earnedPoints, needsReview, sameResult } from './present';
 import { reviewOf } from './queue';
@@ -61,8 +62,7 @@ export type Stats = {
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 
 export function computeStats({ conversations, evaluations, checklists, appeals, language, checklistId }: StatsInput): Stats {
-  const latest = new Map<string, Evaluation>();
-  for (const e of evaluations) latest.set(e.conversationId, e);
+  const { preferred: latest, attempts } = evaluationMaps(evaluations);
 
   const inScope = conversations.filter((c) => language === 'all' || c.language === language);
   const current = inScope.map((c) => latest.get(c.id)).filter((e): e is Evaluation => !!e);
@@ -164,7 +164,7 @@ export function computeStats({ conversations, evaluations, checklists, appeals, 
     byOperator,
     dialogs: inScope.length,
     evaluated: done.length,
-    failed: current.filter((e) => e.status === 'failed').length,
+    failed: inScope.filter(c => attempts.get(c.id)?.status === 'failed').length,
     notEvaluated: inScope.length - current.length,
     averageTotal: mean(done.flatMap((e) => (e.finalTotal === null ? [] : [e.finalTotal]))),
     seriousViolations: done.filter((e) => e.seriousViolation).length,

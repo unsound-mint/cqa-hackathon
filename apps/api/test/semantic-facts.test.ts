@@ -55,6 +55,16 @@ describe('semantic rubric decisions', () => {
     expect(decide(consultationDetector, '04', { ...base, incorrectKeyRecommendation: [ref(1)] }).value).toBe(0);
     expect(decide(consultationDetector, '04', { ...base, requestFormulated: false, requests: [] })).toMatchObject({ value: null, isNA: true });
   });
+  it('04 repairs later-request anchors and unanswered evidence without weakening validation', () => {
+    const late = { ...consultation(), requests: [{ ...request('main', 'answered', 'Where is the login?'), clientRequest: ref(2), operatorEvidence: [ref(1)] }] };
+    const problems = consultationDetector.validate(input('04'), late).problems.join();
+    expect(problems).toMatch(/request #2, operator #1/);
+    expect(problems).toMatch(/earliest client formulation/);
+    expect(decide(consultationDetector, '04', { ...late, requests: [{ ...late.requests[0], clientRequest: ref(0) }] }).value).toBe(20);
+    const absent = { ...consultation(), requests: [{ ...request('main', 'unanswered', 'Where is the login?'), operatorEvidence: [ref(3)] }] };
+    expect(consultationDetector.validate(input('04'), absent).problems.join()).toMatch(/operatorEvidence=\[\]/);
+    expect(decide(consultationDetector, '04', { ...absent, requests: [{ ...absent.requests[0], operatorEvidence: [] }] }).value).toBe(0);
+  });
   it('06 keeps the forced re-ask tier after successful correction', () => {
     const d = { ...dialogue(), forcedClarifications: [{ operatorWording: ref(1, 'Open the app menu.'), clientReask: ref(2), kind: 'wrong_navigation', reason: 'Wrong navigation forced a re-ask.' }] };
     expect(decide(dialogueDetector, '06', d).value).toBe(4);

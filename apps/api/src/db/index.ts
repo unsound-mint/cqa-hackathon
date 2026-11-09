@@ -130,6 +130,9 @@ export function openDb(path: string) {
   if (!columns('appeals').some((c) => c.name === 'created_by')) sqlite.exec('ALTER TABLE appeals ADD COLUMN created_by TEXT');
   if (!columns('appeals').some((c) => c.name === 'decided_by')) sqlite.exec('ALTER TABLE appeals ADD COLUMN decided_by TEXT');
   if (!columns('reviews').some((c) => c.name === 'by_id')) sqlite.exec('ALTER TABLE reviews ADD COLUMN by_id TEXT');
+  if (!columns('evaluations').some((c) => c.name === 'diagnostics')) sqlite.exec('ALTER TABLE evaluations ADD COLUMN diagnostics TEXT');
+  // Historical jobs keep their original single-attempt budget; new jobs explicitly opt into retries.
+  if (!columns('jobs').some((c) => c.name === 'max_attempts')) sqlite.exec('ALTER TABLE jobs ADD COLUMN max_attempts INTEGER NOT NULL DEFAULT 1');
   return drizzle(sqlite, { schema });
 }
 

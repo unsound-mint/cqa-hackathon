@@ -186,7 +186,7 @@ describe('verification inside the evaluation pipeline', () => {
     const bad = { ...good, firstProtectedDisclosure: { messageIndex: 8, quote: 'выдуманная цитата' } };
     const { app, calls } = run(() => ({ assisted: [{ criterionId: '03', answers: bad }] }));
     const ev = await start(app);
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(6); // Both bounded job attempts reject fabricated evidence.
     expect(ev).toMatchObject({ status: 'failed', originalResults: [] });
     expect(ev.error).toMatch(/assisted 03/);
   });

@@ -20,7 +20,7 @@ function requireVisible(db: Db, conversationId: string, actor: Actor | undefined
   if (!conversationExists(db, conversationId) || !canSee(scopeOf(db, actor), { operatorId: operatorOf(db, conversationId) })) throw new ApiError('conversation not found', 404);
 }
 const latestEvaluation = (db: Db, conversationId: string) =>
-  db.select().from(evaluations).where(eq(evaluations.conversationId, conversationId)).orderBy(desc(evaluations.createdAt), desc(evaluations.id)).get();
+  db.select().from(evaluations).where(and(eq(evaluations.conversationId, conversationId), eq(evaluations.status, 'completed'))).orderBy(desc(evaluations.createdAt), desc(evaluations.id)).get();
 
 // ---------- comments ----------
 
