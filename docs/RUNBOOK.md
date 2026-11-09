@@ -43,3 +43,10 @@ Export from the evaluation snapshot **before rehearsing critical-flag correction
 
 ## Dynamics 365 (HTML web resource)
 The guide asks for a UI that can later be adapted as a Dynamics 365 HTML component. Prepared, not exercised in a real Dynamics org: the build uses relative asset URLs (`base: './'`), routing is hash-based (no server rewrites), and the API origin is configurable. To embed: build with `VITE_API_BASE_URL=https://<api host>`, upload `apps/web/dist/index.html` and `dist/assets/*` as web resources keeping the `assets/` folder layout, and start the API with `CORS_ORIGIN=https://<org>.crm.dynamics.com`. The API must be reachable over HTTPS from the browser.
+
+
+## Recovering failed evaluations
+
+Use **Повторить неудавшиеся** on the dialogs page, or the retry action above a preserved previous successful evaluation. Only failed conversations are submitted, grouped by their original checklist. Each job has a bounded automatic retry and reports ready/error/retrying counts; `partial` means some conversations exhausted retries. Old successes and failure history remain intact. Interrupted jobs resume on API restart; restore missing provider configuration before restarting pending work. Do not run two API processes against the same database.
+
+Failed usage is retained for new attempts when the provider returned counters; historical failures and interrupted calls can still have unknown spend. The historical cost report remains unchanged.

@@ -247,3 +247,12 @@ Bumping either invalidates cached results; legacy rows without a cache context a
 - Voice transcripts are speech-recognition output; absence claims inside recording pauses are capped at medium confidence and flagged for human review.
 - Rounding of halfway cases is provisional (§5.3). No authentication: the role is a demo switch that any client can spoof.
 - Cost reporting is per-evaluation token usage in provenance; price conversion is done by the evaluation tool (`--price-in/--price-out`).
+
+
+## Evaluation recovery
+
+New jobs allow at most two durable evaluation attempts per conversation, each retaining the evaluator's existing one-repair policy. Running attempts are reserved in SQLite before provider calls. Restart marks unfinished reservations interrupted and consumes their original budget; completed conversations are never rerun. Missing provider configuration leaves resumed work pending. Exact duplicate active starts reattach; overlapping starts are rejected. Run one API process per database.
+
+`POST /api/evaluations` accepts additive `retryFailedOnly: true`, selecting only latest failures on the requested checklist and bypassing result reuse. Job status adds terminal `partial`; `succeeded`, `failed`, `retrying` describe conversations, while `evaluationIds` includes all append-only attempts. `completed` counts terminal conversations, not attempts. The API checks conversation scope before starting/retrying or returning job details.
+
+Failed attempts retain known token usage, prompt provenance, elapsed time, validation diagnostics and accepted partial facts internally; partial facts never become a score. Unknown spend after interruption/network loss is not fabricated. Web scores, analytics and review state prefer the latest successful evaluation, while failed latest attempts remain visible and retryable. Checklist and prompt versions are displayed; a failed run on a new checklist never silently relabels an older result.
