@@ -4,6 +4,7 @@ import type { Db } from '../db/index.js';
 import { createAppeal, decideAppeal, evaluationVisible, listAllAppeals, listAppeals, overrideCriterion } from '../services/appeals.js';
 import { ApiError } from '../services/errors.js';
 import { logEvent } from '../services/events.js';
+import { blindConversationIds, shownWhenBlind, blindEvaluation } from '../services/blind.js';
 import { scopeOf } from '../services/directory.js';
 import { listConversationViews } from '../services/conversations.js';
 import { actorOf, denied } from './actor.js';
@@ -20,7 +21,8 @@ export function evaluationRoutes(app: FastifyInstance, db: Db, runner: JobRunner
     const q = ListEvaluationsQuerySchema.safeParse(req.query);
     if (!q.success) return reply.code(400).send({ error: 'invalid query' });
     const actor = actorOf(req);
-    const list = listEvaluations(db, q.data.conversationId);
+    const blind = blindConversationIds(db, actor);
+    const list = listEvaluations(db, q.data.conversationId).map((e) => (blind.has(e.conversationId) ? blindEvaluation(db, e) : e));
     if (scopeOf(db, actor) === null) return list;
     const mine = new Set(listConversationViews(db, {}, actor).map((c) => c.id));
     return list.filter((e) => mine.has(e.conversationId));
@@ -56,11 +58,20 @@ export function evaluationRoutes(app: FastifyInstance, db: Db, runner: JobRunner
     return runner.getJob(req.params.id);
   });
 
-  app.get<{ Params: { id: string } }>('/api/evaluations/:id', async (req, reply) => (evaluationVisible(db, req.params.id, actorOf(req)) && getEvaluation(db, req.params.id)) || reply.code(404).send({ error: 'evaluation not found' }));
+  app.get<{ Params: { id: string } }>('/api/evaluations/:id', async (req, reply) => {
+    const actor = actorOf(req);
+    const e = evaluationVisible(db, req.params.id, actor) ? getEvaluation(db, req.params.id) : undefined;
+    if (!e) return reply.code(404).send({ error: 'evaluation not found' });
+    return blindConversationIds(db, actor).has(e.conversationId) ? blindEvaluation(db, e) : e;
+  });
 
-  app.get<{ Params: { id: string } }>('/api/evaluations/:id/appeals', async (req, reply) =>
-    getEvaluation(db, req.params.id) && evaluationVisible(db, req.params.id, actorOf(req)) ? listAppeals(db, req.params.id) : reply.code(404).send({ error: 'evaluation not found' }),
-  );
+  app.get<{ Params: { id: string } }>('/api/evaluations/:id/appeals', async (req, reply) => {
+    const actor = actorOf(req);
+    const e = evaluationVisible(db, req.params.id, actor) ? getEvaluation(db, req.params.id) : undefined;
+    if (!e) return reply.code(404).send({ error: 'evaluation not found' });
+    const list = listAppeals(db, req.params.id);
+    return blindConversationIds(db, actor).has(e.conversationId) ? list.filter(shownWhenBlind) : list;
+  });
 
   app.post<{ Params: { id: string } }>('/api/evaluations/:id/appeals', async (req, reply) => {
     if (denied(req, reply, 'appeal')) return;
@@ -89,7 +100,12 @@ export function evaluationRoutes(app: FastifyInstance, db: Db, runner: JobRunner
   app.get('/api/appeals', async (req, reply) => {
     const q = ListAppealsQuerySchema.omit({ evaluationId: true }).safeParse(req.query);
     if (!q.success) return reply.code(400).send({ error: 'status must be pending, upheld or overridden' });
-    return listAllAppeals(db, q.data.status, actorOf(req));
+    const actor = actorOf(req);
+    const list = listAllAppeals(db, q.data.status, actor);
+    const blind = blindConversationIds(db, actor);
+    if (!blind.size) return list;
+    const hidden = new Set(listEvaluations(db).filter((e) => blind.has(e.conversationId)).map((e) => e.id));
+    return list.filter((a) => !hidden.has(a.evaluationId) || shownWhenBlind(a));
   });
 
   app.post<{ Params: { id: string } }>('/api/appeals/:id/decision', async (req, reply) => {

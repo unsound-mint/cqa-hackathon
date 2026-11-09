@@ -88,6 +88,11 @@ export function addTag(db: Db, input: AddTagInput, actor?: Actor): Tag {
   if (!ev) throw new ApiError('evaluation not found', 404);
   requireVisible(db, ev.conversationId, actor);
   return db.transaction((tx) => {
+    // `label` is the category. Free text only while no taxonomy is defined; then it must be one of its items.
+    if (input.label !== undefined) {
+      const labels = tx.select({ label: taxonomy.label }).from(taxonomy).all().map((t) => t.label);
+      if (labels.length && !labels.includes(input.label)) throw new ApiError('tag is not in the taxonomy', 400);
+    }
     const row = { id: `tag-${randomUUID()}`, evaluationId: ev.id, conversationId: ev.conversationId, criterionId: input.criterionId ?? null, origin: input.origin, label: input.label ?? null, by: actor?.name || 'система', at: new Date().toISOString() };
     tx.insert(tags).values(row).run();
     logEvent(tx, actor, { type: 'tag.added', conversationId: ev.conversationId, summary: `Причина ошибки: ${input.label ?? input.origin}`, data: { criterionId: input.criterionId, origin: input.origin, label: input.label } });
@@ -132,9 +137,14 @@ export function createTasks(db: Db, input: CreateTasksInput, actor?: Actor): Tas
   if (input.assigneeId && !assignable.has(input.assigneeId)) throw new ApiError('the assignee must be a QA person or a top manager', 400);
   return db.transaction((tx) => {
     const created: Task[] = [];
+    const skipped: string[] = [];
     for (const conversationId of [...new Set(input.conversationIds)]) {
       if (!conversationExists(db, conversationId)) throw new ApiError(`conversation ${conversationId} not found`, 404);
-      if (tx.select().from(tasks).where(and(eq(tasks.conversationId, conversationId), eq(tasks.kind, input.kind), eq(tasks.status, 'open'))).get()) continue; // already waiting for someone
+      // Already waiting for someone: skipped, so a batch over a mixed selection still hands out the rest.
+      if (tx.select().from(tasks).where(and(eq(tasks.conversationId, conversationId), eq(tasks.kind, input.kind), eq(tasks.status, 'open'))).get()) {
+        skipped.push(conversationId);
+        continue;
+      }
       const review = tx.select().from(reviews).where(eq(reviews.conversationId, conversationId)).get();
       if (input.kind === 'crosscheck' && review?.status !== 'reviewed') throw new ApiError(`dialog ${conversationId} must be reviewed before a cross-check`, 409);
       const first = input.kind === 'crosscheck' ? review?.byId ?? undefined : undefined;
@@ -147,6 +157,8 @@ export function createTasks(db: Db, input: CreateTasksInput, actor?: Actor): Tas
       notify(tx, [assigneeId], { kind: 'task', title: input.kind === 'crosscheck' ? `Контрольная проверка: ${conversationId}` : `Новая задача: ${conversationId}`, body: 'Вам назначена проверка диалога.', conversationId });
       created.push(toTask(row));
     }
+    // Nothing new at all is a conflict, not a silent success. The web matches 'already has an open task'.
+    if (!created.length && skipped.length) throw new ApiError(`${skipped.length === 1 ? `dialog ${skipped[0]}` : `each of the ${skipped.length} dialogs`} already has an open task of this kind`, 409);
     return created;
   });
 }
@@ -173,10 +185,14 @@ export function sampleCrosschecks(db: Db, percent: number, actor?: Actor): Task[
 
 const toCrosscheck = (r: typeof crosschecks.$inferSelect): Crosscheck => CrosscheckSchema.parse({ ...r, reviewerId: r.reviewerId ?? undefined });
 
-/** A QA person sees only their own cross-checks (blind: not each other's); top managers and admins see all. */
+/**
+ * A QA person sees only their own cross-checks (blind: not each other's); a manager those on their team's dialogs;
+ * top managers and admins see all.
+ */
 export function listCrosschecks(db: Db, actor: Actor | undefined): Crosscheck[] {
   const rows = db.select().from(crosschecks).orderBy(asc(crosschecks.submittedAt)).all();
-  return rows.filter((r) => !actor || can(actor, 'task') || can(actor, 'audit') || r.reviewerId === actor.id).map(toCrosscheck);
+  const scope = actor?.role === 'manager' ? scopeOf(db, actor) : undefined;
+  return rows.filter((r) => !actor || can(actor, 'task') || can(actor, 'audit') || r.reviewerId === actor.id || (scope !== undefined && canSee(scope, { operatorId: operatorOf(db, r.conversationId) }))).map(toCrosscheck);
 }
 
 export function submitCrosscheck(db: Db, input: SubmitCrosscheckInput, actor?: Actor): Crosscheck {

@@ -43,16 +43,16 @@ const Card = ({ title, hint, children }: { title: string; hint?: string; childre
 function RankTable({ rows, label }: { rows: RankRow[]; label: string }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full min-w-[22rem] border-collapse text-sm">
         <caption className="sr-only">{label}</caption>
-        <thead className="text-xs text-muted shadow-[0_1px_0_var(--c-line)]"><tr className="h-8 text-left"><th scope="col" className="w-10 font-medium">№</th><th scope="col" className="font-medium">{label}</th><th scope="col" className="text-right font-medium">Оценено</th><th scope="col" className="text-right font-medium">Средний итог</th><th scope="col" className="hidden pl-4 font-medium sm:table-cell" /><th scope="col" className="text-right font-medium">Нарушений</th></tr></thead>
+        <thead className="text-xs text-muted shadow-[0_1px_0_var(--c-line)]"><tr className="h-8 text-left"><th scope="col" className="w-10 pr-2 font-medium">№</th><th scope="col" className="pr-3 font-medium">{label}</th><th scope="col" className="whitespace-nowrap pr-3 text-right font-medium">Оценено</th><th scope="col" className="whitespace-nowrap pr-3 text-right font-medium">Средний итог</th><th scope="col" className="hidden pl-4 font-medium sm:table-cell" /><th scope="col" className="text-right font-medium">Нарушений</th></tr></thead>
         <tbody className="divide-y divide-line">
           {rows.map((r) => (
             <tr key={r.id} className="h-10">
-              <td className="tabular-nums text-muted">{r.rank ?? '—'}</td>
-              <th scope="row" className="text-left font-medium">{r.name}{r.teamName && <span className="ml-2 text-xs font-normal text-muted">{r.teamName}</span>}{!r.rankable && <Badge className="ml-2" title={`Меньше ${MIN_N} оценённых диалогов: в рейтинге не участвует`}>мало данных</Badge>}</th>
-              <td className="text-right tabular-nums">{r.n} из {r.dialogs}</td>
-              <td className="text-right tabular-nums">{num(r.average)}</td>
+              <td className="pr-2 tabular-nums text-muted">{r.rank ?? '—'}</td>
+              <th scope="row" className="py-1 pr-3 text-left font-medium">{r.name}{r.teamName && <span className="ml-2 text-xs font-normal text-muted">{r.teamName}</span>}{!r.rankable && <Badge className="ml-2" title={`Меньше ${MIN_N} оценённых диалогов: в рейтинге не участвует`}>мало данных</Badge>}</th>
+              <td className="whitespace-nowrap pr-3 text-right tabular-nums">{r.n} из {r.dialogs}</td>
+              <td className="whitespace-nowrap pr-3 text-right tabular-nums">{num(r.average)}</td>
               <td className="hidden pl-4 sm:table-cell"><ShareBar value={r.average === null ? null : r.average / 100} /></td>
               <td className="text-right tabular-nums">{r.violations}</td>
             </tr>
@@ -219,15 +219,18 @@ export function AnalyticsPage(p: Props) {
                 <dl className="grid gap-3 sm:grid-cols-4">
                   {[['Очередь', `${qa.queueLength}`, 'оценённых диалогов без проверки'], ['Самый старый', qa.backlogAgeDays === null ? '—' : `${num(qa.backlogAgeDays)} дн.`, 'ждёт проверки'], ['Медиана проверки', qa.medianMinutes === null ? '—' : `${num(qa.medianMinutes)} мин`, 'от «в работе» до «проверено»'], ['За 7 дней', `${qa.reviewedLast7Days}`, `в среднем ${num(qa.perDay)} в день`]].map(([k, v, h]) => <div key={k} className="rounded-xl border border-line p-3"><dt className="text-xs text-muted">{k}</dt><dd className="text-2xl font-semibold tabular-nums">{v}</dd><p className="text-xs text-muted">{h}</p></div>)}
                 </dl>
-                <table className="w-full text-sm"><caption className="sr-only">Проверяющие</caption><thead className="text-xs text-muted shadow-[0_1px_0_var(--c-line)]"><tr className="h-8 text-left"><th scope="col" className="font-medium">Проверяющий</th><th scope="col" className="text-right font-medium">Проверено</th><th scope="col" className="text-right font-medium">С замером</th><th scope="col" className="text-right font-medium">Медиана, мин</th><th scope="col" className="text-right font-medium">Открытых задач</th></tr></thead><tbody className="divide-y divide-line">{qa.rows.map((r) => <tr key={r.reviewer} className="h-10"><th scope="row" className="text-left font-medium">{r.reviewer}</th><td className="text-right tabular-nums">{r.reviewed}</td><td className="text-right tabular-nums">{r.timed}</td><td className="text-right tabular-nums">{num(r.medianMinutes)}</td><td className="text-right tabular-nums">{r.openTasks}</td></tr>)}</tbody></table>
+                <table className="w-full text-sm"><caption className="sr-only">Проверяющие</caption><thead className="text-xs text-muted shadow-[0_1px_0_var(--c-line)]"><tr className="h-8 text-left"><th scope="col" className="font-medium">Проверяющий</th><th scope="col" className="text-right font-medium">Проверено</th><th scope="col" className="text-right font-medium">С замером</th><th scope="col" className="text-right font-medium">Медиана, мин</th><th scope="col" className="text-right font-medium">Открытых задач</th></tr></thead><tbody className="divide-y divide-line">{qa.rows.map((r) => <tr key={r.reviewerId} className="h-10"><th scope="row" className="text-left font-medium">{r.reviewer}</th><td className="text-right tabular-nums">{r.reviewed}</td><td className="text-right tabular-nums">{r.timed}</td><td className="text-right tabular-nums">{num(r.medianMinutes)}</td><td className="text-right tabular-nums">{r.openTasks}</td></tr>)}</tbody></table>
               </>
             )}
           </Card>
           <Card title="Согласованность проверок" hint="Контрольная проверка — повторная оценка вслепую. Совпадение: тот же ответ, что после первой проверки, и что исходный ответ ИИ. Проверка топ-менеджера — контроль самой QA-команды.">
-            {agree.rows.length === 0 ? <Empty>Контрольных проверок пока нет: топ-менеджер назначает их на странице «Задачи».</Empty> : (
+            {agree.rows.length === 0 ? <Empty>{p.identity.role === 'manager' ? 'Контрольных проверок по вашей группе пока нет' : 'Контрольных проверок пока нет: топ-менеджер назначает их на странице «Задачи».'}</Empty> : (
               <>
-                <table className="w-full text-sm"><caption className="sr-only">Согласованность</caption><thead className="text-xs text-muted shadow-[0_1px_0_var(--c-line)]"><tr className="h-8 text-left"><th scope="col" className="font-medium">Кто проверял</th><th scope="col" className="text-right font-medium">Проверок</th><th scope="col" className="text-right font-medium">С первой проверкой</th><th scope="col" className="text-right font-medium">С ИИ</th></tr></thead><tbody className="divide-y divide-line">{agree.rows.map((r) => <tr key={r.reviewer} className="h-10"><th scope="row" className="text-left font-medium">{r.reviewer}{r.role === 'lead' && <Badge className="ml-2">контроль QA</Badge>}</th><td className="text-right tabular-nums">{r.checks}</td><td className="text-right tabular-nums">{pct(r.agreeFirst / r.results)}</td><td className="text-right tabular-nums">{pct(r.agreeAi / r.results)}</td></tr>)}</tbody></table>
-                <p className="text-xs text-muted">Меньше всего согласия: {agree.byCriterion.slice(0, 3).map((c) => `${c.criterionId} ${critTitle(c.criterionId)} (${pct(c.agreeFirst / c.results)})`).join('; ')}.</p>
+                <table className="w-full text-sm"><caption className="sr-only">Согласованность</caption><thead className="text-xs text-muted shadow-[0_1px_0_var(--c-line)]"><tr className="h-8 text-left"><th scope="col" className="font-medium">Кто проверял</th><th scope="col" className="text-right font-medium">Проверок</th><th scope="col" className="text-right font-medium">С первой проверкой</th><th scope="col" className="text-right font-medium">С ИИ</th></tr></thead><tbody className="divide-y divide-line">{agree.rows.map((r) => <tr key={r.reviewerId} className="h-10"><th scope="row" className="text-left font-medium">{r.reviewer}{r.role === 'lead' && <Badge className="ml-2">контроль QA</Badge>}</th><td className="text-right tabular-nums">{r.checks}</td><td className="text-right tabular-nums">{r.results >= MIN_N ? pct(r.agreeFirst / r.results) : <span className="text-muted" title={`Мало данных: ${r.results} из ${MIN_N} результатов`}>—</span>}</td><td className="text-right tabular-nums">{r.results >= MIN_N ? pct(r.agreeAi / r.results) : <span className="text-muted">—</span>}</td></tr>)}</tbody></table>
+                {(() => {
+                  const enough = agree.byCriterion.filter((c) => c.results >= MIN_N).slice(0, 3);
+                  return <p className="text-xs text-muted">{enough.length ? `Меньше всего согласия: ${enough.map((c) => `${c.criterionId} ${critTitle(c.criterionId)} (${pct(c.agreeFirst / c.results)})`).join('; ')}.` : `Процент согласия показывается от ${MIN_N} результатов; пока проверок мало для вывода.`}</p>;
+                })()}
               </>
             )}
           </Card>

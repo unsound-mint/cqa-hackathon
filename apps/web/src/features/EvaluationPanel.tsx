@@ -425,7 +425,7 @@ export function EvaluationPanel({ latestAttempt, onRetry, progress, comments, ta
           </div>
         ))}
         {groups.length === 0 && <p className="p-4 text-sm text-muted">Ничего не требует внимания.</p>}
-        <DialogComments identity={identity} conversationId={conversation.id} comments={comments} onAdd={onAddComment} onAck={onAckComment} />
+        <DialogComments identity={identity} conversationId={conversation.id} comments={comments} checklist={checklist} onAdd={onAddComment} onAck={onAckComment} />
       </div>
 
       <footer className="flex shrink-0 items-center gap-2 whitespace-nowrap border-t border-line bg-surface px-4 py-2 text-sm text-muted sm:px-6">

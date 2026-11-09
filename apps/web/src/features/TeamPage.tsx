@@ -37,6 +37,13 @@ export function TeamPage({ directory, taxonomy, conversations, checklists, onSav
   };
   const [person, setPerson] = useState<{ name: string; role: Role; teamId: string }>({ name: '', role: 'operator', teamId: '' });
   const [team, setTeam] = useState({ name: '', managerId: '' });
+  const [note, setNote] = useState<string | null>(null);
+  const [editP, setEditP] = useState<Person | null>(null);
+  const [editT, setEditT] = useState<Team | null>(null);
+  const saved = (text: string) => {
+    setNote(text);
+    window.setTimeout(() => setNote((cur) => (cur === text ? null : cur)), 4000);
+  };
   const [cat, setCat] = useState({ label: '', criterionId: '' });
   const criteria = [...new Map(checklists.flatMap((c) => c.criteria).map((c) => [c.id, c])).values()];
   const managers = directory.people.filter((p) => p.role === 'manager');
@@ -50,6 +57,7 @@ export function TeamPage({ directory, taxonomy, conversations, checklists, onSav
         <p className="max-w-prose text-sm text-muted">Сотрудники и группы. Менеджер видит только операторов своей группы, оператор — только себя. В данных организаторов сотрудников нет, их заводят здесь.</p>
       </div>
       <ErrorNote error={error} />
+      <p role="status" className="min-h-0 text-sm text-accent empty:hidden">{note}</p>
       {empty && (
         <div className="rounded-card border border-line bg-surface p-4 text-sm">
           <p>Справочник пуст. Можно добавить сотрудников вручную или создать вымышленную демонстрационную команду: две группы, менеджеры, проверяющие, 8 операторов, а диалоги без оператора распределятся между ними. Это попадёт в журнал как демо-данные.</p>
@@ -57,7 +65,16 @@ export function TeamPage({ directory, taxonomy, conversations, checklists, onSav
         </div>
       )}
       <Card title="Группы">
-        <ul className="space-y-1 text-sm">{directory.teams.map((t) => <li key={t.id}><span className="font-medium">{t.name}</span> <span className="text-muted">менеджер: {directory.people.find((p) => p.id === t.managerId)?.name ?? 'не назначен'}, операторов: {directory.people.filter((p) => p.teamId === t.id).length}</span></li>)}{directory.teams.length === 0 && <li className="text-muted">Групп пока нет.</li>}</ul>
+        <ul className="space-y-2 text-sm">{directory.teams.map((t) => <li key={t.id}>{editT?.id === t.id ? (
+          <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); void guard(async () => { await onSaveTeam({ ...editT, name: editT.name.trim() }); setEditT(null); saved(`Группа «${editT.name.trim()}» сохранена`); }); }}>
+            <input aria-label="Название группы" required value={editT.name} onChange={(e) => setEditT({ ...editT, name: e.target.value })} className={field} />
+            <Select aria-label="Менеджер группы" value={editT.managerId ?? ''} onChange={(e) => setEditT({ ...editT, managerId: e.target.value || null })} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm"><option value="">Без менеджера</option>{managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</Select>
+            <Button type="submit" size="sm" variant="primary">Сохранить</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setEditT(null)}>Отмена</Button>
+          </form>
+        ) : (
+          <span className="flex flex-wrap items-center gap-x-2"><span className="font-medium">{t.name}</span> <span className="text-muted">менеджер: {directory.people.find((p) => p.id === t.managerId)?.name ?? 'не назначен'}, операторов: {directory.people.filter((p) => p.teamId === t.id).length}</span><Button type="button" size="sm" variant="ghost" aria-label={`Изменить группу ${t.name}`} onClick={() => setEditT(t)}>Изменить</Button></span>
+        )}</li>)}{directory.teams.length === 0 && <li className="text-muted">Групп пока нет.</li>}</ul>
         <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); void guard(async () => { await onSaveTeam({ id: uid('team'), name: team.name.trim(), managerId: team.managerId || null }); setTeam({ name: '', managerId: '' }); }); }}>
           <input aria-label="Название группы" required value={team.name} onChange={(e) => setTeam({ ...team, name: e.target.value })} placeholder="Новая группа" className={field} />
           <Select aria-label="Менеджер группы" value={team.managerId} onChange={(e) => setTeam({ ...team, managerId: e.target.value })} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm"><option value="">Без менеджера</option>{managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</Select>
@@ -65,10 +82,19 @@ export function TeamPage({ directory, taxonomy, conversations, checklists, onSav
         </form>
       </Card>
       <Card title="Сотрудники">
-        <div className="overflow-x-auto"><table className="w-full text-sm"><caption className="sr-only">Сотрудники</caption><thead className="text-xs text-muted shadow-[0_1px_0_var(--c-line)]"><tr className="h-8 text-left"><th scope="col" className="font-medium">Имя</th><th scope="col" className="font-medium">Роль</th><th scope="col" className="font-medium">Группа</th><th scope="col" className="text-right font-medium">Диалогов</th></tr></thead><tbody className="divide-y divide-line">
-          {directory.people.map((p) => <tr key={p.id} className="h-10"><th scope="row" className="text-left font-medium">{p.name}</th><td>{ROLE_LABELS[p.role]}</td><td>{p.role === 'operator' ? (
-            <Select aria-label={`Группа: ${p.name}`} value={p.teamId ?? ''} onChange={(e) => void guard(() => onSavePerson({ ...p, teamId: e.target.value || null }))} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm"><option value="">—</option>{directory.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select>
-          ) : <span className="text-muted">—</span>}</td><td className="text-right tabular-nums">{p.role === 'operator' ? count(p.id) : ''}</td></tr>)}
+        <div className="overflow-x-auto"><table className="w-full min-w-[30rem] text-sm"><caption className="sr-only">Сотрудники</caption><thead className="text-xs text-muted shadow-[0_1px_0_var(--c-line)]"><tr className="h-8 text-left"><th scope="col" className="pr-3 font-medium">Имя</th><th scope="col" className="pr-3 font-medium">Роль</th><th scope="col" className="pr-3 font-medium">Группа</th><th scope="col" className="text-right font-medium">Диалогов</th></tr></thead><tbody className="divide-y divide-line">
+          {directory.people.map((p) => editP?.id === p.id ? (
+            <tr key={p.id} className="h-12">
+              <th scope="row" className="py-1 pr-3 text-left font-medium"><input aria-label="Имя сотрудника" required value={editP.name} onChange={(e) => setEditP({ ...editP, name: e.target.value })} className={field} /></th>
+              <td className="py-1 pr-3"><Select aria-label="Роль сотрудника" value={editP.role} onChange={(e) => { const role = RoleSchema.parse(e.target.value); setEditP({ ...editP, role, teamId: role === 'operator' ? editP.teamId : null }); }} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm">{RoleSchema.options.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</Select></td>
+              <td className="py-1 pr-3">{editP.role === 'operator' ? <Select aria-label="Группа сотрудника" value={editP.teamId ?? ''} onChange={(e) => setEditP({ ...editP, teamId: e.target.value || null })} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm"><option value="">—</option>{directory.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select> : <span className="text-muted">—</span>}</td>
+              <td className="py-1 text-right"><span className="inline-flex gap-2"><Button type="button" size="sm" variant="primary" disabled={!editP.name.trim()} onClick={() => void guard(async () => { await onSavePerson({ ...editP, name: editP.name.trim() }); setEditP(null); saved(`Сотрудник «${editP.name.trim()}» сохранён`); })}>Сохранить</Button><Button type="button" size="sm" variant="ghost" onClick={() => setEditP(null)}>Отмена</Button></span></td>
+            </tr>
+          ) : (
+            <tr key={p.id} className="h-10"><th scope="row" className="py-2 pr-3 text-left font-medium">{p.name}</th><td className="pr-3">{ROLE_LABELS[p.role]}</td><td className="pr-3">{p.role === 'operator' ? (
+              <Select aria-label={`Группа: ${p.name}`} value={p.teamId ?? ''} onChange={(e) => void guard(async () => { await onSavePerson({ ...p, teamId: e.target.value || null }); saved(`${p.name}: ${e.target.value ? `переведён в группу «${directory.teams.find((t) => t.id === e.target.value)?.name ?? ''}»` : 'снят с группы'}`); })} className="h-8 w-auto rounded-full border-transparent bg-fill pl-3 pr-8 text-sm"><option value="">—</option>{directory.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</Select>
+            ) : <span className="text-muted">—</span>}</td><td className="whitespace-nowrap text-right tabular-nums">{p.role === 'operator' ? <span className="mr-3">{count(p.id)}</span> : null}<Button type="button" size="sm" variant="ghost" aria-label={`Изменить: ${p.name}`} onClick={() => setEditP(p)}>Изменить</Button></td></tr>
+          ))}
         </tbody></table></div>
         <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); void guard(async () => { await onSavePerson({ id: uid(person.role === 'operator' ? 'op' : 'p'), name: person.name.trim(), role: person.role, teamId: person.role === 'operator' && person.teamId ? person.teamId : null }); setPerson({ ...person, name: '' }); }); }}>
           <input aria-label="Имя сотрудника" required value={person.name} onChange={(e) => setPerson({ ...person, name: e.target.value })} placeholder="Новый сотрудник" className={field} />

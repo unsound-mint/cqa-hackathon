@@ -186,7 +186,7 @@ export function DialogsPage({ failedCount = 0, onRetryFailed, retrying, progress
 
       {rows.length === 0 ? (
         <div className="rounded-card border border-line bg-surface p-6 text-sm">
-          <p className="text-muted">{conversations.length === 0 ? (staff ? 'Диалогов пока нет. Импортируйте набор данных.' : 'За вами пока не закреплено ни одного диалога: их назначает руководитель.') : 'По этим условиям ничего не найдено.'}</p>
+          <p className="text-muted">{conversations.length === 0 ? (identity.role === 'manager' ? 'За вами пока не закреплены операторы.' : staff ? 'Диалогов пока нет. Импортируйте набор данных.' : 'За вами пока не закреплено ни одного диалога: их назначает руководитель.') : 'По этим условиям ничего не найдено.'}</p>
           {conversations.length > 0 && <Button className="mt-3" onClick={() => onFilters(DEFAULT_FILTERS)}>Сбросить фильтры</Button>}
         </div>
       ) : (
@@ -223,7 +223,7 @@ export function DialogsPage({ failedCount = 0, onRetryFailed, retrying, progress
                       </td>
                     )}
                     <td className="px-3 py-3">
-                      <a href={`#/dialog/${encodeURIComponent(x.id)}`} onClick={(ev) => ev.stopPropagation()} className="inline-flex min-h-6 items-center text-base font-medium text-accent underline-offset-2 hover:underline">{x.id}</a>
+                      <a href={`#/dialog/${encodeURIComponent(x.id)}`} onClick={(ev) => ev.stopPropagation()} className="inline-flex min-h-6 items-center whitespace-nowrap text-base font-medium text-accent underline-offset-2 hover:underline">{x.id}</a>
                       <div className="text-xs text-muted">{x.transcript.length} сообщ.</div>
                       {reasons.length > 0 && <p className="mt-1 text-xs text-danger md:hidden">{reasons[0]!.explanation}</p>}
                     </td>

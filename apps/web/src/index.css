@@ -164,6 +164,10 @@
       position: relative;
     }
   }
+  /* sr-only text is absolutely positioned; without a positioned ancestor it extends the document (scrollHeight in the thousands on long tables). */
+  table {
+    position: relative;
+  }
   body {
     @apply bg-canvas font-sans text-ink antialiased;
     background-image:

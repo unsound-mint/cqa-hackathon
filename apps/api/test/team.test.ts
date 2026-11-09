@@ -120,7 +120,9 @@ describe('tasks, cross-checks and QA-of-QA', () => {
     expect((await post(app, '/api/tasks', lead, { conversationIds: ['d3'], kind: 'crosscheck' })).statusCode).toBe(409); // not reviewed yet
     const cc = (await post(app, '/api/tasks', lead, { conversationIds: ['d1'], kind: 'crosscheck' })).json();
     expect(cc[0]).toMatchObject({ assigneeId: 'qa-2', firstReviewerId: 'qa-1' });
-    expect((await post(app, '/api/tasks', lead, { conversationIds: ['d1'], kind: 'crosscheck', assigneeId: 'qa-1' })).json()).toEqual([]); // one open cross-check per dialog
+    const again = await post(app, '/api/tasks', lead, { conversationIds: ['d1'], kind: 'crosscheck', assigneeId: 'qa-1' }); // one open cross-check per dialog
+    expect(again.statusCode).toBe(409);
+    expect(again.json().error).toContain('already has an open task');
   });
 
   it('a cross-check is a blind re-grade by someone else; the first reviewer cannot do it, QA only see their own, leads see all', async () => {
@@ -195,5 +197,122 @@ describe('directory', () => {
     expect(d.people.filter((p: { role: string }) => p.role === 'operator')).toHaveLength(8);
     expect(d.teams).toHaveLength(2);
     expect((await get(app, '/api/conversations', admin))[0].operatorId).toMatch(/^op-/);
+  });
+});
+
+describe('review fixes: alerts, task conflicts, audit of auto-closed tasks', () => {
+  it('a reviewer correction that newly raises a critical flag alerts the manager and the top managers once', async () => {
+    const { app } = world();
+    expect(await get(app, '/api/notifications', mgr)).toEqual([]);
+    expect((await post(app, '/api/evaluations/e-d1/overrides', qa1, { criterionId: '08', reason: 'Раскрыты данные', value: true })).statusCode).toBe(201);
+    expect((await get(app, '/api/notifications', mgr)).filter((n: { kind: string }) => n.kind === 'critical')).toHaveLength(1);
+    expect((await get(app, '/api/notifications', lead)).filter((n: { kind: string }) => n.kind === 'critical')).toHaveLength(1);
+    // Still raised after another change: not "newly" raised, no second alert.
+    await post(app, '/api/evaluations/e-d1/overrides', qa1, { criterionId: '04', reason: 'Уточнение', value: 20 });
+    expect((await get(app, '/api/notifications', mgr)).filter((n: { kind: string }) => n.kind === 'critical')).toHaveLength(1);
+  });
+
+  it('an appeal decision that raises a critical flag alerts too', async () => {
+    const { app } = world();
+    const appeal = (await post(app, '/api/evaluations/e-d1/appeals', o1, { criterionId: '08', comment: 'x' })).json();
+    expect((await post(app, `/api/appeals/${appeal.id}/decision`, qa1, { action: 'override', reason: 'Нарушение есть', value: true })).statusCode).toBe(200);
+    expect((await get(app, '/api/notifications', mgr)).filter((n: { kind: string }) => n.kind === 'critical')).toHaveLength(1);
+  });
+
+  it('seeding the demo organisation backfills critical alerts of already evaluated dialogs to the right people', async () => {
+    const db = openDb(':memory:');
+    const app = buildApp({ db });
+    const at = new Date().toISOString();
+    for (const id of ['x1', 'x2']) db.insert(conversations).values({ id, datasetGroupId: 'g', language: 'RU', channel: 'agent chat', audioUrl: null, transcript: conv.transcript, importedAt: at }).run();
+    const raised = base.finalResults.map((r) => (r.criterionId === '08' ? { ...r, value: true } : r));
+    insertEvaluation(db, { ...base, id: 'e-x1', conversationId: 'x1', seriousViolation: true, finalResults: raised } as Evaluation); // op-1, team A
+    insertEvaluation(db, { ...base, id: 'e-x2', conversationId: 'x2' } as Evaluation); // clean
+    expect((await post(app, '/api/demo/org', who('admin', 'admin-1'))).statusCode).toBe(201);
+    const crit = async (id: string, role = 'manager') => (await get(app, '/api/notifications', who(role, id))).filter((n: { kind: string }) => n.kind === 'critical');
+    expect(await crit('mgr-a')).toEqual([expect.objectContaining({ conversationId: 'x1' })]);
+    expect(await crit('mgr-b')).toEqual([]);
+    expect(await crit('lead-1', 'lead')).toHaveLength(1);
+  });
+
+  it('re-assigning only dialogs that already have an open task is a 409; a mixed batch creates the rest', async () => {
+    const { app } = world();
+    expect((await post(app, '/api/tasks', lead, { conversationIds: ['d3'], kind: 'review' })).statusCode).toBe(201);
+    const again = await post(app, '/api/tasks', lead, { conversationIds: ['d3'], kind: 'review' });
+    expect(again.statusCode).toBe(409);
+    expect(again.json().error).toContain('already has an open task');
+    const mixed = await post(app, '/api/tasks', lead, { conversationIds: ['d3', 'd2'], kind: 'review' });
+    expect(mixed.statusCode).toBe(201);
+    expect(mixed.json().map((t: { conversationId: string }) => t.conversationId)).toEqual(['d2']);
+  });
+
+  it('closing the review task by finishing the check is in the audit log', async () => {
+    const { app } = world();
+    const [task] = (await post(app, '/api/tasks', lead, { conversationIds: ['d1'], kind: 'review', assigneeId: 'qa-1' })).json();
+    await review(app, 'd1', qa1);
+    expect(await get(app, '/api/events?type=task.done', lead)).toEqual([expect.objectContaining({ conversationId: 'd1', actorId: 'qa-1', data: expect.objectContaining({ taskId: task.id }) })]);
+  });
+});
+
+describe('review fixes: cross-check visibility', () => {
+  const results = base.finalResults.map((r) => ({ criterionId: r.criterionId, value: r.value, isNA: r.isNA }));
+
+  it('a manager sees the cross-checks on their team\'s dialogs only', async () => {
+    const { app } = world();
+    for (const d of ['d1', 'd3']) {
+      await review(app, d, qa1);
+      const [task] = (await post(app, '/api/tasks', lead, { conversationIds: [d], kind: 'crosscheck' })).json();
+      expect((await post(app, '/api/crosschecks', qa2, { taskId: task.id, results })).statusCode).toBe(201);
+    }
+    expect((await get(app, '/api/crosschecks', mgr)).map((c: { conversationId: string }) => c.conversationId)).toEqual(['d1']);
+  });
+
+  it('is blind: the second reviewer sees the AI results, not the first review, until they submit', async () => {
+    const { app } = world();
+    const ai04 = base.finalResults.find((r) => r.criterionId === '04')!.value;
+    await post(app, '/api/evaluations/e-d1/overrides', qa1, { criterionId: '04', reason: 'Иначе', value: 20 });
+    await review(app, 'd1', qa1);
+    const [task] = (await post(app, '/api/tasks', lead, { conversationIds: ['d1'], kind: 'crosscheck' })).json();
+    expect(task.assigneeId).toBe('qa-2');
+    const v04 = (e: { finalResults: { criterionId: string; value: unknown }[] }) => e.finalResults.find((r) => r.criterionId === '04')!.value;
+
+    const blindEv = await get(app, '/api/evaluations/e-d1', qa2);
+    expect(v04(blindEv)).toBe(ai04);
+    expect(blindEv.finalTotal).toBe(blindEv.originalTotal);
+    expect(v04((await get(app, '/api/evaluations?conversationId=d1', qa2))[0])).toBe(ai04);
+    expect(await get(app, '/api/evaluations/e-d1/appeals', qa2)).toEqual([]);
+    expect((await get(app, '/api/appeals', qa2)).filter((a: { evaluationId: string }) => a.evaluationId === 'e-d1')).toEqual([]);
+    expect((await get(app, '/api/conversations/d1', qa2)).review).toBeUndefined();
+    expect((await get(app, '/api/conversations', qa2)).find((c: { id: string }) => c.id === 'd1').review).toBeUndefined();
+
+    // Everyone else still sees the first review.
+    expect(v04(await get(app, '/api/evaluations/e-d1', qa1))).toBe(20);
+    expect(v04(await get(app, '/api/evaluations/e-d1', lead))).toBe(20);
+    expect((await get(app, '/api/conversations/d1', lead)).review).toMatchObject({ status: 'reviewed' });
+    expect(await get(app, '/api/evaluations/e-d1/appeals', lead)).toHaveLength(1);
+
+    expect((await post(app, '/api/crosschecks', qa2, { taskId: task.id, results })).statusCode).toBe(201);
+    expect(v04(await get(app, '/api/evaluations/e-d1', qa2))).toBe(20);
+    expect((await get(app, '/api/conversations/d1', qa2)).review).toMatchObject({ status: 'reviewed' });
+  });
+
+  it('a top manager doing a QA-of-QA check is not blinded', async () => {
+    const { app } = world();
+    await post(app, '/api/evaluations/e-d1/overrides', qa1, { criterionId: '04', reason: 'Иначе', value: 20 });
+    await review(app, 'd1', qa1);
+    await post(app, '/api/tasks', lead, { conversationIds: ['d1'], kind: 'crosscheck', assigneeId: 'lead-1' });
+    expect((await get(app, '/api/evaluations/e-d1', lead)).finalResults.find((r: { criterionId: string }) => r.criterionId === '04').value).toBe(20);
+  });
+});
+
+describe('review fixes: tags follow the taxonomy', () => {
+  it('accepts any category while the taxonomy is empty, then only its items', async () => {
+    const { app } = world();
+    expect((await post(app, '/api/tags', qa1, { evaluationId: 'e-d1', origin: 'rule', label: 'Что угодно' })).statusCode).toBe(201);
+    await post(app, '/api/taxonomy', lead, { label: 'Неполный ответ' });
+    const bad = await post(app, '/api/tags', qa1, { evaluationId: 'e-d1', origin: 'rule', label: 'Что угодно' });
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json().error).toBe('tag is not in the taxonomy');
+    expect((await post(app, '/api/tags', qa1, { evaluationId: 'e-d1', origin: 'rule', label: 'Неполный ответ' })).statusCode).toBe(201);
+    expect((await post(app, '/api/tags', qa1, { evaluationId: 'e-d1', origin: 'process' })).statusCode).toBe(201); // origin only
   });
 });

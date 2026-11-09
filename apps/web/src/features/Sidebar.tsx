@@ -23,10 +23,11 @@ type Props = {
   onNotification: (n: Notification) => void;
   onReadNotifications: () => void;
   openTasks: number;
+  onSeedDemo?: () => Promise<void>;
 };
 
 /** Slim navigation rail: tabs on top, global tools (theme, demo label) at the bottom. A top bar on narrow screens. */
-export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleTheme, demo, identity, people, onIdentity, sections, notifications, onNotification, onReadNotifications, openTasks }: Props) {
+export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleTheme, demo, identity, people, onIdentity, sections, notifications, onNotification, onReadNotifications, openTasks, onSeedDemo }: Props) {
   const ThemeIcon = theme === 'dark' ? Sun : Moon;
   const item = (id: Section, label: string, Icon: typeof MessagesSquare, href: string, count = 0) => (
     <a
@@ -36,7 +37,7 @@ export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleThe
         onNavigate(id);
       }}
       aria-current={active === id ? 'page' : undefined}
-      className={cn('flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-xs transition-colors md:w-full', active === id ? 'bg-brand-soft font-medium text-accent' : 'text-muted hover:bg-fill hover:text-ink')}
+      className={cn('flex min-h-12 min-w-14 shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-xl px-1 text-xs transition-colors md:w-full', active === id ? 'bg-brand-soft font-medium text-accent' : 'text-muted hover:bg-fill hover:text-ink')}
     >
       <span className="relative">
         <Icon aria-hidden className="size-5" />
@@ -52,7 +53,7 @@ export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleThe
         <span className="text-base font-semibold tracking-wide">CQA</span>
         <span aria-hidden className="size-2 rounded-full bg-brand" />
       </div>
-      <nav aria-label="Разделы" className="flex min-w-0 flex-1 flex-row gap-1 overflow-x-auto md:min-h-0 md:flex-1 md:flex-col md:items-center md:overflow-y-auto md:overflow-x-hidden">
+      <nav aria-label="Разделы" className="flex min-w-0 flex-1 snap-x flex-row gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:min-h-0 md:flex-1 md:flex-col md:items-center md:overflow-y-auto md:overflow-x-hidden">
         {sections.includes('dialogs') && item('dialogs', 'Диалоги', MessagesSquare, '#/')}
         {sections.includes('tasks') && item('tasks', 'Задачи', ClipboardList, '#/tasks', openTasks)}
         {sections.includes('appeals') && item('appeals', 'Апелляции', Gavel, '#/appeals', pendingAppeals)}
@@ -65,7 +66,7 @@ export function Sidebar({ active, pendingAppeals, onNavigate, theme, onToggleThe
       <div className="flex shrink-0 flex-row items-center gap-1 md:mt-auto md:flex-col">
         {demo && <span title="Вымышленные данные: демо без сервера" className="inline-flex h-6 items-center rounded-full bg-warn-soft px-2 text-xs font-medium text-warn md:mb-2">Демо</span>}
         <NotificationsBell notifications={notifications} onOpen={onNotification} onReadAll={onReadNotifications} />
-        <RolePicker identity={identity} people={people} onChange={onIdentity} />
+        <RolePicker identity={identity} people={people} onChange={onIdentity} onSeedDemo={onSeedDemo} />
         <button type="button" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'} title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} className={tool}>
           <ThemeIcon aria-hidden className="size-5" />
         </button>

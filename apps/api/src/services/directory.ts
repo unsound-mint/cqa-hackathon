@@ -1,9 +1,11 @@
 import { DirectorySchema, PersonSchema, TeamSchema, operatorScope, type Actor, type Directory, type Person, type Scope, type Team } from '@cqa/contracts';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import type { Db } from '../db/index.js';
-import { conversations, operatorAssignments, people, teams } from '../db/schema.js';
+import { conversations, evaluations, operatorAssignments, people, teams } from '../db/schema.js';
 import { ApiError } from './errors.js';
+import { toEvaluation } from './evaluations.js';
 import { logEvent } from './events.js';
+import { notifyCritical } from './notifications.js';
 
 export function getDirectory(db: Db): Directory {
   return DirectorySchema.parse({
@@ -75,6 +77,11 @@ export function seedDemoOrg(db: Db, actor?: Actor): { people: number; assigned: 
     const free = tx.select({ id: conversations.id }).from(conversations).all().map((c) => c.id).filter((id) => !tx.select().from(operatorAssignments).where(eq(operatorAssignments.conversationId, id)).get());
     const at = new Date().toISOString();
     free.forEach((conversationId, i) => tx.insert(operatorAssignments).values({ conversationId, operator: ops[i % ops.length]!.id, assignedBy: 'демо', assignedAt: at }).run());
+    // Dialogs evaluated before anyone was responsible for them: their critical alerts reach the new managers now.
+    for (const { id } of tx.select({ id: conversations.id }).from(conversations).all()) {
+      const latest = tx.select().from(evaluations).where(eq(evaluations.conversationId, id)).orderBy(desc(evaluations.createdAt), desc(evaluations.id)).get();
+      if (latest) notifyCritical(db, toEvaluation(latest), { tx, once: true });
+    }
     logEvent(tx, actor, { type: 'directory.changed', summary: `Создана демонстрационная команда (вымышленные сотрудники), диалогов распределено: ${free.length}`, data: { demo: true } });
     return { people: 4 + 4 + ops.length, assigned: free.length };
   });
