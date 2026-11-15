@@ -1,9 +1,8 @@
-# Append to the host Caddyfile. Generate the hash with: caddy hash-password
-# The host runs Caddy 2.6, which only knows "basicauth"; newer versions accept it as an alias of basic_auth.
+# Append to the host Caddyfile, then: sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+# The public demo has no login, so deploy/.env must not hold ANTHROPIC_API_KEY: without it nobody can spend
+# credits, and stored evaluations, rules and reused results still work. To put a password back in front of
+# it, add a basicauth block (Caddy 2.6 on the host only knows "basicauth"; generate the hash with caddy hash-password).
 cqa.unsoundmint.com {
 	encode zstd gzip
-	basicauth {
-		cqa <bcrypt-hash>
-	}
 	reverse_proxy 127.0.0.1:8787
 }
