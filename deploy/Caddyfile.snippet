@@ -1,7 +1,8 @@
 # Append to the host Caddyfile. Generate the hash with: caddy hash-password
+# The host runs Caddy 2.6, which only knows "basicauth"; newer versions accept it as an alias of basic_auth.
 cqa.unsoundmint.com {
 	encode zstd gzip
-	basic_auth {
+	basicauth {
 		cqa <bcrypt-hash>
 	}
 	reverse_proxy 127.0.0.1:8787
